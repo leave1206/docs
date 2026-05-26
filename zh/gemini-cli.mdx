@@ -123,7 +123,7 @@ curl https://llm.bytespike.ai/v1/tasks/submit \
 |---|---|---|
 | `401 API key not valid` | key 错了或者缺 query 参数 | 确认 `?key=sk-byts-...` 写对了且没漏 |
 | `403 PERMISSION_DENIED` | 模型不在 key 的分组里 | 换到 `gemini-default` 分组或选别的模型 |
-| `404 NOT_FOUND`（模型） | model id 拼错 —— 注意命名只用短横线（`gemini-2-5-pro`，而不是某些调用约定里的 `gemini-2-5-pro`） | 用 `/api/v1/me/available-models` 里返回的 slug |
+| `404 NOT_FOUND`（模型） | model id 拼错 —— ByteSpike 用短横线形式（`gemini-2-5-pro`），不是 Google 的点分形式（`gemini-2.5-pro`） | 用 `/api/v1/me/available-models` 里返回的 slug |
 | 流式打完第一块就断 | 部分 CLI 默认打非流式端点；检查 `:streamGenerateContent` 后缀 | 切到 `streamGenerateContent` |
 
 ## 下一步

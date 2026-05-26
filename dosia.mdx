@@ -1,0 +1,139 @@
+---
+title: "DOSIA"
+description: "DOSIA is ByteSpike's first-party desktop AI client. Two modes: personal (you bring a ByteSpike key) or enterprise (admin-provisioned, lark SSO, auto-allowed models)."
+---
+
+DOSIA is ByteSpike's own desktop client — a multi-model chat app with
+image/video generation, vision, MCP tool calling, and an agent loop.
+It speaks every protocol ByteSpike serves, so the same key reaches
+Claude, GPT-5, Gemini, DeepSeek, Doubao, Kimi, GLM, MiniMax, Seedream,
+Sora, Veo, Seedance — without per-vendor reconfiguration.
+
+Two ways to wire it up:
+
+- **Personal mode** — install DOSIA, paste your own `sk-byts-...` key, pick models. This page covers that path.
+- **Enterprise mode** — admin pre-provisions you via lark SSO, DOSIA auto-picks up the allowed model set, no manual key. See [Employee onboarding](/employee-onboarding) for the enterprise flow.
+
+## Install
+
+<Tabs>
+  <Tab title="macOS">
+    Download the latest dmg from
+    [github.com/leave1206/dosia-releases](https://github.com/leave1206/dosia-releases/releases/latest):
+
+    - Apple Silicon (M1/M2/M3/M4): `DOSIA-x.y.z-arm64.dmg`
+    - Intel: `DOSIA-x.y.z.dmg`
+
+    Drag DOSIA into `/Applications`, then launch.
+
+    <Warning>
+    First-launch may report **"file is damaged"** or **"from an
+    unidentified developer"** — that's macOS Gatekeeper blocking an
+    un-notarized dmg, not a real issue. Fix:
+
+    ```bash
+    xattr -cr /Applications/DOSIA.app
+    ```
+
+    Then relaunch.
+    </Warning>
+  </Tab>
+  <Tab title="Windows / Linux">
+    Builds tracked in the same release page. If your platform isn't
+    listed, file a request in the repo's issues — Mac is the primary
+    target today.
+  </Tab>
+</Tabs>
+
+## Personal mode setup
+
+<Steps>
+  <Step title="Get a ByteSpike key">
+    [console.bytespike.ai/keys](https://console.bytespike.ai/keys) → **Create key**.
+    Pick the routing group based on what you want DOSIA to reach (`claude-default` for Claude, `gemini-default` for Gemini, `volcengine-default` for DeepSeek/Doubao, etc.).
+    See [Channels](/concepts/channels) for the group-vs-model map.
+  </Step>
+  <Step title="Open DOSIA Settings">
+    Top menu: **DOSIA → Settings** (shortcut `⌘,` on Mac).
+  </Step>
+  <Step title="Stay in Personal mode">
+    **Deploy Mode** stays on **Personal** (the default). Enterprise mode is for SSO-managed accounts — see [Employee onboarding](/employee-onboarding) if your admin gave you a backend URL.
+  </Step>
+  <Step title="Add ByteSpike as a provider">
+    **Settings → AI Models → Add Provider → "ByteSpike"**.
+
+    | Field | Value |
+    |---|---|
+    | Base URL | `https://llm.bytespike.ai` |
+    | API key | your `sk-byts-...` |
+    | Protocol | Anthropic Messages (or OpenAI Chat Completions — either works against the same key) |
+
+    DOSIA will hit `/v1/models` against ByteSpike to fetch the
+    list of models your key can actually reach. Wait a couple seconds
+    for the dropdown to populate.
+  </Step>
+  <Step title="Pick a model + chat">
+    Back in the main chat box, pick any model in the dropdown ("Claude Sonnet 4.6" / "GPT-5.5" / "Gemini 3.1 Pro" / etc.). Type a message, hit enter.
+  </Step>
+</Steps>
+
+## What works in DOSIA
+
+| Feature | Backed by |
+|---|---|
+| Text chat | All text models (Claude / GPT / Gemini / DeepSeek / Kimi / GLM / MiniMax / Doubao) |
+| Vision (drag image into chat) | DOSIA's `analyze_image` MCP tool calls a vision model (Claude / GPT-4o / Gemini) |
+| Image generation ("draw a ...") | `generate_image` MCP tool routes to Nano Banana / Seedream / GPT-Image |
+| Video generation ("generate a video of ...") | `generate_video` MCP tool routes to Sora / Veo / Seedance |
+| Agent (multi-step task) | DOSIA's agent loop calls `tool_use` / function calling across providers |
+| MCP plugins | DOSIA bundles 9 official plugins (Lark, browser automation, meeting analysis, knowledge base, etc.) — see [github.com/leave1206/dosia-plugins](https://github.com/leave1206/dosia-plugins) |
+
+For the routing model (how the agent decides which model handles
+which step), see [DOSIA Agent mode](/concepts/dosia-agent-mode).
+For the MCP bridge between DOSIA and the model side, see
+[MCP integration](/concepts/mcp-integration).
+
+## Switching models
+
+Each chat thread remembers the model it was opened with. Switch at
+the top of the chat box — the dropdown shows every model your key
+can reach. Image / video model picks happen inside the respective
+tool calls; you don't need to set them per-thread.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| "Failed to fetch models" after adding provider | Key invalid or wrong group | Copy a fresh key from console; confirm group serves the models you expected |
+| Model dropdown empty | Key has 0 allowed models | Check the key's `group_id` in console; pick a non-empty group |
+| Image / video tool button greyed out | The MCP plugin isn't enabled in DOSIA settings | **Settings → MCP** → enable `image-tools` / `video-tools` |
+| Vision drag-drop returns 400 | The chosen text model doesn't support image input | Switch the chat to `claude-sonnet-4-6`, `gpt-4o`, or `gemini-2-5-pro` |
+| "insufficient_balance" | Key (or org wallet) is out of credits | Top up at [console.bytespike.ai/billing](https://console.bytespike.ai/billing) |
+| Slow first token | Cold start on a cross-protocol translation route | Warm with a small request first, or stick to a native protocol for hot path |
+
+## Enterprise mode (lark SSO)
+
+If your company runs DOSIA centrally: admin provisions the enterprise
+backend URL, DOSIA flips into Enterprise mode, lark SSO logs you in,
+the allowed model set syncs automatically — no per-user key. The
+full setup is in [Employee onboarding](/employee-onboarding).
+
+The admin side (granting employees, monitoring usage, configuring
+allowed groups) is documented in [Admin operations](/admin-operations).
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Employee onboarding" icon="user-plus" href="/employee-onboarding">
+    Enterprise / SSO path.
+  </Card>
+  <Card title="DOSIA Agent mode" icon="robot" href="/concepts/dosia-agent-mode">
+    How DOSIA's agent loop picks models per step.
+  </Card>
+  <Card title="MCP integration" icon="puzzle-piece" href="/concepts/mcp-integration">
+    The bridge between DOSIA's tool plugins and the model side.
+  </Card>
+  <Card title="Configure your client" icon="terminal" href="/configure-client">
+    Wire any other client (Claude Code / Codex / Cursor / SDK).
+  </Card>
+</CardGroup>

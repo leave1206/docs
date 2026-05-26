@@ -32,7 +32,7 @@ DOSIA Agent 的请求落到 `https://llm.bytespike.ai/v1/messages`，用标准 A
 
 DOSIA 在 system prompt 和稳定上下文（workspace 树、最近编辑）上加的 `cache_control: { type: "ephemeral" }` 标记会透传到任意服务该请求的上游 channel —— 见下文 [按 provider 的 cache_control 说明](#cache_control-per-provider)。
 
-## Agent 模式能调哪些模型
+## Agent 模式能调哪些模型 [#which-models-agent-mode-can-target]
 
 ByteSpike 通过 model-alias 层和 channel 层一起解析 `model` 字段。Agent 模式享受和其他请求一样的多 channel 路由 —— 但协议把可选集合限定到 **暴露 Anthropic Messages 表面的上游**。
 
@@ -74,7 +74,7 @@ GPT 和 Gemini **不** 在此列。两家都不暴露原生 Anthropic Messages e
 
 这是已知的限制。当前推荐：不管目标是哪个上游，都在你的 DOSIA Agent system prompt 里保留 `cache_control` 标记 —— 被忽略时是免费的，上游一旦获得支持就自动激活。
 
-## DeepSeek 注意事项
+## DeepSeek 注意事项 [#deepseek-caveats]
 
 DOSIA Agent 对 `deepseek-v4-pro` / `deepseek-v4-flash` 当下完全支持，有三个注意点：
 

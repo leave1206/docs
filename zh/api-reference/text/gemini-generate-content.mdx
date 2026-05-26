@@ -106,7 +106,7 @@ X-Quota-Remaining-Credits: 192.40
 
 详见 [API 参考总览](/zh/api-reference/overview#conventions)。
 
-## 流式
+## 流式 [#streaming]
 
 用配套路径 `:streamGenerateContent`：
 
@@ -133,7 +133,7 @@ data: {"candidates":[{"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount
 
 （不带 `alt=sse` 时，响应是一个 JSON 数组的帧 —— SDK 的默认行为。）
 
-## 工具调用
+## 工具调用 [#tool-calling]
 
 Gemini 的 `tools[].functionDeclarations[]` 形状。两次请求轮转：
 

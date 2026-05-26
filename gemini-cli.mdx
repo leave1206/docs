@@ -125,7 +125,7 @@ the [Veo 3.1 model page](/models/veo3-1).
 |---|---|---|
 | `401 API key not valid` | Wrong key or missing query param | Verify `?key=sk-byts-...` is present and correct |
 | `403 PERMISSION_DENIED` | Model not in key's group | Switch to `gemini-default` group or pick another model |
-| `404 NOT_FOUND` (model) | Model id typo — note dashes-only naming (`gemini-2-5-pro` not `gemini-2-5-pro` in some calling conventions) | Use the slugs from `/api/v1/me/available-models` |
+| `404 NOT_FOUND` (model) | Model id typo — ByteSpike uses the dashed form (`gemini-2-5-pro`), not Google's dotted form (`gemini-2.5-pro`) | Use the slugs from `/api/v1/me/available-models` |
 | Stream cuts after first chunk | Some CLIs default to non-streaming endpoint; check the `:streamGenerateContent` suffix | Switch to `streamGenerateContent` |
 
 ## Next

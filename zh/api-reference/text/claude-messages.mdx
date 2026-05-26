@@ -112,7 +112,7 @@ X-Quota-Remaining-Credits: 192.40
 
 要拿到本次请求的实际成本，查 [`GET /api/v1/usage`](/zh/api-reference/account/me-usage) —— 它返回每次调用的 prompt + completion tokens 以及最终计费 `credits`。
 
-## 流式
+## 流式 [#streaming]
 
 设 `"stream": true`。响应是标准 Anthropic 格式的 SSE：
 
@@ -262,7 +262,7 @@ URL 输入：
 
 非视觉模型对图像块返回 400；通过 [`GET /v1/models`](../utility/v1-models) 查看模型的能力标签。
 
-## 跨模型路由
+## 跨模型路由 [#cross-model-routing]
 
 本端点的 `model` 字段接受 **任意** ByteSpike 目录模型 —— 网关在底下透明地把请求翻译成上游协议。按你想要的延迟 / 成本 / 能力组合挑选：
 

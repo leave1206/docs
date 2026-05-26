@@ -113,7 +113,7 @@ X-Quota-Remaining-Credits: 192.40
 
 详见 [API 参考总览](/zh/api-reference/overview#conventions)。
 
-## 流式
+## 流式 [#streaming]
 
 设 `"stream": true`。响应是 SSE，`data: {json}` 行加结尾 `data: [DONE]`：
 
@@ -131,7 +131,7 @@ data: [DONE]
 
 设了 `stream_options: {"include_usage": true}` 时，token 用量会在最后一个非 `[DONE]` 帧里返回。
 
-## 工具调用
+## 工具调用 [#tool-calling]
 
 工具遵循 OpenAI 的 `function` 形状。两次请求轮转：
 
@@ -244,7 +244,7 @@ data: [DONE]
 
 支持该字段的模型上，`detail`（`"low"` / `"high"` / `"auto"`）会被尊重。
 
-## 跨模型路由
+## 跨模型路由 [#cross-model-routing]
 
 本端点的 `model` 字段接受 **任意** ByteSpike 目录模型 —— 网关透明地把 OpenAI 形状翻译成上游协议：
 

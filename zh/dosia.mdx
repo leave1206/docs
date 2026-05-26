@@ -1,0 +1,130 @@
+---
+title: "DOSIA"
+description: "DOSIA 是 ByteSpike 的官方桌面 AI 客户端。两种模式：个人模式（你自己提供 ByteSpike key）或企业模式（admin 预置、飞书 SSO、自动拿到允许模型）。"
+---
+
+DOSIA 是 ByteSpike 自家的桌面客户端 —— 一个多模型聊天 app，集成
+图像/视频生成、视觉、MCP 工具调用、agent 循环。它支持 ByteSpike
+服务的所有协议，所以同一个 key 就能触达 Claude、GPT-5、Gemini、
+DeepSeek、Doubao、Kimi、GLM、MiniMax、Seedream、Sora、Veo、
+Seedance —— 无需每家厂商单独配置。
+
+两种接入方式：
+
+- **个人模式** —— 安装 DOSIA，粘贴你自己的 `sk-byts-...` key，选模型。本页讲的就是这条路径。
+- **企业模式** —— admin 通过飞书 SSO 预先开通，DOSIA 自动拿到允许的模型集，无需手动配 key。企业流程见 [员工 onboarding](/zh/employee-onboarding)。
+
+## 安装
+
+<Tabs>
+  <Tab title="macOS">
+    从 [github.com/leave1206/dosia-releases](https://github.com/leave1206/dosia-releases/releases/latest)
+    下载最新 dmg：
+
+    - Apple Silicon (M1/M2/M3/M4)：`DOSIA-x.y.z-arm64.dmg`
+    - Intel：`DOSIA-x.y.z.dmg`
+
+    把 DOSIA 拖到 `/Applications`，启动。
+
+    <Warning>
+    首次启动可能报 **"文件已损坏"** 或 **"来自身份不明的开发者"** —— 这是 macOS Gatekeeper
+    拦截未公证的 dmg，不是 app 本身的问题。修复：
+
+    ```bash
+    xattr -cr /Applications/DOSIA.app
+    ```
+
+    再重新打开。
+    </Warning>
+  </Tab>
+  <Tab title="Windows / Linux">
+    同一 release 页面跟进。若你的平台没列出，去 repo issues 提一下 —— 目前主要目标是 Mac。
+  </Tab>
+</Tabs>
+
+## 个人模式配置
+
+<Steps>
+  <Step title="拿到 ByteSpike key">
+    [console.bytespike.ai/keys](https://console.bytespike.ai/keys) → **创建 key**。
+    按你希望 DOSIA 触达哪些模型挑路由分组（Claude 用 `claude-default`，Gemini 用 `gemini-default`，
+    DeepSeek/Doubao 用 `volcengine-default`，等等）。分组到模型的映射见 [Channels](/zh/concepts/channels)。
+  </Step>
+  <Step title="打开 DOSIA 设置">
+    顶部菜单：**DOSIA → 设置**（Mac 快捷键 `⌘,`）。
+  </Step>
+  <Step title="保留 Personal 模式">
+    **Deploy Mode** 保持默认的 **Personal**。Enterprise 模式是给 SSO 管理账户用的 —— 如果你的 admin 给了一个后端 URL，看 [员工 onboarding](/zh/employee-onboarding)。
+  </Step>
+  <Step title="把 ByteSpike 加成 provider">
+    **设置 → AI Models → Add Provider → "ByteSpike"**。
+
+    | 字段 | 值 |
+    |---|---|
+    | Base URL | `https://llm.bytespike.ai` |
+    | API key | 你的 `sk-byts-...` |
+    | 协议 | Anthropic Messages（或 OpenAI Chat Completions —— 同一个 key 都能用） |
+
+    DOSIA 会请求 ByteSpike 的 `/v1/models` 拿到 key 实际能触达的模型列表。等几秒 dropdown 会填充。
+  </Step>
+  <Step title="选模型 + 开聊">
+    回到主聊天框，在 dropdown 里选任意模型（"Claude Sonnet 4.6" / "GPT-5.5" / "Gemini 3.1 Pro" 等）。
+    输入消息回车即可。
+  </Step>
+</Steps>
+
+## DOSIA 里能做什么
+
+| 功能 | 背后 |
+|---|---|
+| 文本对话 | 所有文本模型（Claude / GPT / Gemini / DeepSeek / Kimi / GLM / MiniMax / Doubao） |
+| 视觉（拖图进聊天框） | DOSIA 的 `analyze_image` MCP 工具调用视觉模型（Claude / GPT-4o / Gemini） |
+| 图像生成（"画一张 …"） | `generate_image` MCP 工具路由到 Nano Banana / Seedream / GPT-Image |
+| 视频生成（"生成一段视频 …"） | `generate_video` MCP 工具路由到 Sora / Veo / Seedance |
+| Agent（多步任务） | DOSIA 的 agent 循环跨 provider 调 `tool_use` / function calling |
+| MCP 插件 | DOSIA 内置 9 个官方插件（飞书集成、浏览器自动化、会议分析、知识库等） —— 见 [github.com/leave1206/dosia-plugins](https://github.com/leave1206/dosia-plugins) |
+
+agent 如何决定每一步用哪个模型，见 [DOSIA Agent mode](/zh/concepts/dosia-agent-mode)。
+DOSIA 与模型侧之间的 MCP bridge，见 [MCP 集成](/zh/concepts/mcp-integration)。
+
+## 切换模型
+
+每个聊天线程会记住它打开时用的模型。在聊天框顶部切换 —— dropdown
+列出 key 能触达的所有模型。图像 / 视频模型的选择发生在对应工具
+调用内部，不需要按线程设。
+
+## 排错
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| 添加 provider 后报"Failed to fetch models" | key 无效或分组错 | 从 console 复制一把新 key；确认分组确实服务你预期的模型 |
+| 模型 dropdown 是空的 | key 允许的模型数为 0 | 在 console 检查 key 的 `group_id`；换个非空分组 |
+| 图像 / 视频工具按钮置灰 | DOSIA 设置里 MCP 插件没启用 | **设置 → MCP** → 启用 `image-tools` / `video-tools` |
+| 视觉拖拽返回 400 | 当前文本模型不支持图像输入 | 把聊天切换到 `claude-sonnet-4-6`、`gpt-4o` 或 `gemini-2-5-pro` |
+| "insufficient_balance" | key（或组织钱包）credits 耗尽 | 去 [console.bytespike.ai/billing](https://console.bytespike.ai/billing) 充值 |
+| 首个 token 慢 | 跨协议翻译路径冷启动 | 先发一个小请求暖一下，或者热路径固定到原生协议 |
+
+## 企业模式（飞书 SSO）
+
+如果你的公司统一部署 DOSIA：admin 配置企业后端 URL，DOSIA 切到
+Enterprise 模式，飞书 SSO 自动登录，允许的模型集自动同步 ——
+不需要逐用户配 key。完整流程见 [员工 onboarding](/zh/employee-onboarding)。
+
+Admin 侧（开通员工、监控用量、配允许分组）见 [管理员运营手册](/zh/admin-operations)。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="员工 onboarding" icon="user-plus" href="/zh/employee-onboarding">
+    企业 / SSO 路径。
+  </Card>
+  <Card title="DOSIA Agent 模式" icon="robot" href="/zh/concepts/dosia-agent-mode">
+    DOSIA agent 循环如何按步骤选模型。
+  </Card>
+  <Card title="MCP 集成" icon="puzzle-piece" href="/zh/concepts/mcp-integration">
+    DOSIA 工具插件和模型侧之间的 bridge。
+  </Card>
+  <Card title="配置你的客户端" icon="terminal" href="/zh/configure-client">
+    接入其他客户端（Claude Code / Codex / Cursor / SDK）。
+  </Card>
+</CardGroup>
