@@ -29,11 +29,37 @@ Three protocols hit the same gateway. Pick whichever your client speaks
 natively — billing, throttling, and credit accounting are identical
 across all three.
 
-| Protocol | Base URL | When to use |
+The URL you use depends on whether you're driving an **SDK** (which
+auto-appends the endpoint path) or hand-rolling **curl / REST** (where
+you write the full path yourself).
+
+### SDK base URL
+
+Set this as `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` / Gemini client
+endpoint. The SDK appends `/v1/messages`, `/chat/completions`, or
+`/models/{model}:generateContent` for you.
+
+| Protocol | SDK base URL | Typical clients |
 |---|---|---|
-| **Anthropic Messages** | `https://llm.bytespike.ai` | Claude Code, Claude Desktop, anything in the Anthropic SDK |
-| **OpenAI Chat Completions** | `https://llm.bytespike.ai/v1` | OpenAI SDK, Cherry Studio, NextChat, LobeChat, Python `openai` lib |
+| **Anthropic Messages** | `https://llm.bytespike.ai` | Claude Code, Claude Desktop, Anthropic SDK |
+| **OpenAI Chat Completions** | `https://llm.bytespike.ai/v1` | OpenAI SDK, Cherry Studio, NextChat, LobeChat |
 | **Gemini Native** | `https://llm.bytespike.ai/v1beta` | Google AI Studio examples, vertex-compat clients |
+
+### Full endpoint (curl / REST) [#full-endpoint]
+
+If you're calling the gateway with `curl` or any client that needs the
+literal request URL, use the full endpoint instead. **This is what the
+console's `Keys → EndpointBanner` copies.**
+
+| Protocol | Full endpoint |
+|---|---|
+| **Anthropic** | `https://llm.bytespike.ai/v1/messages` |
+| **OpenAI**    | `https://llm.bytespike.ai/v1/chat/completions` |
+| **Gemini**    | `https://llm.bytespike.ai/v1beta/models/{model}:generateContent` |
+
+Gemini's path needs the model id baked into the URL (e.g.
+`gemini-2.5-pro:generateContent`); the other two take the model in the
+JSON body.
 
 ## 3. Set the env vars
 
@@ -59,6 +85,20 @@ across all three.
         messages=[{"role": "user", "content": "hi"}],
     )
     ```
+
+    Or, with the full endpoint via curl:
+
+    ```bash
+    curl https://llm.bytespike.ai/v1/messages \
+      -H "x-api-key: sk-byts-..." \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "hi"}]
+      }'
+    ```
   </Tab>
 
   <Tab title="OpenAI Chat Completions">
@@ -81,6 +121,18 @@ across all three.
     ```bash
     export OPENAI_BASE_URL=https://llm.bytespike.ai/v1
     export OPENAI_API_KEY=sk-byts-...
+    ```
+
+    Full endpoint via curl:
+
+    ```bash
+    curl https://llm.bytespike.ai/v1/chat/completions \
+      -H "Authorization: Bearer sk-byts-..." \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-4",
+        "messages": [{"role": "user", "content": "hi"}]
+      }'
     ```
   </Tab>
 
