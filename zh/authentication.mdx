@@ -1,0 +1,159 @@
+---
+title: "鉴权"
+description: "API key 格式、三种协议的请求头、key 生命周期管理，以及 per-key 控制（分组绑定、配额、速率限制、IP 白名单）。"
+---
+
+## Key 格式
+
+所有 ByteSpike key 都以 `sk-byts-` 开头。在
+[Console → API keys](https://console.bytespike.ai/keys) 生成；明文密钥只在
+创建时**展示一次**，之后被掩码。要事后取回明文，在 console 用 per-key 揭示
+流程，或者在管理 API 上调 `GET /v1/keys/{id}/reveal`。
+
+```
+sk-byts-AbCdEf0123456789...
+```
+
+请把 key 当作数据库密码对待。不要 commit 到 git、不要在服务端日志里打出来、
+不要塞到浏览器 bundle 里。网关在数据库里只存前缀-后缀对的 hash —— key 泄露
+后秒级可撤销，但泄露内容本身不可恢复。
+
+## 各协议的请求头布局
+
+ByteSpike 接受你所调用协议的原生鉴权头。同一个 key 三种协议都能用 —— 挑你
+客户端能讲的那种。
+
+| 协议 | 请求头 | 示例 |
+|---|---|---|
+| Anthropic Messages | `x-api-key` | `x-api-key: sk-byts-...` |
+| OpenAI Chat Completions / Responses | `Authorization: Bearer` | `Authorization: Bearer sk-byts-...` |
+| Gemini Native | query 参数 `?key=` | `?key=sk-byts-...` |
+
+你也可以在 Anthropic 端点上发 `Authorization: Bearer`，或者在 OpenAI 端点上
+发 `x-api-key` —— 网关在两条路由上都接受两种形式。如果同时存在，`x-api-key`
+优先。
+
+网关绝不读取请求 body 来发现凭证。
+
+## Per-key 控制
+
+每个 key 都有自己的配置，创建时设定，之后可在 console 修改：
+
+| 字段 | 作用 | 默认值 |
+|---|---|---|
+| `name` | console 里的显示标签 —— 挑个好记的，比如 `prod-vision-pipeline` | 必填 |
+| `group_id` | 该 key 可触达的 channel 路由分组。选 `claude-default` 意味着 key 只能调 Claude 池里服务的模型；`volcengine-default` 只能路由到 DeepSeek + Doubao。详见 [Channels](/concepts/channels)。 | 必填（每 key 单值） |
+| `quota` | 终身消费的硬上限（USD）。`0` = 不限。 | `0` |
+| `expires_in_days` | N 天后自动撤销。 | 永不 |
+| `rate_limit_5h` | 滚动 5 小时窗口的 USD 上限。`0` = 不限。 | `0` |
+| `rate_limit_1d` | 滚动 24 小时窗口的 USD 上限。 | `0` |
+| `rate_limit_7d` | 滚动 7 天窗口的 USD 上限。 | `0` |
+| `ip_whitelist` | 允许该 key 调用的 CIDR 块列表。空 = 全部允许。 | `[]` |
+| `ip_blacklist` | 明确拒绝的 CIDR 块列表。 | `[]` |
+| `custom_key` | 可选 —— 自己指定密文字符串而不是让网关生成。在从其他 provider 的 key 体系迁移时有用。 | 网关生成 |
+
+一个 key **只绑定一个** 路由分组 —— 目前没有多分组绑定。如果你需要单个客户端
+访问多个分组（例如 Claude + DeepSeek），就按分组各建一把 key，按请求选用；
+或者调用配置了跨分组兜底的模型。
+
+## Key 生命周期
+
+### 创建
+
+```bash
+curl https://llm.bytespike.ai/api/v1/keys \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "name": "prod-vision-pipeline",
+    "group_id": 11,
+    "quota": 200,
+    "rate_limit_5h": 50,
+    "ip_whitelist": ["52.0.0.0/8"],
+    "expires_in_days": 90
+  }'
+```
+
+响应包含明文 key —— 拿到一次后加密存好。后续通过 `GET /v1/keys` 读到的是
+掩码形式（`sk-byts-...****1234`）。
+
+### 轮换
+
+`POST /v1/keys/{id}/rotate` 原地重新生成密文。旧密文在轮换时**立即**失效 ——
+没有重叠窗口。部署时需要相应安排：先更新 config + 在新密文上验证，再触发
+rotate；或者用两把 key 错峰轮换。
+
+### 揭示
+
+`GET /v1/keys/{id}/reveal` 返回你已经有权访问的 key 的明文。适用于运维者
+丢失自己副本但仍持有有效会话的恢复场景。
+
+### 删除
+
+`DELETE /v1/keys/{id}` —— 立即生效，不可撤销。正在 in-flight 的请求会在
+流中被 401 中断。
+
+## 失败场景
+
+错误信封的格式匹配你调用的协议。Anthropic 形式：
+
+```json
+{
+  "type": "error",
+  "error": { "type": "authentication_error", "message": "invalid x-api-key" }
+}
+```
+
+OpenAI 形式：
+
+```json
+{
+  "error": {
+    "type": "invalid_request_error",
+    "code": "invalid_api_key",
+    "message": "invalid x-api-key"
+  }
+}
+```
+
+| 场景 | HTTP | OpenAI `code` | Anthropic `type` |
+|---|---|---|---|
+| key 缺失或格式错 | 401 | `invalid_api_key` | `authentication_error` |
+| key 已撤销 / 删除 | 401 | `invalid_api_key` | `authentication_error` |
+| key 有效但已过期 | 401 | `invalid_api_key` | `authentication_error` |
+| IP 不在 `ip_whitelist` 内 | 403 | `permission_denied` | `permission_error` |
+| IP 命中 `ip_blacklist` | 403 | `permission_denied` | `permission_error` |
+| 配额 / 速率限制耗尽 | 402 | `insufficient_balance` | `permission_error` |
+| 模型不在 key 的路由分组内 | 503 | `api_error` (no available account) | `api_error` |
+
+以上任何一种都不计费 —— 失败不消耗 credits。
+
+## 通过程序管理 key
+
+完整的管理接口在 `/api/v1/keys` 下。Cookie 鉴权（来自 console）和
+`x-api-key` 鉴权（用任意活动 key）都支持。
+
+| Verb + 路径 | 作用 |
+|---|---|
+| `GET /api/v1/keys` | 列出你的 key（密文掩码） |
+| `GET /api/v1/keys/{id}` | 单个 key（掩码） |
+| `GET /api/v1/keys/{id}/reveal` | 明文（慎用） |
+| `POST /api/v1/keys` | 创建 |
+| `PUT /api/v1/keys/{id}` | 更新 name / quota / 速率限制 / IP 规则 / 状态 |
+| `POST /api/v1/keys/{id}/rotate` | 原地重新生成密文 |
+| `DELETE /api/v1/keys/{id}` | 硬删除 |
+
+## 上线前测试 key
+
+[Console → Models](https://console.bytespike.ai/dosia/models) 每个模型旁都
+有 **Test** 按钮。Console 会从你的 key 集合中自动挑出正确的那把 —— 即
+`group_id` 与该模型实际匹配的那把。这里返回 200 就证明 key + 分组 + 上游
+三者匹配，再接入客户端。
+
+也可以从 API 触发测试拨号：
+
+```bash
+curl https://llm.bytespike.ai/api/v1/dial/test \
+  -H "Cookie: $SESSION_COOKIE" \
+  -d '{"model": "claude-sonnet-4-6", "protocol": "anthropic", "keyId": 42}'
+```

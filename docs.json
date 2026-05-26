@@ -32,247 +32,273 @@
     }
   },
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "Documentation",
-        "groups": [
+        "language": "en",
+        "default": true,
+        "tabs": [
           {
-            "group": "Get started",
-            "pages": [
-              "introduction",
-              "quickstart",
-              "register",
-              "top-up",
-              "configure-client",
-              "authentication",
-              "pricing",
-              "troubleshooting"
+            "tab": "Documentation",
+            "groups": [
+              {
+                "group": "Get started",
+                "pages": [
+                  "introduction",
+                  "quickstart",
+                  "register",
+                  "top-up",
+                  "configure-client",
+                  "authentication",
+                  "pricing",
+                  "troubleshooting"
+                ]
+              },
+              {
+                "group": "Client setup",
+                "pages": [
+                  "claude-code-cli",
+                  "codex-cli",
+                  "gemini-cli",
+                  "cursor"
+                ]
+              },
+              {
+                "group": "Migrate from",
+                "pages": [
+                  "migrate-from-openai",
+                  "migrate-from-anthropic"
+                ]
+              },
+              {
+                "group": "Concepts",
+                "pages": [
+                  "concepts/endpoints",
+                  "concepts/channels",
+                  "concepts/platforms-vs-channels",
+                  "concepts/legacy-compat-names",
+                  "concepts/provider-comparison",
+                  "concepts/vendor-compat-multi-endpoint",
+                  "concepts/dosia-agent-mode",
+                  "concepts/mcp-integration",
+                  "concepts/credits-and-billing",
+                  "concepts/multimodal",
+                  "concepts/streaming",
+                  "concepts/rate-limits",
+                  "concepts/error-handling",
+                  "concepts/errors-reference"
+                ]
+              },
+              {
+                "group": "Models",
+                "pages": [
+                  "models/index",
+                  "models/claude-haiku-4-5",
+                  "models/claude-sonnet-4-6",
+                  "models/claude-opus-4-7",
+                  "models/gpt-4o-mini",
+                  "models/gpt-4o",
+                  "models/gpt-4v",
+                  "models/gpt-5-2",
+                  "models/gpt-5-3-codex",
+                  "models/gpt-5-4-mini",
+                  "models/gpt-5-4",
+                  "models/gpt-5-5",
+                  "models/gemini-2-5-flash",
+                  "models/gemini-2-5-pro",
+                  "models/gemini-3-1-pro",
+                  "models/deepseek-v3-2",
+                  "models/deepseek-v3-anthropic",
+                  "models/deepseek-v4-flash",
+                  "models/deepseek-v4-pro",
+                  "models/deepseek-r1",
+                  "models/doubao-seed-2-0-pro",
+                  "models/glm-5",
+                  "models/kimi-k2-6",
+                  "models/minimax-m2-7",
+                  "models/nano-banana",
+                  "models/nano-banana-v2",
+                  "models/gpt-image-2",
+                  "models/seedream-4",
+                  "models/seedream-4-5",
+                  "models/seedream-v5lite",
+                  "models/sora2",
+                  "models/sora2-pro",
+                  "models/veo3-1",
+                  "models/veo3-1-fast",
+                  "models/seedance-1-5-pro",
+                  "models/seedance-2-0-pro",
+                  "models/seedance-2-0-pro-fast",
+                  "models/seedance-2-0-fast"
+                ]
+              },
+              {
+                "group": "Providers",
+                "pages": [
+                  "providers/anthropic",
+                  "providers/openai",
+                  "providers/gemini",
+                  "providers/deepseek",
+                  "providers/volcengine-codeplan"
+                ]
+              },
+              {
+                "group": "Internal (DOSIA-coupled)",
+                "pages": [
+                  "employee-onboarding",
+                  "admin-operations"
+                ]
+              }
             ]
           },
           {
-            "group": "Client setup",
-            "pages": [
-              "claude-code-cli",
-              "codex-cli",
-              "gemini-cli",
-              "cursor"
-            ]
-          },
-          {
-            "group": "Migrate from",
-            "pages": [
-              "migrate-from-openai",
-              "migrate-from-anthropic"
-            ]
-          },
-          {
-            "group": "Concepts",
-            "pages": [
-              "concepts/endpoints",
-              "concepts/channels",
-              "concepts/platforms-vs-channels",
-              "concepts/legacy-compat-names",
-              "concepts/provider-comparison",
-              "concepts/vendor-compat-multi-endpoint",
-              "concepts/dosia-agent-mode",
-              "concepts/mcp-integration",
-              "concepts/credits-and-billing",
-              "concepts/multimodal",
-              "concepts/streaming",
-              "concepts/rate-limits",
-              "concepts/error-handling",
-              "concepts/errors-reference"
-            ]
-          },
-          {
-            "group": "Models",
-            "pages": [
-              "models/index",
-              "models/claude-haiku-4-5",
-              "models/claude-sonnet-4-6",
-              "models/claude-opus-4-7",
-              "models/gpt-4o-mini",
-              "models/gpt-4o",
-              "models/gpt-4v",
-              "models/gpt-5-2",
-              "models/gpt-5-3-codex",
-              "models/gpt-5-4-mini",
-              "models/gpt-5-4",
-              "models/gpt-5-5",
-              "models/gemini-2-5-flash",
-              "models/gemini-2-5-pro",
-              "models/gemini-3-1-pro",
-              "models/deepseek-v3-2",
-              "models/deepseek-v3-anthropic",
-              "models/deepseek-v4-flash",
-              "models/deepseek-v4-pro",
-              "models/deepseek-r1",
-              "models/doubao-seed-2-0-pro",
-              "models/glm-5",
-              "models/kimi-k2-6",
-              "models/minimax-m2-7",
-              "models/nano-banana",
-              "models/nano-banana-v2",
-              "models/gpt-image-2",
-              "models/seedream-4",
-              "models/seedream-4-5",
-              "models/seedream-v5lite",
-              "models/sora2",
-              "models/sora2-pro",
-              "models/veo3-1",
-              "models/veo3-1-fast",
-              "models/seedance-1-5-pro",
-              "models/seedance-2-0-pro",
-              "models/seedance-2-0-pro-fast",
-              "models/seedance-2-0-fast"
-            ]
-          },
-          {
-            "group": "Providers",
-            "pages": [
-              "providers/anthropic",
-              "providers/openai",
-              "providers/gemini",
-              "providers/deepseek",
-              "providers/volcengine-codeplan"
-            ]
-          },
-          {
-            "group": "Internal (DOSIA-coupled)",
-            "pages": [
-              "employee-onboarding",
-              "admin-operations"
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "API Reference",
+                "pages": [
+                  "api-reference/overview"
+                ]
+              },
+              {
+                "group": "Protocol endpoints",
+                "pages": [
+                  "api-reference/text/claude-messages",
+                  "api-reference/text/openai-chat-completions",
+                  "api-reference/text/openai-responses",
+                  "api-reference/text/gemini-generate-content"
+                ]
+              },
+              {
+                "group": "OpenAI",
+                "pages": [
+                  "api-reference/text/gpt-4o-mini",
+                  "api-reference/text/gpt-4o",
+                  "api-reference/text/gpt-5-nano",
+                  "api-reference/text/gpt-5-mini",
+                  "api-reference/text/gpt-5-2",
+                  "api-reference/text/gpt-5-4-nano",
+                  "api-reference/text/gpt-5-4-mini",
+                  "api-reference/text/gpt-5-4",
+                  "api-reference/text/gpt-5-4-pro",
+                  "api-reference/text/gpt-5-5-instant",
+                  "api-reference/text/gpt-5-5"
+                ]
+              },
+              {
+                "group": "Anthropic",
+                "pages": [
+                  "api-reference/text/claude-haiku-4-5",
+                  "api-reference/text/claude-sonnet-4-5",
+                  "api-reference/text/claude-sonnet-4-6",
+                  "api-reference/text/claude-opus-4-5",
+                  "api-reference/text/claude-opus-4-6",
+                  "api-reference/text/claude-opus-4-7"
+                ]
+              },
+              {
+                "group": "Google",
+                "pages": [
+                  "api-reference/text/gemini-3-flash",
+                  "api-reference/text/gemini-3-1-pro"
+                ]
+              },
+              {
+                "group": "DeepSeek",
+                "pages": [
+                  "api-reference/text/deepseek-v3-2",
+                  "api-reference/text/deepseek-v4-flash",
+                  "api-reference/text/deepseek-v4-pro"
+                ]
+              },
+              {
+                "group": "Moonshot",
+                "pages": [
+                  "api-reference/text/kimi-k2-5",
+                  "api-reference/text/kimi-k2-6"
+                ]
+              },
+              {
+                "group": "Zhipu",
+                "pages": [
+                  "api-reference/text/glm-5",
+                  "api-reference/text/glm-5-1"
+                ]
+              },
+              {
+                "group": "MiniMax",
+                "pages": [
+                  "api-reference/text/minimax-m2-5",
+                  "api-reference/text/minimax-m2-7"
+                ]
+              },
+              {
+                "group": "Image",
+                "pages": [
+                  "api-reference/image/seedream-v4",
+                  "api-reference/image/seedream-v4-5",
+                  "api-reference/image/seedream-v5lite",
+                  "api-reference/image/nano-banana",
+                  "api-reference/image/nano-banana-pro",
+                  "api-reference/image/nano-banana-v2",
+                  "api-reference/image/gpt-image-2",
+                  "api-reference/image/gpt-image-2-official",
+                  "api-reference/image/gpt-4o-image"
+                ]
+              },
+              {
+                "group": "Video",
+                "pages": [
+                  "api-reference/video/sora-2",
+                  "api-reference/video/sora-2-pro",
+                  "api-reference/video/veo-3-1",
+                  "api-reference/video/veo-3-1-fast",
+                  "api-reference/video/seedance-1-5-pro",
+                  "api-reference/video/seedance-2-0",
+                  "api-reference/video/seedance-2-0-pro",
+                  "api-reference/video/seedance-2-0-pro-fast",
+                  "api-reference/video/seedance-fast"
+                ]
+              },
+              {
+                "group": "Account & billing",
+                "pages": [
+                  "api-reference/account/me-account",
+                  "api-reference/account/me-billing-transactions",
+                  "api-reference/account/me-usage",
+                  "api-reference/account/me-webhooks",
+                  "api-reference/account/me-notifications"
+                ]
+              },
+              {
+                "group": "Utility",
+                "pages": [
+                  "api-reference/utility/v1-models",
+                  "api-reference/utility/balance",
+                  "api-reference/utility/tasks-submit",
+                  "api-reference/utility/tasks-query",
+                  "api-reference/utility/tasks-cancel"
+                ]
+              }
             ]
           }
         ]
       },
       {
-        "tab": "API Reference",
-        "groups": [
+        "language": "zh",
+        "tabs": [
           {
-            "group": "API Reference",
-            "pages": [
-              "api-reference/overview"
-            ]
-          },
-          {
-            "group": "Protocol endpoints",
-            "pages": [
-              "api-reference/text/claude-messages",
-              "api-reference/text/openai-chat-completions",
-              "api-reference/text/openai-responses",
-              "api-reference/text/gemini-generate-content"
-            ]
-          },
-          {
-            "group": "OpenAI",
-            "pages": [
-              "api-reference/text/gpt-4o-mini",
-              "api-reference/text/gpt-4o",
-              "api-reference/text/gpt-5-nano",
-              "api-reference/text/gpt-5-mini",
-              "api-reference/text/gpt-5-2",
-              "api-reference/text/gpt-5-4-nano",
-              "api-reference/text/gpt-5-4-mini",
-              "api-reference/text/gpt-5-4",
-              "api-reference/text/gpt-5-4-pro",
-              "api-reference/text/gpt-5-5-instant",
-              "api-reference/text/gpt-5-5"
-            ]
-          },
-          {
-            "group": "Anthropic",
-            "pages": [
-              "api-reference/text/claude-haiku-4-5",
-              "api-reference/text/claude-sonnet-4-5",
-              "api-reference/text/claude-sonnet-4-6",
-              "api-reference/text/claude-opus-4-5",
-              "api-reference/text/claude-opus-4-6",
-              "api-reference/text/claude-opus-4-7"
-            ]
-          },
-          {
-            "group": "Google",
-            "pages": [
-              "api-reference/text/gemini-3-flash",
-              "api-reference/text/gemini-3-1-pro"
-            ]
-          },
-          {
-            "group": "DeepSeek",
-            "pages": [
-              "api-reference/text/deepseek-v3-2",
-              "api-reference/text/deepseek-v4-flash",
-              "api-reference/text/deepseek-v4-pro"
-            ]
-          },
-          {
-            "group": "Moonshot",
-            "pages": [
-              "api-reference/text/kimi-k2-5",
-              "api-reference/text/kimi-k2-6"
-            ]
-          },
-          {
-            "group": "Zhipu",
-            "pages": [
-              "api-reference/text/glm-5",
-              "api-reference/text/glm-5-1"
-            ]
-          },
-          {
-            "group": "MiniMax",
-            "pages": [
-              "api-reference/text/minimax-m2-5",
-              "api-reference/text/minimax-m2-7"
-            ]
-          },
-          {
-            "group": "Image",
-            "pages": [
-              "api-reference/image/seedream-v4",
-              "api-reference/image/seedream-v4-5",
-              "api-reference/image/seedream-v5lite",
-              "api-reference/image/nano-banana",
-              "api-reference/image/nano-banana-pro",
-              "api-reference/image/nano-banana-v2",
-              "api-reference/image/gpt-image-2",
-              "api-reference/image/gpt-image-2-official",
-              "api-reference/image/gpt-4o-image"
-            ]
-          },
-          {
-            "group": "Video",
-            "pages": [
-              "api-reference/video/sora-2",
-              "api-reference/video/sora-2-pro",
-              "api-reference/video/veo-3-1",
-              "api-reference/video/veo-3-1-fast",
-              "api-reference/video/seedance-1-5-pro",
-              "api-reference/video/seedance-2-0",
-              "api-reference/video/seedance-2-0-pro",
-              "api-reference/video/seedance-2-0-pro-fast",
-              "api-reference/video/seedance-fast"
-            ]
-          },
-          {
-            "group": "Account & billing",
-            "pages": [
-              "api-reference/account/me-account",
-              "api-reference/account/me-billing-transactions",
-              "api-reference/account/me-usage",
-              "api-reference/account/me-webhooks",
-              "api-reference/account/me-notifications"
-            ]
-          },
-          {
-            "group": "Utility",
-            "pages": [
-              "api-reference/utility/v1-models",
-              "api-reference/utility/balance",
-              "api-reference/utility/tasks-submit",
-              "api-reference/utility/tasks-query",
-              "api-reference/utility/tasks-cancel"
+            "tab": "文档",
+            "groups": [
+              {
+                "group": "快速开始",
+                "pages": [
+                  "zh/introduction",
+                  "zh/quickstart",
+                  "zh/register",
+                  "zh/configure-client",
+                  "zh/authentication"
+                ]
+              }
             ]
           }
         ]

@@ -1,0 +1,133 @@
+---
+title: "注册账号"
+description: "约 30 秒创建一个 ByteSpike 账号。邮箱 + 密码，或 Google 登录。注册即送试用 credits —— 无需信用卡。"
+---
+
+最短的路径就是直奔 key。打开 [console.bytespike.ai](https://console.bytespike.ai)、
+选个注册方式、充几块钱、创建一个 key。整个流程大约 2 分钟。
+
+## 1. 打开注册页
+
+访问 [console.bytespike.ai/sign-up](https://console.bytespike.ai/sign-up)。
+
+可以两种方式注册：
+
+<Tabs>
+  <Tab title="邮箱 + 密码">
+    填写：
+    - **邮箱** —— 用于接收验证码和通知
+    - **密码** —— 至少 12 位，包含数字和符号
+    - **邀请码** —— ByteSpike 当前为邀请制阶段。向已注册用户索取邀请码（格式：`BS-XXXX-XXXX`）。
+    - **验证码** —— 点击 *发送验证码* 后会发到你的邮箱
+    - **人机验证** —— Turnstile 组件；勾上即可
+
+    提交后即登录，自动进入 dashboard。
+  </Tab>
+  <Tab title="使用 Google 登录">
+    在注册页点击 **使用 Google 继续**。挑选要关联的 Google 账号，接受 OAuth
+    范围（只读 —— ByteSpike 只能看到你的邮箱和姓名），就完成了。
+
+    用 Google 注册仍然要消耗一个邀请码 —— 如果你的账号未绑定，表单会在
+    OAuth 完成后请求邀请码。
+  </Tab>
+</Tabs>
+
+<Warning>
+注册时填的邮箱是 **永久性的** —— 之后的发票、账单告警、密码重置链接都会发到
+这个地址。请用一个你真实查看的邮箱，别用 noreply 或共享别名。
+</Warning>
+
+## 2. 验证邮箱（如果你用邮箱 + 密码）
+
+如果你走的是邮箱路径，第一次进入 dashboard 会看到 `verifying email…` 横幅。
+邮箱验证完成前无法创建 API key；如果没自动完成，点横幅上的 *重新发送*。
+
+## 3. 充值试用 credits
+
+新账号会赠送少量试用额度。要做实际工作需要给组织钱包充值：
+
+1. 侧边栏 → **账单**
+2. 选择充值金额（最低 $5，单笔最高 $1,250）
+3. 通过 Stripe 付款（信用卡 / Apple Pay / Google Pay）
+
+充值金额越大附赠的 bonus 越多（最高 +11.2%）。实时的 bonus 阶梯见
+[bytespike.ai/pricing](https://bytespike.ai/pricing#top-up)。
+
+→ 详细步骤：[充值 credits](/top-up)
+
+## 4. 创建你的第一个 API key
+
+侧边栏 → **API keys** → **创建 key**。
+
+你需要填写：
+- **名称** —— 任何方便辨识的字符串，例如 `dev-laptop`
+- **Provider 分组** —— 选一个。`claude-default` 走 Claude 模型，
+  `volcengine-default` 走 DeepSeek/Doubao，`gemini-default` 走 Gemini。
+  每个 key **只能绑一个**分组；要访问其他分组就另建 key。详见
+  [Channels](/concepts/channels)。
+
+明文密钥（`sk-byts-…`）只在提交后**展示一次**。复制后存到密码管理器或密钥库
+里。如果丢了，可以在同一页面再次揭示，或者轮换 key 拿一个新密文。
+
+→ 详细步骤：[配置你的客户端](/configure-client)
+
+## 5. 验证
+
+```bash
+export BYTESPIKE_API_KEY=sk-byts-...
+
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 64,
+    "messages": [{"role": "user", "content": "ping"}]
+  }'
+```
+
+期望得到 200 + JSON 响应体，外加一个 `X-Quota-Remaining-Credits` 响应头，
+显示扣掉几个 credits 后的钱包余额。如果是 `401 invalid x-api-key`，检查
+key 是否填对。如果是 `402 insufficient_balance`，去充点 credits。
+
+## 常见问题
+
+<AccordionGroup>
+  <Accordion title="我没有邀请码">
+    ByteSpike 当前是邀请制。向已注册用户索取一个（每个账号可以在
+    [console.bytespike.ai/affiliate](https://console.bytespike.ai/affiliate)
+    生成少量邀请码），或者发邮件给 [support@bytespike.ai](mailto:support@bytespike.ai)
+    说明你的使用场景。
+  </Accordion>
+  <Accordion title="同一邮箱可以注册多个账号吗？">
+    不行 —— 邮箱必须唯一。如果你想给不同项目分别计费，正确做法是一个账号下
+    创建多个 key（每个项目 / 环境一个），每个 key 单独设置 quota + 速率限制
+    上限。
+  </Accordion>
+  <Accordion title="注册需要信用卡吗？">
+    不需要 —— 试用 credits 自动发放。只有当你想在试用额度之外充值时才需要
+    信用卡（通过 Stripe）。
+  </Accordion>
+  <Accordion title="之后能注销账号吗？">
+    可以。**账户 → 设置 → 删除账号** 会立即软删除；30 天宽限期后数据被清除。
+    剩余余额不可退款，但可以通过 support 请求转移到另一个 ByteSpike 账号。
+  </Accordion>
+</AccordionGroup>
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="充值 credits" icon="coins" href="/top-up">
+    $5+ 起的充值流程与 bonus 阶梯。
+  </Card>
+  <Card title="配置你的客户端" icon="terminal" href="/configure-client">
+    把 Claude Code / Codex / Cursor / SDK 指向 ByteSpike。
+  </Card>
+  <Card title="快速开始" icon="rocket" href="/quickstart">
+    第一个 curl 请求，三种协议并排展示。
+  </Card>
+  <Card title="鉴权" icon="key" href="/authentication">
+    Per-key 控制、IP 白名单、速率限制。
+  </Card>
+</CardGroup>

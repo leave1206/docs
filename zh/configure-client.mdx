@@ -1,0 +1,240 @@
+---
+title: "配置你的客户端"
+description: "注册之后 —— 把任意客户端接入 ByteSpike：base URL、API key、协议选择、模型名。"
+---
+
+注册完拿到 key 后，需要把客户端指向 ByteSpike 而不是上游厂商自己的网关。整个
+网关都在 **`https://llm.bytespike.ai`** —— 所有协议、所有模型。选定匹配客户端的
+协议，设置两个环境变量，就完成了。
+
+## 1. 拿到一个 API key
+
+登录 [console.bytespike.ai/keys](https://console.bytespike.ai/keys) 并点击
+**创建 key**。挑一个路由分组（Claude 模型用 `claude-default`、DeepSeek/Doubao 用
+`volcengine-default`、Gemini 用 `gemini-default` —— 详见 [Channels](/concepts/channels)）。
+明文密钥只在创建时展示一次 —— 务必保存。格式：`sk-byts-…`。
+
+<Warning>
+请把 key 当作数据库密码对待。每个 key 只绑定 **一个** 路由分组；要访问多个 provider
+家族，请为每个分组单独创建 key，不要试图把所有 provider 塞进一把 key。
+</Warning>
+
+## 2. 选一个协议
+
+三种协议都打同一个网关。挑你客户端原生支持的那种 —— 计费、限流、credits 记账
+在三者间完全一致。
+
+选用哪个 URL 取决于你是用 **SDK**（SDK 会自动追加 endpoint 路径）还是手撸
+**curl / REST**（自己写完整路径）。
+
+### SDK base URL
+
+把这个值设为 `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` / Gemini 客户端的 endpoint。
+SDK 会自动追加 `/v1/messages`、`/chat/completions` 或
+`/models/{model}:generateContent`。
+
+| 协议 | SDK base URL | 典型客户端 |
+|---|---|---|
+| **Anthropic Messages** | `https://llm.bytespike.ai` | Claude Code、Claude Desktop、Anthropic SDK |
+| **OpenAI Chat Completions** | `https://llm.bytespike.ai/v1` | OpenAI SDK、Cherry Studio、NextChat、LobeChat |
+| **Gemini Native** | `https://llm.bytespike.ai/v1beta` | Google AI Studio 示例、vertex 兼容客户端 |
+
+### Full endpoint（curl / REST 用）[#full-endpoint]
+
+如果你用 `curl` 或任何需要写出完整请求 URL 的客户端，请用 full endpoint。
+**console 上 `Keys → EndpointBanner` 复制的就是这个。**
+
+| 协议 | Full endpoint |
+|---|---|
+| **Anthropic** | `https://llm.bytespike.ai/v1/messages` |
+| **OpenAI**    | `https://llm.bytespike.ai/v1/chat/completions` |
+| **Gemini**    | `https://llm.bytespike.ai/v1beta/models/{model}:generateContent` |
+
+Gemini 的路径里需要把 model id 写到 URL 中（例如
+`gemini-2.5-pro:generateContent`）；另两个协议的 model 写在 JSON body 里。
+
+## 3. 设置环境变量
+
+<Tabs>
+  <Tab title="Anthropic Messages">
+    对 Claude Code 和 Anthropic SDK 来说，只要两个环境变量：
+
+    ```bash
+    export ANTHROPIC_BASE_URL=https://llm.bytespike.ai
+    export ANTHROPIC_API_KEY=sk-byts-...
+    ```
+
+    任何读取这两个标准变量的客户端（Claude Code、Anthropic Python / TypeScript
+    SDK、第三方客户端）都能透明拾取。然后调用任意 Anthropic 兼容的模型：
+
+    ```python
+    import anthropic
+    client = anthropic.Anthropic()  # 读取环境变量
+    msg = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    ```
+
+    或者用 full endpoint 走 curl：
+
+    ```bash
+    curl https://llm.bytespike.ai/v1/messages \
+      -H "x-api-key: sk-byts-..." \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "hi"}]
+      }'
+    ```
+  </Tab>
+
+  <Tab title="OpenAI Chat Completions">
+    OpenAI SDK 在构造时传入 base URL：
+
+    ```python
+    from openai import OpenAI
+    client = OpenAI(
+        base_url="https://llm.bytespike.ai/v1",
+        api_key="sk-byts-...",
+    )
+    r = client.chat.completions.create(
+        model="gemini-2-5-pro",      # 任意 ByteSpike model id 都能用
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    ```
+
+    或者大多数 OpenAI 兼容客户端用环境变量：
+
+    ```bash
+    export OPENAI_BASE_URL=https://llm.bytespike.ai/v1
+    export OPENAI_API_KEY=sk-byts-...
+    ```
+
+    full endpoint 走 curl：
+
+    ```bash
+    curl https://llm.bytespike.ai/v1/chat/completions \
+      -H "Authorization: Bearer sk-byts-..." \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-4",
+        "messages": [{"role": "user", "content": "hi"}]
+      }'
+    ```
+  </Tab>
+
+  <Tab title="Gemini Native">
+    Google 的原生协议通过 query 参数传 key：
+
+    ```bash
+    curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=sk-byts-..." \
+      -H "content-type: application/json" \
+      -d '{
+        "contents": [{"parts": [{"text": "hi"}]}]
+      }'
+    ```
+
+    读取 `GEMINI_API_KEY` 且支持自定义 endpoint 的 Vertex / AI Studio SDK 也是
+    同样的方式。
+  </Tab>
+</Tabs>
+
+## 4. 选一个模型
+
+一个 key 调任意厂商的任意模型。不需要单独的 Anthropic / OpenAI / Google /
+DeepSeek 订阅 —— ByteSpike 替你路由到上游 provider。
+
+常用 model ID（完整目录见 [Console → Models](https://console.bytespike.ai/dosia/models)
+或者 `GET /v1/models`）：
+
+| 家族 | 用这些 id |
+|---|---|
+| Claude | `claude-sonnet-4-6`、`claude-opus-4-7`、`claude-haiku-4-5` |
+| GPT-5 / o 系列 | `gpt-5-5`、`gpt-5-4`、`gpt-5-4-mini`、`gpt-5-3-codex`、`gpt-5-2` |
+| GPT-4 | `gpt-4o`、`gpt-4o-mini` |
+| Gemini | `gemini-3-1-pro`、`gemini-2-5-pro`、`gemini-2-5-flash` |
+| DeepSeek | `deepseek-v4-pro`、`deepseek-v4-flash`、`deepseek-v3-2`、`deepseek-v3-anthropic` |
+| Kimi / GLM / MiniMax / Doubao | `kimi-k2-6`、`glm-5`、`minimax-m2-7`、`doubao-seed-2-0-pro` |
+| 图像 | `seedream-4-5`、`seedream-v5lite`、`nano-banana`、`nano-banana-v2`、`gpt-image-2` |
+| 视频 | `sora-2`、`sora-2-pro`、`veo-3-1`、`veo-3-1-fast`、`seedance-2-0-pro`、`seedance-1-5-pro` |
+
+无论用哪种协议，model id 都是同一个字符串 —— `claude-sonnet-4-6` 在
+Anthropic Messages、OpenAI Chat Completions、Gemini Native 上都能调。
+
+## 5. 各客户端配置
+
+<AccordionGroup>
+  <Accordion title="Claude Code (CLI / agent)">
+    Claude Code 自动读取 `ANTHROPIC_BASE_URL` 和 `ANTHROPIC_API_KEY`。
+    加到你的 shell 配置：
+
+    ```bash
+    # ~/.zshrc 或 ~/.bashrc
+    export ANTHROPIC_BASE_URL=https://llm.bytespike.ai
+    export ANTHROPIC_API_KEY=sk-byts-...
+    ```
+
+    之后 `claude` 调用任意 Anthropic 协议模型都会走 ByteSpike。
+  </Accordion>
+
+  <Accordion title="Claude Desktop">
+    打开 设置 → Developer → Edit Config。把环境变量加到对应操作系统的区块下。
+    重启应用让改动生效。
+  </Accordion>
+
+  <Accordion title="Cherry Studio">
+    设置 → Model Providers → Add Provider → "OpenAI Compatible"。
+    Base URL：`https://llm.bytespike.ai/v1`。API key：你的 ByteSpike key。
+    之后上表里的任意 model id 都能用。
+  </Accordion>
+
+  <Accordion title="NextChat / ChatGPT-Next-Web">
+    设置 → 自定义 Endpoint。API URL：`https://llm.bytespike.ai/v1`。
+    API Key：你的 ByteSpike key。Model：上面任意 id。
+  </Accordion>
+
+  <Accordion title="OpenAI SDK (Python / TypeScript)">
+    在客户端构造时传入 `base_url` / `baseURL`。每次调用只有 model 字符串需要改。
+
+    Python：
+    ```python
+    from openai import OpenAI
+    OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="sk-byts-...")
+    ```
+
+    TypeScript：
+    ```ts
+    import OpenAI from "openai"
+    new OpenAI({ baseURL: "https://llm.bytespike.ai/v1", apiKey: "sk-byts-..." })
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## 6. 验证接线
+
+请求 `/v1/models` 确认 key 生效，并查看账号实际能调的模型：
+
+```bash
+curl https://llm.bytespike.ai/v1/models \
+  -H "Authorization: Bearer sk-byts-..."
+```
+
+响应是 JSON model 对象数组。`data[].id` 应该包含你这一级别下所有能用的模型。
+如果列表比预期短，去 [console.bytespike.ai/account](https://console.bytespike.ai/account)
+检查 —— 你的 `allowed_models` 可能被组织默认值或管理员策略限制了。
+
+<Tip>
+错误以你调用的协议原生格式返回。401 说明 key 错；403 说明 key 有效但模型
+不在你的级别内；402 说明 credits 不足 —— 去
+[console.bytespike.ai/billing](https://console.bytespike.ai/billing) 充值。
+</Tip>
+
+## 下一步
+
+- [鉴权](/authentication) —— 完整的请求头说明 + key 管理
+- [模型](/models) —— 每个模型的价格卡和能力标签
+- [错误处理](/concepts/error-handling) —— 重试语义和状态码

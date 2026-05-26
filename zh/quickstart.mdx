@@ -1,0 +1,114 @@
+---
+title: "快速开始"
+description: "两分钟内发出你的第一个请求。"
+---
+
+## 1. 拿到一个 key
+
+1. 登录 [console.bytespike.ai](https://console.bytespike.ai) —— 注册大约 30 秒（邮箱 + 密码，或 Google 登录）。
+2. 在 [账单](https://console.bytespike.ai/billing) 充值几块钱，最低充值金额为 **$5**。
+3. 进入 [API keys](https://console.bytespike.ai/keys)，点击 **创建 key**。选一个路由分组（Claude 模型用 `claude-default`，DeepSeek/Doubao 用 `volcengine-default`，Gemini 用 `gemini-default` —— 详见 [Channels](/concepts/channels)）。
+
+复制创建后展示的密文。它形如 `sk-byts-...`，**只显示一次** —— 找个安全的地方存好。
+
+<Warning>
+明文密钥只在创建时展示一次。如果丢失，可以在 [Console → API keys](https://console.bytespike.ai/keys)
+重新揭示，或者轮换 key 拿到新的密文。详见 [鉴权](/authentication)。
+</Warning>
+
+## 2. 选一个协议
+
+ByteSpike 原生支持三种协议。同一个网关、相同的计费 —— 选你客户端能讲的那种鉴权头。
+
+<Tabs>
+  <Tab title="Anthropic Messages">
+    ```bash
+    curl https://llm.bytespike.ai/v1/messages \
+      -H "x-api-key: $BYTESPIKE_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "Hello, who are you?"}]
+      }'
+    ```
+  </Tab>
+  <Tab title="OpenAI Chat Completions">
+    ```bash
+    curl https://llm.bytespike.ai/v1/chat/completions \
+      -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-5",
+        "messages": [{"role": "user", "content": "Hello, who are you?"}]
+      }'
+    ```
+  </Tab>
+  <Tab title="Gemini Native">
+    ```bash
+    curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=$BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "contents": [{"parts": [{"text": "Hello, who are you?"}]}]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## 3. 读取配额响应头
+
+每次响应 —— 无论成功还是失败 —— 都会带上网关的计费响应头：
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+- `X-RateLimit-Limit` / `Remaining` / `Reset` —— 当前最接近触发限制的那个速率窗口，单位 USD。Reset 是 Unix 时间戳。
+- `X-Quota-Remaining-Credits` —— 该 key 剩余的累计 credits（USD；`1 USD = 1,000,000 credits`）。`0.00` 意味着达到 key 上设置的 `quota` 上限；在 console 充值或提高上限即可。
+- `X-Org-Quota-Remaining-Credits` —— 在组织钱包级别的同一数值，仅对组织持有的 key 返回。
+
+要查实际每次调用花费，请求 [`GET /v1/usage`](/api-reference/account/me-usage)
+或者比较两次请求之间 `X-Quota-Remaining-Credits` 的差值。失败的请求不计费 —— 非
+2xx 响应不会让 `X-Quota-Remaining-Credits` 动。
+
+## 4. 同一个 key 调用任意模型
+
+切换模型只要改一个字段 —— `model`。无需新 SDK、无需新鉴权流程、无需新计费账户。
+
+```diff
+- "model": "claude-sonnet-4-6",
++ "model": "gpt-5-5",
+```
+
+```diff
+- "model": "claude-sonnet-4-6",
++ "model": "deepseek-v4-pro",
+```
+
+```diff
+- "model": "claude-sonnet-4-6",
++ "model": "gemini-2-5-pro",
+```
+
+注意点：你的 key 必须绑定到一个**能实际服务该模型的路由分组**。`claude-default`
+触达不了 DeepSeek；在创建 key 时挑对分组，或者另建一把 key。Console 的
+[Test](https://console.bytespike.ai/dosia/models) 按钮可以在你接入客户端之前
+先验证 key + 分组 + 模型三者匹配。
+
+图像 / 视频 / 工具端点的用法见 [API 参考](/api-reference/overview) —— 每个家族
+的请求结构都按端点单独写有文档。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="鉴权" icon="key" href="/authentication">
+    子 key、scope、IP 白名单。
+  </Card>
+  <Card title="Credits 与账单" icon="coins" href="/concepts/credits-and-billing">
+    credits 如何换算成美元，失败为什么不计费（真的不计费），以及如何读响应头。
+  </Card>
+</CardGroup>
