@@ -1,0 +1,64 @@
+---
+title: "seedance-1.5-pro"
+description: "ByteDance Seedance 1.5 Pro —— 上一代 Seedance 旗舰，为兼容保留在费率卡上。新项目应使用 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro)。"
+---
+
+`seedance-1.5-pro` 是上一代 ByteDance Seedance Pro 档。为在 2.0 系列发布前固定使用它的账户保留在费率卡上 —— 新项目应默认走 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro)（保真更好、价格相近）。这里留档是为了让已有锁定集成有清晰的参考。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance** | Volcengine | `ark.cn-beijing.volces.com` | 按秒计费（实时价格见 [/pricing](/zh/pricing)） | 5s 片段 ~75s wall-clock | cn-beijing |
+
+失败不计费。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-1.5-pro",
+    "prompt": "国潮风短片，少女在敦煌色彩的背景前转身",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# 轮询模式 —— 见 /models/sora2#quickstart
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| `duration_seconds` 5 | ✅ |
+| `size` 1280×720 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **已有锁定集成** —— 代码明确指向 `seedance-1.5-pro`，换模型需要回归测试，而你不想做。
+- **复现既有产出** —— 匹配此前在 1.5 上生成的成片风格。
+
+**不**适用的场景：
+
+- 新项目 —— 直接用 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro)。
+- 中式美学 + 最快档 —— [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast)。
+
+## 下一步
+
+- [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) —— 当前 Seedance 旗舰
+- [`seedance-2.0-pro-fast`](/zh/models/seedance-2-0-pro-fast) —— 2.0 Pro 的快速运行时
+- [多模态端点](/zh/concepts/multimodal) —— 总览

@@ -1,0 +1,118 @@
+---
+title: "Nano Banana 2"
+description: "Nano Banana 的最新一代 —— 图内文字渲染更锐利，手部 / 面部解剖学也得到改善。"
+---
+
+**厂商：** Google
+**Model ID：** `nano-banana-v2`
+**能力：** 2048² · 写实 · 锐利文字渲染 · 改善的解剖学
+**价格：** 按张计费，写实旗舰级 ([实时费率](https://bytespike.ai/pricing#image))
+
+Nano Banana 2 是 Google 写实家族的当前迭代。相对 Pro 明显改进的两块：
+图内文字渲染（书籍封面、招牌、屏幕内容），以及那两个老问题 ——
+手部数量和小尺度面部比例。纯材质 / 打光保真上 Pro 和 2 相当；
+任何涉及**可读**图内文字或人物主体的 brief，2 是更稳的选择。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana-v2",
+    "prompt": "A cafe storefront with a chalk-board menu reading PASTEL DE NATA and AMERICANO",
+    "size": "2048x2048"
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `nano-banana-v2` |
+| `prompt` | string | yes | — | 针对英文调优。 |
+| `size` | string | no | `2048x2048` | 支持：`1024x1024`、`2048x2048`、`2048x1536`、`1536x2048`。 |
+| `n` | integer | no | 1 | 1–2 张。 |
+| `seed` | integer | no | — | 可复现性。 |
+| `aspect_ratio` | string | no | — | `1:1` / `9:16` / `16:9` / `4:3` / `3:4`。 |
+| `quality` | string | no | `"standard"` | `"standard"` / `"hd"`。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "nano-banana-v2", "prompt": "A cafe storefront chalk-board menu", "size": "2048x2048"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="nano-banana-v2",
+    prompt="A cafe storefront with a chalk-board menu reading PASTEL DE NATA and AMERICANO",
+    size="2048x2048",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "nano-banana-v2",
+  prompt: "A cafe storefront with a chalk-board menu reading PASTEL DE NATA and AMERICANO",
+  size: "2048x2048",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 图内文字（招牌、包装、书籍封面、UI mockup）。
+- 人物主体 —— 手部 / 面部解剖在缩放下必须立得住。
+- 上一代旗舰摄影，见 [Nano Banana Pro](/zh/api-reference/image/nano-banana-pro)。
+- 廉价迭代，见 [Nano Banana](/zh/api-reference/image/nano-banana)。
+- 2048² 美学 / 插画，见 [Seedream V4.5](/zh/api-reference/image/seedream-v4-5)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 2048×2048 |
+| 单次最大张数（`n`） | 2 |
+| 支持 init image（img2img） | 否 |
+| 支持 `quality` 修饰 | 是（`standard` / `hd`） |
+| 支持 seed 可复现 | 是 |
+| 同步？ | 是（≤45s） |
+| 2048² standard 平均延迟 | 14-22s |

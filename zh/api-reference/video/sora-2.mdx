@@ -1,0 +1,81 @@
+---
+title: "Sora 2"
+description: "OpenAI 的文生视频旗舰 —— 1080p，通过 tasks API 异步。"
+---
+
+OpenAI 的文生视频旗舰。天生异步：submit 返回 `task_id`，再 polling
+[`tasks/query`](/zh/api-reference/utility/tasks-query) 直到结果落地。
+5 秒片段的典型延迟 60–120 秒。
+
+**Slug：** `sora-2` · **能力：** 1080p 文生视频，最长 10s · **价格：** 按秒计费
+（[实时费率](https://bytespike.ai/pricing#video)）
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora-2",
+    "prompt": "A drone shot tracking a yellow cab through Times Square at golden hour.",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | `sora-2` |
+| `prompt` | string | yes | 文本 prompt。 |
+| `duration_seconds` | integer | yes | 1–10 |
+| `resolution` | string | no | `720p`（默认）、`1080p` |
+| `aspect_ratio` | string | no | `16:9`（默认）、`9:16`、`1:1` |
+| `seed` | integer | no | 可复现性。 |
+| `image_init` | string | no | init image 的 URL，用于图生视频。 |
+
+### Response
+
+```json
+{
+  "task_id": "task_01AbCdEf",
+  "status": "queued",
+  "estimated_credits": 0.42
+}
+```
+
+估算 credits 在任何 GPU 计算开始前就落定 —— 状态翻到 `running` 之前
+通过 [`tasks/cancel`](/zh/api-reference/utility/tasks-cancel) 取消可以
+免费撤销。
+
+## Poll
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/query?task_id=task_01AbCdEf \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+完成后的响应：
+
+```json
+{
+  "task_id": "task_01AbCdEf",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/...",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  },
+  "credits": 0.42
+}
+```
+
+推荐 polling 节奏：前 180 秒每 2 秒一次，之后退到 5 秒。query 端点免费。
+
+## 何时选用
+
+- 需要 1080p 输出 → Sora 2 或 [Sora 2 Pro](/zh/api-reference/video/sora-2-pro)
+- 短视频要竖屏（9:16）→ Sora 2 原生支持
+- 延迟敏感 → 考虑 [Veo 3.1 Fast](/zh/api-reference/video/veo-3-1-fast) 或 [Seedance Fast](/zh/api-reference/video/seedance-fast)，~30s 周转、保真度更低

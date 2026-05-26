@@ -1,0 +1,106 @@
+---
+title: "sora2"
+description: "OpenAI Sora 2 视频模型。文生视频 + 图生视频，走任务式轮询端点。按生成视频秒数计费。当你需要 Sora 级别的物理、镜头运动和镜头构图时的默认选择。"
+---
+
+`sora2` 是 OpenAI 的 Sora 2 模型 —— 文生视频和图生视频，跑在**两阶段任务式端点**上：submit 返回 `task_id`，客户端轮询直到 result_url 出现。按生成视频秒数计费。选它的理由：Sora 级别的物理运动、镜头动态、镜头构图；相对于更轻档位的代价是更高的 per-second 成本和更长的首帧 wall-clock 时间。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI Video** | OpenAI direct | `api.openai.com` | 按秒计费（实时价格见 [/pricing](/zh/pricing)） | 5s 片段 ~90s wall-clock | global edge |
+
+失败不计费。Per-second 计价针对的是*生成的*视频长度，不计入轮询延迟。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+DOSIA 的 `video-tools` 插件会自动处理轮询 —— 你在对话里看到的只是片段就绪时直接出现。
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (submit + poll)
+# Submit
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora2",
+    "prompt": "A red apple rolls slowly across a wooden table, soft window light",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# Poll until ready
+until curl -s https://llm.bytespike.ai/v1/videos/tasks/$TASK_ID \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" | jq -e '.status == "completed"' > /dev/null; do
+  sleep 5
+done
+
+curl -s https://llm.bytespike.ai/v1/videos/tasks/$TASK_ID \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" | jq -r .result_url
+```
+
+```python Python (openai SDK)
+import os, time
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+task = client.videos.generate(
+    model="sora2",
+    prompt="A red apple rolls slowly across a wooden table, soft window light",
+    duration_seconds=5,
+    size="1280x720",
+)
+
+while True:
+    status = client.videos.retrieve(task.task_id)
+    if status.status == "completed":
+        print(status.result_url)
+        break
+    if status.status == "failed":
+        raise RuntimeError(status.error)
+    time.sleep(5)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| `duration_seconds` 5 / 10 / 15 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| 任务式轮询 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **Sora 级素材** —— 物理运动、镜头移动、多主体场景。
+- **营销视频** —— hero 片段、社交卡片动画、产品故事。
+- **DOSIA `generate_video`** —— 主脑在权限允许时会选这个，并通过 `video-tools.poll_video` 自动轮询。
+
+**不**适用的场景：
+
+- 成本敏感的批量 —— 降到 [`veo3.1-fast`](/zh/models/veo3-1-fast) 或 [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast)。
+- 中国境内延迟敏感 —— [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) 在 cn-beijing 提供服务。
+
+## 下一步
+
+- [`sora2-pro`](/zh/models/sora2-pro) —— 更高档，更长片段、更丰富的动态
+- [`veo3.1`](/zh/models/veo3-1) —— 同档位的 Google 备选
+- [多模态端点](/zh/concepts/multimodal) —— 总览

@@ -1,0 +1,94 @@
+---
+title: "claude-opus-4-7"
+description: "Anthropic 的 1M 上下文旗舰。代码库级别重构、长文档审阅、多文档综述 —— 任何 200K 装不下的活。Extended thinking、web search、vision 全部支持。"
+---
+
+`claude-opus-4-7` 是 Claude 家族的旗舰 —— ByteSpike 上的 **1M 上下文** 模型。它的存在就是为了塞不进 200K 窗口的任务：全代码库审阅、几百页的长文 QA、多文档综述。定价就是标准 Opus 费率；多花的是上下文窗口。
+
+## 通道
+
+| 通道分组 | 输入 | 输出 | 缓存读取 |
+|---|---|---|---|
+| **claude-default**（Anthropic 上游） | $5.00 / 1M | $25.00 / 1M | $0.50 / 1M |
+
+缓存写入为输入的 1.25×。路由细节见 [channels](/zh/concepts/channels)。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions（shim） | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-7",
+    "max_tokens": 2048,
+    "thinking": { "type": "enabled", "budget_tokens": 1024 },
+    "messages": [
+      { "role": "user", "content": "Untangle this contract." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-opus-4-7",
+    max_tokens=2048,
+    thinking={"type": "enabled", "budget_tokens": 1024},
+    messages=[{"role": "user", "content": "Untangle this contract."}],
+)
+
+for block in resp.content:
+    if block.type == "text":
+        print(block.text)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tool use（function calling） | ✅ 并行 |
+| Prompt 缓存（cache_control） | ✅ |
+| Extended thinking | ✅ |
+| Web search（web_search 工具） | ✅ |
+| JSON / 结构化输出 | ✅ |
+| 上下文窗口 | **1M tokens** |
+
+## 什么时候用
+
+- **代码库级审阅** —— 把整个仓库塞进上下文，让它做审计。
+- **长文档 QA** —— 整本书、几百页法律 / 合规文本、多文档综述。
+- **硬核推理** —— 搭配 `thinking: { enabled, budget_tokens: 1024+ }` 拿到扩展思维链。
+- **Web search + 长上下文** —— 同时需要新鲜事实和大上下文的研究类查询。
+
+什么时候**不**用：
+
+- 200K 以内的默认 chat —— `claude-sonnet-4-6` 能力相同（少了 1M 上下文），价格只有五分之一。
+- 高吞吐分类 —— `claude-haiku-4-5` 便宜 20 倍。
+
+## 下一步
+
+- [claude-sonnet-4-6](/zh/models/claude-sonnet-4-6) —— 生产中档
+- [claude-haiku-4-5](/zh/models/claude-haiku-4-5) —— 小 + 便宜
+- [Anthropic provider 页](/zh/providers/anthropic) —— 家族总览

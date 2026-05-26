@@ -1,0 +1,114 @@
+---
+title: "Seedance 2.0"
+description: "ByteDance Seedance 2.0 标准级 —— 新一代中端视频生成器，角色一致性和 CJK prompt 处理都更好。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedance-2.0`
+**能力：** 1080p · 最长 8s · 文本 + image init · CJK prompt · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，mid 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Seedance 2.0 是 ByteDance 新一代视频家族的标准级。和 1.5 Pro 一样
+强的角色运动 + 长片段下可测的更好一致性（面部不漂移、手数在 8 秒内
+保持正确）。原生 CJK prompt 理解。想要 2.0 质量但不愿付 Pro 延迟时
+ByteDance 系的默认选择。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "prompt": "一只柴犬在草坪上奔跑追逐飞盘，慢动作",
+    "duration_seconds": 6,
+    "resolution": "1080p"
+  }'
+```
+
+### Body 参数
+
+形状与 [Seedance 1.5 Pro](/zh/api-reference/video/seedance-1-5-pro) 相同；
+最大 `duration_seconds` 是 8（vs 6）。
+
+## Submit + poll
+
+标准 tasks 形状。推荐节奏：前 60 秒每 2 秒，之后每 5 秒，最长到 180 秒。
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.36}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-2.0", "prompt": "柴犬奔跑追飞盘", "duration_seconds": 6, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-2.0",
+    "prompt": "一只柴犬在草坪上奔跑追逐飞盘",
+    "duration_seconds": 6,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-2.0", prompt: "柴犬奔跑追飞盘", duration_seconds: 6, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+标准 —— 与 [Seedance 1.5 Pro](/zh/api-reference/video/seedance-1-5-pro) 一致。
+
+## 何时选用
+
+- 新工作的 ByteDance 视频默认级。
+- 5–8s 片段的角色运动，尤其是 CJK prompt。
+- 更高保真，见 [Seedance 2.0 Pro](/zh/api-reference/video/seedance-2-0-pro)。
+- 用降低保真换延迟，见 [Seedance Fast](/zh/api-reference/video/seedance-fast)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 8s |
+| 分辨率 | 720p、1080p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 6s 片段典型延迟 | 60-90s |
+| 通过 tasks API 异步 | 是 |

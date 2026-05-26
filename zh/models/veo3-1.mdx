@@ -1,0 +1,68 @@
+---
+title: "veo3.1"
+description: "Google 的 Veo 3.1 视频模型。和 sora2 的关键差别是原生输出音频轨 —— 当片段就是最终成品、不会再进音效设计环节时很有用。"
+---
+
+`veo3.1` 是 Google 的 Veo 3.1 模型。两阶段任务式协议和其他视频模型一致，但有一个值得了解的差异点：**原生在视频轨之外生成音频轨**。同一套 `submit → poll` 流程生成的 MP4 自带模型为场景配的音频层 —— 适合不会再做单独音效设计环节的一次性成片。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google Veo** | Google direct | `aiplatform.googleapis.com` | 按秒计费（实时价格见 [/pricing](/zh/pricing)） | 5s 片段 ~80s wall-clock | global edge |
+
+失败不计费。Per-second 价格针对生成的视频长度计算；该档音频不单独计费。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status`、`result_url` 与 `audio_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo3.1",
+    "prompt": "Rain falling on a quiet street at night, distant car passing",
+    "duration_seconds": 5,
+    "size": "1280x720",
+    "audio": true
+  }' | jq -r .task_id)
+
+# 轮询模式与 sora2 一致 —— 见 /models/sora2#quickstart
+# 响应同时包含 result_url（视频）和 audio_url（音轨）
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| **原生音频生成** | ✅（设置 `audio: true`） |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **一次性成片** —— 片段就是最终产物，不会再有音效设计环节。
+- **环境 / 氛围素材** —— 雨声、风声、城市噪声，Veo 的原生音频比给无声片配音更真实。
+- **Sora 的替代选项** —— Sora 特定的运动风格不合品牌时，Google 的渲染感觉更贴近品牌调性。
+
+**不**适用的场景：
+
+- 已经有自己的音效设计 —— 在该流程里音频是浪费的小溢价；降到 [`veo3.1-fast`](/zh/models/veo3-1-fast) 不含音频。
+- 需要 Sora 特有的运动质感 —— 改用 [`sora2`](/zh/models/sora2) 或 [`sora2-pro`](/zh/models/sora2-pro)。
+
+## 下一步
+
+- [`veo3.1-fast`](/zh/models/veo3-1-fast) —— 更便宜的一档
+- [`sora2`](/zh/models/sora2) —— OpenAI 备选
+- [多模态端点](/zh/concepts/multimodal) —— 总览

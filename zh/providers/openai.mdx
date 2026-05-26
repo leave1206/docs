@@ -1,0 +1,203 @@
+---
+title: "ByteSpike 上的 OpenAI"
+description: "完整 GPT 家族 —— 4o、5.2、5.4、5.5 —— 加上图像用的 GPT-Image-2 和视频用的 Sora 2，共用一把 ByteSpike key。同时支持 OpenAI Chat Completions 和较新的 Responses（Codex）请求结构。"
+---
+
+ByteSpike 用一把 ByteSpike key 提供 OpenAI 全家桶 —— 从 GPT-4o 到 GPT-5.5，加上图像生成的
+GPT-Image-2、视频生成的 Sora 2 / 2-Pro。两套 chat 协议都接好了：
+广为流传的 **OpenAI Chat Completions** 结构（`/v1/chat/completions`），
+以及较新的 **Responses** 结构（`/v1/responses`）—— 后者正是 OpenAI
+Codex CLI 和 Agents SDK 现在用的那种。
+
+## 端点覆盖
+
+| 端点 | 路径 | 说明 |
+|---|---|---|
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | 既有 openai SDK 代码可直接 drop-in。 |
+| **OpenAI Responses** | `POST https://llm.bytespike.ai/v1/responses` | 较新的协议；[Codex CLI](/zh/codex-cli) 和 Agents SDK 都走这条。结构化输出 + 推理在这里合流。 |
+| **图像生成（同步）** | `POST https://llm.bytespike.ai/v1/images/generations` · `/v1/images/edits` | OpenAI 结构；服务 GPT-Image-2（Nano-Banana 也走同一结构）。 |
+| **图像 / 视频生成（异步）** | `POST https://llm.bytespike.ai/v1/tasks/submit` | 视频用 Sora 2 / 2-Pro；长耗时的图像批量。见 [`/tasks/submit`](/zh/api-reference/utility/tasks-submit)。 |
+
+同一把 ByteSpike key 通吃所有端点。切端点改路径就行，凭证不变。
+
+<Note>
+ByteSpike 目前**不**对外提供 OpenAI 的 `/v1/embeddings`、
+`/v1/audio/transcriptions`、`/v1/audio/speech`、`/v1/assistants`、
+`/v1/files` 或 `/v1/vector_stores` 接口。如果你依赖这些，直接调
+OpenAI；chat completions 还是可以走 ByteSpike。
+</Note>
+
+## 鉴权
+
+在 [Console](https://console.bytespike.ai) 创建 key，每个请求带上 `Authorization: Bearer $BYTESPIKE_API_KEY`。上面这些 OpenAI 结构的端点都用这套头。
+
+key 必须绑定到一个包含 GPT 模型的路由分组。Console 的
+[Test](https://console.bytespike.ai/dosia/models) 按钮可以在你接入客户端前
+确认 key + 分组 + 模型是否互通。逐 key 控制（quota、速率限制、IP 白名单）
+完整清单见 [鉴权](/zh/authentication)。
+
+## 模型
+
+完整的 chat 阵容，按每百万 token 公开定价。权威实时价目表见 [bytespike.ai/pricing](https://bytespike.ai/pricing)（每晚刷新）。
+
+| 模型 ID | 档位 | 上下文 | 输入 | 输出 | 能力 |
+|---|---|---|---|---|---|
+| `gpt-4o-mini` | small | 128K | $0.15 | $0.60 | chat · vision · tools · json mode |
+| `gpt-4o` | mid | 128K | $2.50 | $10.00 | chat · vision · tools · json mode |
+| `gpt-4v` | mid | 128K | $5.00 | $15.00 | chat · vision · tools |
+| `gpt-5-nano` | small | 256K | $0.05 | $0.40 | chat · tools · reasoning_effort:low |
+| `gpt-5-mini` | small-mid | 256K | $0.25 | $2.00 | chat · vision · tools · reasoning |
+| `gpt-5-2` | mid | 400K | $1.25 | $10.00 | chat · vision · tools · reasoning · web_search |
+| `gpt-5-3-codex` | mid | 400K | $1.25 | $10.00 | chat · vision · tools · reasoning · code-tuned |
+| `gpt-5-4-mini` | mid | 400K | $0.25 | $2.00 | chat · vision · tools · reasoning |
+| `gpt-5-4-nano` | small | 400K | $0.05 | $0.40 | chat · tools · reasoning |
+| `gpt-5-4` | mid-large | 400K | $1.25 | $10.00 | chat · vision · tools · reasoning · web_search · structured outputs |
+| `gpt-5-4-pro` | large | 400K | $3.00 | $15.00 | chat · vision · tools · extended reasoning · web_search |
+| `gpt-5-5-instant` | mid | 400K | $2.50 | $20.00 | chat · vision · tools · low-latency reasoning |
+| `gpt-5-5` | flagship | 1M | $5.00 | $30.00 | chat · vision · tools · extended reasoning · web_search · 1M context |
+
+多模态模型单独成页：[GPT-Image-2 →](/zh/models/gpt-image-2) · [Sora 2 →](/zh/models/sora2) · [Sora 2 Pro →](/zh/models/sora2-pro)。
+
+GPT-5-5 web-search 工具：$10 / 1k 次（被调用时单独计费）。
+
+## 快速开始
+
+下面四个示例都通过 Chat Completions 对 `gpt-5-4` 发出同样的请求。
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-4",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```javascript Node (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4",
+  messages: [
+    { role: "user", content: "Hello, ByteSpike." },
+  ],
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+```python Responses API (Codex)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.responses.create(
+    model="gpt-5-4",
+    input="Hello, ByteSpike.",
+    reasoning={"effort": "medium"},
+)
+
+print(resp.output_text)
+```
+
+</CodeGroup>
+
+## OpenAI 专属能力
+
+### 推理
+
+GPT-5 家族通过 `reasoning_effort` 参数（Chat Completions）或 `reasoning.effort`（Responses）控制模型在给出答案前花多少内部 token 来推理。取值 `low` / `medium` / `high`。
+
+推理 token 计入输出计费。见 [credits 与计费](/zh/concepts/credits-and-billing)。
+
+### 结构化输出
+
+`response_format: { type: "json_schema", json_schema: {...} }` 返回符合你 schema 的 JSON，并由供应商端做校验。GPT-5-2 起支持。ByteSpike 原样透传，不会改你的 schema。
+
+### Web search
+
+GPT-5-2 / 5-4 / 5-4-pro / 5-5 支持 OpenAI 的 web search 工具。请求里加 `tools: [{ "type": "web_search" }]`。每次工具调用按一段独立的输出 + 每千次调用的 web-search 附加费计费。
+
+### 函数调用
+
+标准的 `tools` 数组加 `tool_choice` 在每个 chat 模型上都能用。GPT-5 家族支持并行 tool use。原样透传。
+
+### 流式
+
+两套 chat 协议都支持 `stream: true` 返回 SSE。流中途出错会在最后一个数据帧里抛出 `error` 事件并关闭连接，整个请求计费为 **0** credits —— 即便已经流出部分 token 也一样。见 [流式](/zh/concepts/streaming)。
+
+## 能力矩阵
+
+| 能力 | gpt-4o-mini | gpt-4o | gpt-5-nano | gpt-5-mini | gpt-5-2 | gpt-5-4 | gpt-5-4-pro | gpt-5-5 |
+|---|---|---|---|---|---|---|---|---|
+| Chat Completions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Responses API | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 流式 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Vision | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tools / function calling | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 并行 tools | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| JSON mode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 结构化输出 | — | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 推理 | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Web search | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| 1M 上下文 | — | — | — | — | — | — | — | ✅ |
+
+## 错误与速率限制
+
+与 ByteSpike 其它协议契约一致 —— 完整状态码矩阵见 [错误参考](/zh/concepts/errors-reference)，逐 key 预算模型见 [速率限制](/zh/concepts/rate-limits)。
+
+| 状态码 | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 403 / 429 | 请求 / 鉴权 / 配额错 | 否 |
+| 500 / 502 / 503 / 504 | 上游错 | 否 —— 网关会在同分组内尝试下一个 channel 再决定是否抛出 |
+
+逐 key 速率限制挂在每把 API key 上（见 [鉴权](/zh/authentication)）；账号级并发挂在订阅档位上（见 [价格](/zh/pricing)）。
+
+## 各 GPT 该选谁
+
+- **gpt-4o-mini** —— 大规模分类、路由、结构化抽取。便宜又快。
+- **gpt-4o** —— 不需要推理的视觉 + tool use 多模态主力。
+- **gpt-5-nano** / **gpt-5-mini** —— 需要推理但又想压低延迟 / 成本。
+- **gpt-5-2** —— 新鲜事实任务的默认中档；首个带 web search 的 GPT-5。
+- **gpt-5-3-codex** —— 代码调优；搭配 [Codex CLI](/zh/codex-cli)。
+- **gpt-5-4** —— 生产主力。Vision、tools、结构化输出、推理、web search 一起到位，价格接近 Sonnet。
+- **gpt-5-4-pro** —— 值得多花算力的硬核推理。
+- **gpt-5-5** —— 1M 上下文旗舰。代码库级别重构、长文审阅。
+
+## 下一步
+
+- [ByteSpike 上的 Anthropic](/zh/providers/anthropic) —— 通过 `/v1/messages` 接 Claude 家族
+- [Codex CLI](/zh/codex-cli) —— Responses 结构的编码 agent
+- [从 OpenAI 迁移](/zh/migrate-from-openai) —— drop-in 切换指南
+- [端点类型](/zh/concepts/endpoints) —— 完整协议地图

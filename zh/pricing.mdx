@@ -1,0 +1,229 @@
+---
+title: "价格"
+description: "覆盖全部 45 款模型的逐模型费率表 —— 文本、图像、视频。每晚从生产网关刷新。"
+---
+
+ByteSpike 每种 surface 只发布一套逐模型费率。无分层、无加价说明。
+失败的请求不计费。
+
+<Note>
+**1 USD = 1,000,000 credits**（micro-USD 精度）。token 费率按每百万
+token 报价。每次调用的费率按美元报价。
+</Note>
+
+## 费率从哪来
+
+本文档每一行都来自生产网关的 admin 导出，每晚刷新。构建流水线读取
+`channel_model_pricing` 的最新种子并生成本页；如果你需要程序化访问
+同一份数据，直接打 `GET /api/pricing`（返回的 JSON 数组与下面表格行
+一一对应）。
+
+缓存定价约定：
+- **Cache write**：大多数 provider 按 input 费率计费；Anthropic 按 1.25× input 计费。
+- **Cache read**：所有 provider 一律 input 费率打 9 折（按 10% 计费）。
+- **Web search 工具**（支持的 provider）：按每千次使用单独计费的附加项。
+
+订阅 / 充值价格见 [bytespike.ai/pricing](https://bytespike.ai/pricing)。
+
+---
+
+## 文本模型（28 款）
+
+### OpenAI（11 款）
+
+| 模型 | Input / 1M | Cache write | Cache read | Output / 1M |
+|---|---|---|---|---|
+| `gpt-4o-mini` | $0.15 | $0.15 | $0.075 | $0.60 |
+| `gpt-4o` | $2.50 | $2.50 | $1.25 | $10.00 |
+| `gpt-5-nano` | $0.05 | $0.05 | $0.025 | $0.40 |
+| `gpt-5-mini` | $0.25 | $0.25 | $0.125 | $2.00 |
+| `gpt-5-2` | $1.25 | $1.25 | $0.625 | $10.00 |
+| `gpt-5-4-nano` | $0.05 | $0.05 | $0.025 | $0.40 |
+| `gpt-5-4-mini` | $0.25 | $0.25 | $0.125 | $2.00 |
+| `gpt-5-4` | $1.25 | $1.25 | $0.625 | $10.00 |
+| `gpt-5-4-pro` | $3.00 | $3.00 | $1.50 | $15.00 |
+| `gpt-5-5-instant` | $2.50 | $2.50 | $1.25 | $20.00 |
+| `gpt-5-5` | $5.00 | $5.00 | $0.50 | $30.00 |
+
+GPT-5.5 web-search 工具：$10 / 1k 次（单独计费）。
+
+### Anthropic（6 款）
+
+| 模型 | Input / 1M | Cache write（1.25×） | Cache read | Output / 1M |
+|---|---|---|---|---|
+| `claude-haiku-4-5` | $1.00 | $1.25 | $0.10 | $5.00 |
+| `claude-sonnet-4-5` | $3.00 | $3.75 | $0.30 | $15.00 |
+| `claude-sonnet-4-6` | $3.00 | $3.75 | $0.30 | $15.00 |
+| `claude-opus-4-5` | $15.00 | $18.75 | $1.50 | $75.00 |
+| `claude-opus-4-6` | $15.00 | $18.75 | $1.50 | $75.00 |
+| `claude-opus-4-7` | $5.00 | $6.25 | $0.50 | $25.00 |
+
+Claude Opus 4.7 web-search 工具：$10 / 1k 次（单独计费）。
+
+### Google（2 款）
+
+| 模型 | Input / 1M | Cache write | Cache read | Output / 1M |
+|---|---|---|---|---|
+| `gemini-3-flash` | $0.30 | $0.30 | $0.075 | $2.50 |
+| `gemini-3-1-pro` | $3.50 | $3.50 | $0.875 | $25.00 |
+
+Gemini 3.1 Pro grounding 工具（Google Search）：$35 / 1k 次。
+
+### 国产 LLM（9 款）
+
+#### DeepSeek（3 款）
+
+| 模型 | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `deepseek-v3-2` | $0.27 | $0.027 | $1.10 |
+| `deepseek-v4-flash` | $0.20 | $0.02 | $0.80 |
+| `deepseek-v4-pro` | $0.55 | $0.055 | $2.20 |
+
+#### Moonshot（2 款）
+
+| 模型 | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `kimi-k2-5` | $0.60 | $0.06 | $2.50 |
+| `kimi-k2-6` | $0.60 | $0.06 | $2.50 |
+
+#### Zhipu（2 款）
+
+| 模型 | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `glm-5` | $0.50 | $0.05 | $1.50 |
+| `glm-5-1` | $0.50 | $0.05 | $1.50 |
+
+#### MiniMax（2 款）
+
+| 模型 | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `minimax-m2.5` | $0.40 | $0.04 | $1.20 |
+| `minimax-m2.7` | $0.40 | $0.04 | $1.20 |
+
+---
+
+## 图像模型（9 款）
+
+同步端点。按生成的每张图计费。`n>1` 时每张图单独计费。
+
+### ByteDance（3 款）
+
+| 模型 | 分辨率 | 每图 |
+|---|---|---|
+| `seedream-v4` | 1024² | $0.024 |
+| `seedream-v4.5` | 2048² | $0.030 |
+| `seedream-v5lite` | 1024² | $0.012 |
+
+### Google（3 款）
+
+| 模型 | 分辨率 | 每图 |
+|---|---|---|
+| `nano-banana` | 1024² | $0.020 |
+| `nano-banana-pro`（standard） | 2048² | $0.040 |
+| `nano-banana-pro`（hd） | 2048² | $0.080 |
+| `nano-banana-v2` | 2048² | $0.040 |
+
+### OpenAI（3 款）
+
+| 模型 | 分辨率 | 每图 |
+|---|---|---|
+| `gpt-image-2`（medium） | 1024² | $0.030 |
+| `gpt-image-2`（high） | 1024² | $0.080 |
+| `gpt-image-2`（high） | 2048² | $0.250 |
+| `gpt-image-2-official` | 同 gpt-image-2 + 25% | 高级档 |
+| `gpt-4o-image`（每轮） | 1024² | $0.080 |
+
+GPT-Image 2 的质量档（`low` / `medium` / `high`）按固定倍率计费；
+分辨率 ≥ 2048² 一律走 `high` 费率。GPT-4o Image 按对话轮次计费 ——
+多轮编辑成本 = N × 单轮费率，其中 N 是产出图片的轮数。
+
+---
+
+## 视频模型（8 款）
+
+走异步 `/tasks/submit` → `/tasks/query`。按输出秒数计费，外加固定的
+提交费。`queued` 状态下取消免费；进入 `running` 后取消按已渲染的
+秒数部分计费。
+
+### OpenAI（2 款）
+
+| 模型 | 分辨率 | 每秒 | 提交费 |
+|---|---|---|---|
+| `sora-2` | 1080p | $0.30 | $0.05 |
+| `sora-2-pro` | 1080p | $0.45 | $0.05 |
+
+### Google（2 款）
+
+| 模型 | 分辨率 | 每秒 | 提交费 |
+|---|---|---|---|
+| `veo-3.1` | 1080p | $0.10 | $0.05 |
+| `veo-3.1-fast` | 720p | $0.04 | $0.05 |
+
+### ByteDance（5 款）
+
+| 模型 | 分辨率 | 每秒 | 提交费 |
+|---|---|---|---|
+| `seedance-1.5-pro` | 1080p | $0.08 | $0.05 |
+| `seedance-2.0` | 1080p | $0.06 | $0.05 |
+| `seedance-2.0-pro` | 1080p | $0.15 | $0.05 |
+| `seedance-2.0-pro-fast` | 1080p | $0.12 | $0.05 |
+| `seedance-fast` | 720p | $0.03 | $0.05 |
+
+---
+
+## 工具端点
+
+| 端点 | 成本 |
+|---|---|
+| `GET /balance` | 免费 |
+| `POST /tasks/submit` | 成本 = 底层模型费率 × 时长 |
+| `GET /tasks/query` | 免费 |
+| `POST /tasks/cancel` | status=queued 时免费；running 时按比例计费 |
+
+---
+
+## 价格说明
+
+- **失败不计费。** 任何非 2xx 响应都免费。唯一的例外：视频任务在
+  `running` 之后被取消 —— 已消耗的 GPU 秒数会计费。
+- **Cache write 费率**：大多数 provider 按 input 费率计 cache write。
+  Anthropic 按 1.25× input 计 cache write。
+- **Cache read 费率**：所有 provider 一律 9 折（按 10% 计费）。
+- **Web search / grounding 工具**（支持的 provider）：按每千次使用
+  单独计费，与 token 用量分开计。
+- **图像 / 视频任务失败**：任务级别 100% 退款。
+- **Chat 5xx**：不计费；网关在最外层做了自动重试。
+
+## 程序化访问
+
+```bash
+curl https://llm.bytespike.ai/api/pricing \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+返回一个 JSON 数组，每款模型一项：
+
+```json
+{
+  "model": "gpt-5-5",
+  "category": "text",
+  "vendor": "openai",
+  "rates": {
+    "input_per_1m": 5.00,
+    "cache_write_per_1m": 5.00,
+    "cache_read_per_1m": 0.50,
+    "output_per_1m": 30.00,
+    "currency": "USD"
+  },
+  "updated_at": "2026-05-08T04:30:00Z"
+}
+```
+
+刷新频率为每天 UTC 04:30。客户端至少缓存 24 小时；`updated_at` 字段
+告诉你底层网关数据最近一次刷新的时间。
+
+## 另见
+
+- [订阅套餐 + 充值阶梯](https://bytespike.ai/pricing)
+- [API 参考概览](/zh/api-reference/overview)
+- [credits 与账单概念](/zh/concepts/credits-and-billing)

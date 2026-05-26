@@ -1,0 +1,65 @@
+---
+title: "seedance-2.0-pro-fast"
+description: "Seedance 2.0 Pro 跑在更快运行时上 —— 同样的旗舰模型，首帧 wall-clock 更短，per-second 略有溢价。在循环迭代 Seedance prompt、不想等的场景下选它。"
+---
+
+`seedance-2.0-pro-fast` 是 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) 跑在更快运行时上的版本 —— 模型权重和保真度完全相同，只是优化过的推理路径把 wall-clock 拉了下来。Per-second 成本略高于标准 Pro 档。当你在循环迭代 Seedance prompt，submit 到出片之间的等待是瓶颈时选它。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance Fast** | Volcengine | `ark.cn-beijing.volces.com` | 按秒计费（[/pricing](/zh/pricing) —— 在 `seedance-2.0-pro` 之上有小溢价） | 5s 片段 ~40s wall-clock | cn-beijing |
+
+失败不计费。Per-second 价格针对生成的视频长度计算；更快的运行时是推理优化，不是保真度降级。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro-fast",
+    "prompt": "Same prompt structure as seedance-2.0-pro, just faster runtime",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+```
+
+轮询循环与 [sora2 quickstart](/zh/models/sora2#quickstart) 一致 —— 模型权重和接口与 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) 完全一致，只差推理时间。
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| 相对 `seedance-2.0-pro` 的保真度 | 完全相同 |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **prompt 迭代循环** —— 设计师或营销人员紧凑迭代用词 / 摆布；一次会话中的运行时差异会累加。
+- **演示 / 路演现场播放** —— 生成即放映的流程中，观众在盯屏，首帧 wall-clock 比 per-second 成本更重要。
+
+**不**适用的场景：
+
+- 批量 / 夜间流水线 —— 运行时不要紧，降到 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) 或 [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast)。
+- 成本敏感 —— 非交互工作负载下这点溢价不值。
+
+## 下一步
+
+- [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) —— 标准 Pro 档
+- [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast) —— 最便宜的档
+- [多模态端点](/zh/concepts/multimodal) —— 总览

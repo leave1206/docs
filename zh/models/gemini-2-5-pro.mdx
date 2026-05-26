@@ -1,0 +1,65 @@
+---
+title: "gemini-2-5-pro"
+description: "Google Gemini 2.5 Pro —— 2M 上下文旗舰。ByteSpike 上任意生产模型中最长的上下文窗口。原生 PDF 输入、grounding（Google 搜索）、vision。"
+---
+
+`gemini-2-5-pro` 是 Gemini 家族的旗舰 —— 也是 **ByteSpike 上上下文最长的生产模型**（2M 输入 token）。200K 的 Claude 或 400K 的 GPT 不够用时就上它：全代码库审计、几百页的法律 / 合规文本、多文档综述。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **Google AI Studio** | Google 直连 | `generativelanguage.googleapis.com` | $3.50 / 1M | $14.00 / 1M | ~900ms | global edge |
+
+完整通道 + 鉴权模型见 [/providers/gemini](/zh/providers/gemini)。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| Gemini Native | `POST https://llm.bytespike.ai/v1beta/models/gemini-2-5-pro:generateContent` |
+| OpenAI Chat Completions（shim） | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| Anthropic Messages（翻译） | `POST https://llm.bytespike.ai/v1/messages` |
+
+## 快速开始
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-2-5-pro",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions（shim） | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| **PDF 输入** | ✅ 原生 |
+| Tools / function calling | ✅ 并行 |
+| JSON mode | ✅ |
+| Grounding（web search） | ✅ |
+| 长上下文 | ✅ **2M tokens** |
+| 上下文窗口 | 2M tokens |
+
+## 什么时候用
+
+- **任何超出 1M 的活** —— 全代码库、多本书的文档审阅、长会议转写综述。
+- **PDF QA** —— Pro 是 ByteSpike 上唯一原生吃 PDF（无需预转图）的模型。
+- **长上下文 + grounding** —— 同时需要新鲜事实和大上下文的研究类查询。
+
+什么时候**不**用：
+
+- 默认中档 chat —— Sonnet 或 GPT-5-4 更高效。
+- 硬数学 / 代码推理 —— Opus / GPT-5-4-pro 占优势。
+
+## 下一步
+
+- [gemini-2.5-flash](/zh/models/gemini-2-5-flash) —— 便宜，也是 1M 上下文
+- [claude-opus-4-7](/zh/models/claude-opus-4-7) —— 自带 thinking 的 1M 上下文旗舰替代
+- [Gemini provider 页](/zh/providers/gemini) —— 通道、Vertex 企业要点

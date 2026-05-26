@@ -1,0 +1,71 @@
+---
+title: "gpt-4v"
+description: "OpenAI 的视觉专用 GPT-4 接口 —— 图入文出。为已 pin 死 gpt-4v 的存量代码保留；新 vision 工作请直接选 gpt-4o 或 gpt-5.5。"
+---
+
+`gpt-4v` 是 OpenAI 主打视觉的 GPT-4 接口 —— 图像输入、文本输出。挂在价目表上是为了让已经 pin 死它的代码不用改就能继续跑。**新 vision 工作应改用 [`gpt-4o`](/zh/models/gpt-4o)**（更全的多模态）或 [`gpt-5-5`](/zh/models/gpt-5-5)（更新家族） —— 这两个才是 DOSIA `analyze_image` 工具背后的现行模型。本页只为兼容参考。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI 直连 | `api.openai.com` | 见 [/pricing](/zh/pricing) | 见 [/pricing](/zh/pricing) | ~700ms | global edge |
+
+失败不计费。定价位于 `gpt-5-5` 与 `gpt-4o` 之下。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4v",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "Describe what's in this image." },
+          { "type": "image_url", "image_url": { "url": "https://example.com/photo.jpg" } }
+        ]
+      }
+    ]
+  }'
+```
+
+视觉内容块（`type: "image_url"`）遵循标准 OpenAI Chat Completions 多模态结构。
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| 音频输入 | —（用 [`gpt-4o`](/zh/models/gpt-4o)） |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| 模态 | chat + vision |
+| 能力桶 | `vision` |
+
+## 什么时候用
+
+- **既有 pin 死的集成** —— 已经 pin 在 `gpt-4v` 的代码，不想做回归测试再迁移。
+- **复现历史输出** —— 对齐过去用 `gpt-4v` 跑出的 benchmark 或实验。
+
+什么时候**不**用：
+
+- 新项目 —— 挑 [`gpt-4o`](/zh/models/gpt-4o)（音频 + vision）或 [`gpt-5-5`](/zh/models/gpt-5-5)（更新家族）。
+- 高吞吐成本敏感的 vision —— [`gpt-4o-mini`](/zh/models/gpt-4o-mini)。
+
+## 下一步
+
+- [`gpt-4o`](/zh/models/gpt-4o) —— 当前多模态中档
+- [`gpt-5-5`](/zh/models/gpt-5-5) —— 更新的 GPT-5 家族旗舰
+- [DOSIA MCP 集成](/zh/concepts/mcp-integration) —— DOSIA `analyze_image` 如何解析 vision 模型

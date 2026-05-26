@@ -1,0 +1,65 @@
+---
+title: "gemini-2-5-flash"
+description: "Google Gemini 2.5 Flash —— 带 1M 上下文窗口的小中档多模态。Haiku 级价位下意外能打的通用 chat 选项。"
+---
+
+`gemini-2-5-flash` 是 Google 的小中档 Gemini —— 快、多模态，并自带让整个 Gemini 家族出众的 **1M token 上下文窗口**。多数 benchmark 上和 `gpt-4o-mini`、`claude-haiku-4-5` 同档，但价格约为一半，且多了长上下文优势。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **Google AI Studio** | Google 直连 | `generativelanguage.googleapis.com` | $0.30 / 1M | $1.20 / 1M | ~500ms | global edge |
+
+完整通道 + 鉴权模型见 [/providers/gemini](/zh/providers/gemini)。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| Gemini Native | `POST https://llm.bytespike.ai/v1beta/models/gemini-2-5-flash:generateContent` |
+| OpenAI Chat Completions（shim） | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| Anthropic Messages（翻译） | `POST https://llm.bytespike.ai/v1/messages` |
+
+走 OpenAI shim 时，网关会在背后把请求体翻译成 Gemini 的 `generateContent` 结构。客户端这边写标准 `openai`-SDK 代码即可。
+
+## 快速开始
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-2-5-flash",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions（shim） | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tools / function calling | ✅ 并行 |
+| JSON mode | ✅ |
+| Grounding（web search） | ✅ |
+| 长上下文 | ✅ 1M tokens |
+| 上下文窗口 | 1M tokens |
+
+## 什么时候用
+
+- **便宜的长上下文** —— Haiku 价位上拿到 1M 上下文，独一份。代码库审阅、200K 装不下的多文档 QA。
+- **低成本的新鲜事实任务** —— Flash 也支持 grounding（Google 搜索）。
+- **高吞吐 vision** —— 小票 / 发票 / 截图的 OCR 类活。
+
+什么时候**不**用：
+
+- 硬推理 —— `gemini-2-5-pro` 体量更大；Flash 更偏 chat 档。
+- Anthropic Messages 协议 —— Gemini 当前只讲 OpenAI shim。
+
+## 下一步
+
+- [gemini-2.5-pro](/zh/models/gemini-2-5-pro) —— 2M 上下文旗舰
+- [Gemini provider 页](/zh/providers/gemini) —— 通道、企业版要点

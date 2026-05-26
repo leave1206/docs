@@ -1,0 +1,74 @@
+---
+title: "Credits 与账单"
+description: "credits 如何工作、什么计费（什么不计）、如何读账目响应头，以及到哪里管理配额。"
+---
+
+ByteSpike 以 **credits** 计费，`1 USD = 1,000,000 credits`（微美元精度）。
+按 token / 按次的费率在 [价格表](https://bytespike.ai/pricing) 中以美元报价，
+每晚从生产网关刷新。
+
+## 什么花什么钱
+
+| 表面 | 计费模型 |
+|---|---|
+| 文本端点（`/v1/messages`、`/v1/chat/completions`、`/v1/responses`、`/v1beta/.../generateContent`） | 按每 1M 输入 + 每 1M 输出 token。Cache read 有折扣，cache write 大多数 provider 是 1.0×，Anthropic 是 1.25×。 |
+| 图像端点（`/v1/images/generations`、`/v1/tasks/submit` 用于批量 / 异步） | 按张计费。离散的按次成本。 |
+| 视频端点（`/v1/tasks/submit` 用于 Sora / Veo / Seedance） | 按输出秒数计费。失败的渲染免费。 |
+| 工具（`/v1/models`、`/v1/balance`、`/v1/usage`、`/v1/tasks/{query,cancel}`） | 免费。 |
+
+权威实时费率始终是 [bytespike.ai/pricing](https://bytespike.ai/pricing)。
+
+## 失败不计费
+
+任何非 2xx 响应都是免费的，无论失败的是哪个模型、失败发生在请求多深入的位置。这是一条硬契约 —— 非 2xx 时 `X-Quota-Remaining-Credits` 不变。
+
+唯一的窄例外：如果你在上游 provider 已经开始渲染（status `running`）**之后** 取消一个视频任务，已渲染的部分秒数可能按上游自己的退款政策计费。Cancel 响应里的 `credits_used` 字段是权威。详见
+[`tasks/cancel`](/zh/api-reference/utility/tasks-cancel)。
+
+## 账目响应头
+
+每次响应都带配额信封（成功和失败都带）：
+
+| 响应头 | 含义 |
+|---|---|
+| `X-RateLimit-Limit` | 最接近限制你的那条速率桶的 USD 上限（`rate_limit_5h` / `_1d` / `_7d` 三者中最紧的那条）。 |
+| `X-RateLimit-Remaining` | 该桶里剩余预算。 |
+| `X-RateLimit-Reset` | 该桶重置的 Unix 时间戳。 |
+| `X-Quota-Remaining-Credits` | 该 key 剩余的累计 credits（USD）。`0.00` = 触达 key 的 `quota` 上限。 |
+| `X-Org-Quota-Remaining-Credits` | 组织钱包剩余，仅对组织持有的 key 返回。 |
+
+单次请求的实际成本不在响应头里 —— 通过
+[`GET /api/v1/usage`](/zh/api-reference/account/me-usage) 查询，
+每次调用返回一行，含 `prompt_tokens`、`completion_tokens` 和最终计费的 `credits`。
+
+## 预估预算
+
+对 "这次大概花 $X，确认吗？" 的流程：
+
+1. 用 [价格表](https://bytespike.ai/pricing) 按 `max_tokens` × 输出费率 + prompt 大小 × 输入费率算个最坏情况。
+2. 与上次调用拿到的 `X-Quota-Remaining-Credits` 对比（或直接调
+[`/v1/balance`](/zh/api-reference/utility/balance) —— 免费）。
+3. 如果估算超出预算，就别发请求。
+4. 请求之后，通过 `/api/v1/usage` 对账实际成本。
+
+ByteSpike 当前不发送预估响应头 —— 配额响应头只反映扣费之后的值。
+
+## 配额悬崖
+
+**任一** 条件满足时，key 停止服务请求：
+
+- `X-Quota-Remaining-Credits = 0`（触达 key 的 `quota` 上限）
+- `X-RateLimit-Remaining = 0`（key 最紧的那条速率桶耗尽）
+- 组织钱包空了（组织持有的 key）
+
+网关返回 `402 insufficient_balance`（OpenAI 信封）或
+`permission_error`（Anthropic 信封）。要抬上限，在
+[Console → API keys](https://console.bytespike.ai/keys) 编辑 key，
+或者给组织钱包充值。
+
+## 充值与订阅
+
+在 [Console → 账单](https://console.bytespike.ai/billing) 给组织钱包充值。
+最低 $5；大额包附赠 bonus 最高 +11.2%。
+
+订阅档位（Pro / Max / Enterprise）打包 credits + 更高的并发和优先级。实时档位表见 [bytespike.ai/pricing](https://bytespike.ai/pricing)。

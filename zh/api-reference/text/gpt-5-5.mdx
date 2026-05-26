@@ -1,0 +1,145 @@
+---
+title: "GPT-5.5"
+description: "OpenAI 当前生产旗舰 —— 200K 上下文、原生推理，任何没有针对旧版做过基准的新项目都该选它。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-5`
+**能力：** 200K 上下文 · 工具调用 · 视觉 · 流式 · 结构化输出 · reasoning_effort
+**计价：** 按 token，旗舰档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.5 是 OpenAI 当前的旗舰 —— 平台上任何新项目的默认选择。它是把原生推理塞
+进标准 chat completions 结构里的那款模型：同样的请求 body、同样的响应结构，
+`reasoning_effort` 作为可选的调节项。多数生产工作里默认的 `"medium"` 就够；
+只有在 Sonnet 或 5.4-pro 留下质量空间的硬问题上，才提到 `"high"`。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5",
+    "messages": [{"role": "user", "content": "Design a schema for a multi-tenant audit log."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-5` |
+| `messages` | array | 是 | — | — |
+| `reasoning_effort` | string | 否 | `"medium"` | `"low"` / `"medium"` / `"high"`。 |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：32768。 |
+| `tools` | array | 否 | — | 并行 function calling。 |
+| `response_format` | object | 否 | — | JSON 模式 + 结构化输出（生产推荐）。 |
+| `web_search` | object | 否 | — | 内置 web 搜索工具 —— 按次计费。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-5",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {
+    "prompt_tokens": 64,
+    "completion_tokens": 1842,
+    "reasoning_tokens": 2048,
+    "total_tokens": 3954
+  }
+}
+```
+
+`reasoning_tokens` 按输入 token 费率计费。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-5", "messages": [{"role": "user", "content": "Design a schema for a multi-tenant audit log."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-5",
+    messages=[{"role": "user", "content": "Design a schema for a multi-tenant audit log."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-5",
+  messages: [
+    { role: "user", content: "Design a schema for a multi-tenant audit log." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## reasoning_effort
+
+| 设置 | 用于 |
+|---|---|
+| `"low"` | 让推理保持轻量的快速路由 / 分类 |
+| `"medium"` | 默认 —— 生产代码生成、内容改写、agent |
+| `"high"` | 你能等的硬问题 —— 证明、深度重构、规划 |
+
+## Web 搜索
+
+传 `"web_search": {}` 让模型获得内置的 web 搜索工具。工具按次计费（当前费率见
+[价格](https://bytespike.ai/pricing#text)）。在事实接地任务里有用 —— 否则模型
+可能幻觉或引用过期信息。
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。开启推理时 TTFB 会更长。稳定前缀自动 prompt caching ——
+这个档位上最具杠杆效应的成本优化。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 在 OpenAI 上启动任何新项目的默认起点。
+- 在现有代码库中做代码生成、schema / API 设计。
+- 多步规划、中端模型会漂移的结构化输出场景。
+- 延迟敏感的响应，见 [GPT-5.5-instant](/zh/api-reference/text/gpt-5-5-instant)。
+- 中端成本 / 延迟，见 [GPT-5.4](/zh/api-reference/text/gpt-5-4)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 200K tokens |
+| 最大输出 | 32768 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |
+| 支持 reasoning_effort | 是 |
+| 支持 web 搜索工具 | 是 |

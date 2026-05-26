@@ -1,0 +1,56 @@
+---
+title: "错误处理"
+description: "重试 / 失败心智模型 —— 什么时候重试、什么时候不重试，以及任何非 2xx 都不扣费的保证。"
+---
+
+ByteSpike 处理错误的方式的简短概念性概览。完整的 HTTP 状态 + code 矩阵（三种信封形状并排）见 [Errors reference](/zh/concepts/errors-reference)。
+
+## 两条核心契约
+
+1. **失败不计费。** 任何非 2xx 响应都免费。`X-Quota-Remaining-Credits` 不动；`/api/v1/me/usage` 里没有新行；`/api/v1/me/billing/transactions` 里没有新条目。硬契约 —— 无例外。
+2. **错误以你调用的协议信封返回。** `/v1/messages` 上 Anthropic 形状；`/v1/chat/completions` + `/v1/responses` + `/v1/tasks/*` + `/v1/images/*` 上 OpenAI 形状；`/v1beta/...` 上 Google 形状。
+
+## 状态码分类
+
+| 状态 | 类别 | 重试？ |
+|---|---|---|
+| 400 | 错误请求（校验） | 否 —— 修请求体 |
+| 401 | 鉴权（缺 / 撤销 / 过期 key） | 否 —— 修凭证 |
+| 402 | credits 不足 / 触达 quota 上限 | 充值或抬上限后可 |
+| 403 | IP 拒绝或模型不在 key 分组里 | 否 —— 换 key |
+| 404 | 未知模型 / 未知 task_id | 否 |
+| 413 | 请求体过大（`/v1/tasks/*` 1 MiB 上限等） | 否 —— 缩小请求体 |
+| 429 | 速率限制（5h / 1d / 7d 桶）或并发 | 是 —— 用 `X-RateLimit-Reset` |
+| 500 | 网关内部 | 是，指数退避（≤4 次） |
+| 502 / 503 / 504 | 上游超时或没可用账号 | 是，指数退避（≤4 次） |
+
+每个 code 的细节表（含机器可读的 `code` / `type` enum）在 [Errors reference](/zh/concepts/errors-reference)。
+
+## 重试策略
+
+- **429：** 用 `X-RateLimit-Reset`（Unix 时间戳）—— 别猜。对并发 429，用短的抖动退避（1-3s），上限随 in-flight 请求完成而清。
+- **5xx：** 指数退避，从 1s 起 —— 4 次后放弃。网关在透出之前已经在上游 channel 上做过内部重试。
+- **4xx（除 429 外）：** 别重试。同一请求会以同样方式再失败一次。
+
+## 幂等性
+
+文本端点（`/v1/messages`、`/chat/completions`、`/responses`）**不** 幂等 —— 200 之后重试会再扣一次钱。除非拿到非 2xx，否则别重试。
+
+异步任务 API（`/v1/tasks/submit`）通过 `out_task_id` 实现 **幂等**。重试时发同样的 `out_task_id` 会返回已有的任务，而不是开新的。见 [`tasks/submit`](/zh/api-reference/utility/tasks-submit#idempotency)。
+
+## 流式中错误（SSE）
+
+如果流中途失败，你会看到一个最终的 `event: error`（Anthropic 形状）或带 `error` 字段的最终帧（OpenAI 形状），然后连接关闭。失败前已收到的部分输出归你，但请求 **不计费** —— 即便中途失败，"不计费" 契约也完整适用。
+
+SSE 没有 resume —— 需要恢复就从头重发请求。
+
+## 异步任务失败
+
+进到 `failed`（而不是 `completed`）的任务不计费。`/tasks/query` 响应里的 `error_code` + `error_message` 字段告诉你上游怎么了。取消的行为取决于取消前的状态 —— 见 [`tasks/cancel`](/zh/api-reference/utility/tasks-cancel#billing-semantics)。
+
+## 另见
+
+- [Errors reference](/zh/concepts/errors-reference) —— 完整的 HTTP 状态 + code 矩阵，三种信封形状并排
+- [速率限制](/zh/concepts/rate-limits) —— 什么触发 429 + 如何退避
+- [Credits 与账单](/zh/concepts/credits-and-billing) —— 完整的 "不计费" 保证
+- [流式](/zh/concepts/streaming) —— 流中错误的语义

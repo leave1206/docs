@@ -1,0 +1,119 @@
+---
+title: "GPT-5.4 mini"
+description: "5.4 档的 mini —— 自带 5.4 更紧的 tool-call 生成的小模型。GPT-5.4 的平价替换品。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-4-mini`
+**能力：** 128K 上下文 · 工具调用 · 视觉 · 流式 · 结构化输出
+**计价：** 按 token，mini 档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.4-mini 介于 [GPT-5-mini](/zh/api-reference/text/gpt-5-mini) 和
+[GPT-5.4](/zh/api-reference/text/gpt-5-4) 之间：mini 档价位 + 5.4 的更紧结构化
+输出和 tool-call 参数生成。生产抽取和 agent 循环的正确默认款 —— 当你想要 5.4
+的质量提升，又不想为标准档付费时。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-mini",
+    "messages": [{"role": "user", "content": "Extract the dollar amounts from this invoice."}],
+    "response_format": {"type": "json_object"}
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-4-mini` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：16384。 |
+| `tools` | array | 否 | — | 并行 function calling。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-4-mini",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "{\"amounts\": [142.50, 89.00]}"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 87, "completion_tokens": 24, "total_tokens": 111}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-4-mini", "messages": [{"role": "user", "content": "Extract amounts as JSON."}], "response_format": {"type": "json_object"}}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-4-mini",
+    messages=[{"role": "user", "content": "Extract amounts as JSON."}],
+    response_format={"type": "json_object"},
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4-mini",
+  messages: [{ role: "user", content: "Extract amounts as JSON." }],
+  response_format: { type: "json_object" },
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。自动 prompt caching。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 5-mini 质量见顶后的生产抽取与结构化输出场景。
+- 对参数紧致度有要求的工具调用 agent 步骤。
+- 想在小规模下更低延迟，见 [GPT-5.4-nano](/zh/api-reference/text/gpt-5-4-nano)。
+- 想要更高能力，见 [GPT-5.4](/zh/api-reference/text/gpt-5-4) 或 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 128K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

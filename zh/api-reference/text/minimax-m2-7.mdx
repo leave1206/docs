@@ -1,0 +1,118 @@
+---
+title: "MiniMax M2.7"
+description: "MiniMax 当前旗舰 —— 在 M2.5 基础上加长上下文、视觉支持，通用推理更强。"
+---
+
+**厂商：** MiniMax
+**Model ID：** `minimax-m2.7`
+**能力：** 256K 上下文 · 视觉 · 工具调用 · 流式 · 结构化输出 · CJK 原生
+**计价：** 按 token，中端档（[实时费率](https://bytespike.ai/pricing#text)）
+
+MiniMax M2.7 是当前的生产旗舰 —— 保留 M2.5 的创意写作长项，同时把通用质量
+拉到了和 Kimi K2.6、GLM-5.1 同台竞争的水平。256K 上下文窗口加上原生视觉，
+使它成了任何新项目里 MiniMax 的正确选择。对运行在 M2.5 上的现有人物声音 /
+对话流水线来说，迁移只是改一行 model id。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "minimax-m2.7",
+    "messages": [{"role": "user", "content": "为这款产品写一份小红书风格的种草文案。"}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `minimax-m2.7` |
+| `messages` | array | 是 | — | 原生支持 CJK。视觉通过 `image_url` block 传入。 |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：16384。 |
+| `tools` | array | 否 | — | 支持 function calling（并行）。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "minimax-m2.7",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 142, "completion_tokens": 487, "total_tokens": 629}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "minimax-m2.7", "messages": [{"role": "user", "content": "种草文案"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="minimax-m2.7",
+    messages=[{"role": "user", "content": "为这款产品写一份小红书风格的种草文案。"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "minimax-m2.7",
+  messages: [
+    { role: "user", content: "为这款产品写一份小红书风格的种草文案。" },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。自动 prompt caching。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 新项目里 MiniMax 的默认款 —— 中文市场创意写作、营销文案、人物声音对话。
+- 中文长文档摘要（256K 窗口）。
+- 上一代版本，见 [MiniMax M2.5](/zh/api-reference/text/minimax-m2-5)。
+- 中文通用旗舰替代品，见 [Kimi K2.6](/zh/api-reference/text/kimi-k2-6)、[GLM-5.1](/zh/api-reference/text/glm-5-1)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 256K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

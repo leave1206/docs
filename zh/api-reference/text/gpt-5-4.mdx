@@ -1,0 +1,118 @@
+---
+title: "GPT-5.4"
+description: "5.4 标准档 —— 通用生产工作的 5 系列主力，延迟与质量的平衡点。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-4`
+**能力：** 200K 上下文 · 工具调用 · 视觉 · 流式 · 结构化输出
+**计价：** 按 token，标准档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.4 是 5.4 这波的主力 —— 相对 5.2，更好的 tool-call 参数生成、更紧的结构化
+输出，同样的 200K 上下文。对于需要超越 mini 质量、又不想付 5.5 延迟代价的团队，
+这就是生产默认款。多步推理见 [GPT-5.4-pro](/zh/api-reference/text/gpt-5-4-pro)。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4",
+    "messages": [{"role": "user", "content": "Refactor this React component to use hooks."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-4` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：16384。 |
+| `temperature` | number | 否 | 1.0 | — |
+| `tools` | array | 否 | — | 并行 function calling。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-4",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 412, "completion_tokens": 587, "total_tokens": 999}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-4", "messages": [{"role": "user", "content": "Refactor this React component."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-4",
+    messages=[{"role": "user", "content": "Refactor this React component to use hooks."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4",
+  messages: [{ role: "user", content: "Refactor this React component to use hooks." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。重复前缀自动 prompt caching —— 在长 system prompt 上
+省得最多。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 代码生成、内容改写、工具使用类 agent 的生产默认款。
+- 多步推理场景，每一步都会放大效应，见 [GPT-5.4-pro](/zh/api-reference/text/gpt-5-4-pro)。
+- 最新旗舰，见 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+- 想要更低成本，见 [GPT-5.4-mini](/zh/api-reference/text/gpt-5-4-mini)。
+- 上一档稍老的中端，见 [GPT-5.2](/zh/api-reference/text/gpt-5-2)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 200K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

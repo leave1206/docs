@@ -1,0 +1,141 @@
+---
+title: "GPT-5.4 pro"
+description: "带 reasoning_effort 调节的 GPT-5.4 —— 第一稿必须组合而非随手答题的多步问题首选。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-4-pro`
+**能力：** 200K 上下文 · 工具调用 · 视觉 · 流式 · 结构化输出 · reasoning_effort
+**计价：** 按 token，pro 档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.4-pro 在标准 5.4 基础上为 OpenAI 的推理链开放了 `reasoning_effort` 调节。
+在多步问题上用它 —— 在带有惯例的现有代码库里做代码生成、数学/证明任务、跨多个
+子目标的规划 —— 第一稿必须组合答案，而不是随手回答。随着推理强度提高，延迟成本
+增加，但在硬问题上的答案质量提升幅度比延迟看上去要大得多。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-pro",
+    "reasoning_effort": "high",
+    "messages": [{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-4-pro` |
+| `messages` | array | 是 | — | — |
+| `reasoning_effort` | string | 否 | `"medium"` | `"low"` / `"medium"` / `"high"` —— 越高 = 推理链越长、延迟越高、在硬问题上质量越高。 |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：32768。 |
+| `tools` | array | 否 | — | 并行 function calling。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-4-pro",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "use std::sync::..."}, "finish_reason": "stop"}],
+  "usage": {
+    "prompt_tokens": 32,
+    "completion_tokens": 1248,
+    "reasoning_tokens": 4032,
+    "total_tokens": 5312
+  }
+}
+```
+
+`reasoning_tokens` 按输入 token 费率计费，而非输出费率。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-4-pro", "reasoning_effort": "high", "messages": [{"role": "user", "content": "..."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-4-pro",
+    reasoning_effort="high",
+    messages=[{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4-pro",
+  reasoning_effort: "high",
+  messages: [
+    { role: "user", content: "Implement a thread-safe LRU cache in Rust." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## reasoning_effort 选择指南
+
+| 设置 | 用于 |
+|---|---|
+| `"low"` | 快速结构化输出，轻度推理 |
+| `"medium"` | 默认 —— 大多数多步任务 |
+| `"high"` | 你能等的硬数学 / 证明 / 多目标规划 |
+
+更高设置在硬问题上单调提升质量；在多数任务上，高于 `"high"` 的边际收益递减。
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。开启推理后，第一个响应 chunk 在推理链完成后才到来 ——
+相比非推理模型，HTTP TTFB 更长。自动 prompt caching 仍生效。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 现有代码库里的多步代码生成。
+- 困难数学 / 证明 / 规划任务。
+- 不需要推理、想要更低延迟的 5.4，见 [GPT-5.4](/zh/api-reference/text/gpt-5-4)。
+- 最新支持推理的旗舰，见 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 200K tokens |
+| 最大输出 | 32768 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |
+| 支持 reasoning_effort | 是 |

@@ -1,0 +1,144 @@
+---
+title: "Gemini CLI"
+description: "把 Google 官方 Gemini CLI 指向 ByteSpike。支持 gemini-2-5-pro / gemini-2-5-flash / gemini-3-1-pro，以及所有可经 Gemini Native 翻译触达的模型。"
+---
+
+Google 的 `gemini-cli`（以及构建在它之上的 CLI / IDE 扩展家族）讲
+Gemini Native 协议 —— 用 query 参数鉴权（`?key=...`），打到
+`/v1beta/models/{model}:generateContent`。ByteSpike 在
+`llm.bytespike.ai/v1beta` 原样提供该协议。
+
+## 前置条件
+
+- 一个 ByteSpike 账号 + 一把绑到 **`gemini-default`** 分组的 key
+  （或任何能服务 Gemini 模型的分组）。详见 [注册账号](/zh/register)。
+- 装好 Gemini CLI：
+  ```bash
+  npm install -g @google/generative-ai-cli
+  # 或者你团队用的任意一个 Gemini CLI
+  ```
+
+## 配置
+
+Gemini CLI 一般读 `GEMINI_API_KEY`，并允许通过环境变量或 flag 覆盖
+base URL。
+
+```bash
+export GEMINI_API_KEY="sk-byts-..."
+export GEMINI_BASE_URL="https://llm.bytespike.ai/v1beta"
+```
+
+如果你用的官方 Google CLI 没有暴露 base-URL flag，按其文档设变量
+（部分版本读 `GOOGLE_API_BASE_URL`）；或者在包装脚本里用下一节的
+raw curl 形式。
+
+## 验证
+
+```bash
+curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=$GEMINI_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"parts": [{"text": "say hi"}]}]
+  }'
+```
+
+期望得到 200 响应，里面有 `candidates[0].content.parts[0].text`
+字段，外加标准的 `X-Quota-Remaining-Credits` 响应头。
+
+## 切换模型
+
+模型名写在 URL 路径里：
+
+```
+/v1beta/models/gemini-2-5-pro:generateContent
+/v1beta/models/gemini-2-5-flash:generateContent
+/v1beta/models/gemini-3-1-pro:generateContent
+```
+
+key 绑定的分组里任意 model id 都能用。完整请求结构见
+[`/v1beta` 参考](/zh/api-reference/text/gemini-generate-content)。
+
+## 流式
+
+把方法后缀换一下：
+
+```bash
+curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=$GEMINI_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"parts": [{"text": "explain SSE briefly"}]}]
+  }'
+```
+
+SSE 流和 Google 原生格式一致 —— `data: {chunk}\n\n` 块，以最后一个
+`[DONE]` 标记结尾。
+
+## SDK
+
+Google 官方 Generative AI SDK 和大多数第三方 Gemini 客户端都允许在
+构造时覆盖 `baseUrl`：
+
+```python
+import google.generativeai as genai
+genai.configure(
+    api_key="sk-byts-...",
+    transport="rest",
+    client_options={"api_endpoint": "llm.bytespike.ai"}
+)
+model = genai.GenerativeModel("gemini-2-5-pro")
+print(model.generate_content("hello").text)
+```
+
+```ts
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI("sk-byts-...", {
+  baseUrl: "https://llm.bytespike.ai",
+});
+const model = genAI.getGenerativeModel({ model: "gemini-2-5-pro" });
+const result = await model.generateContent("hello");
+console.log(result.response.text());
+```
+
+## 走 Gemini 栈的图像 + 视频模型
+
+Veo（Google 的视频模型）出在 Gemini API 这套接口下，但 long-running
+结构走的是 ByteSpike 的异步 tasks API：
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -d '{
+    "model": "veo-3-1",
+    "params": {"prompt": "...", "duration_seconds": 8}
+  }'
+```
+
+详见 [`POST /tasks/submit`](/zh/api-reference/utility/tasks-submit) 和
+[Veo 3.1 模型页](/zh/models/veo3-1)。
+
+## 排错
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| `401 API key not valid` | key 错了或者缺 query 参数 | 确认 `?key=sk-byts-...` 写对了且没漏 |
+| `403 PERMISSION_DENIED` | 模型不在 key 的分组里 | 换到 `gemini-default` 分组或选别的模型 |
+| `404 NOT_FOUND`（模型） | model id 拼错 —— 注意命名只用短横线（`gemini-2-5-pro`，而不是某些调用约定里的 `gemini-2-5-pro`） | 用 `/api/v1/me/available-models` 里返回的 slug |
+| 流式打完第一块就断 | 部分 CLI 默认打非流式端点；检查 `:streamGenerateContent` 后缀 | 切到 `streamGenerateContent` |
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="/v1beta 参考" icon="code" href="/zh/api-reference/text/gemini-generate-content">
+    完整请求 / 响应 / 流式协议。
+  </Card>
+  <Card title="Gemini provider" icon="google" href="/zh/providers/gemini">
+    模型、坑点、价格。
+  </Card>
+  <Card title="Claude Code CLI" icon="terminal" href="/zh/claude-code-cli">
+    Anthropic 原生那一侧的对等品。
+  </Card>
+  <Card title="Cursor IDE" icon="code-branch" href="/zh/cursor">
+    编辑器层的 Gemini 集成。
+  </Card>
+</CardGroup>

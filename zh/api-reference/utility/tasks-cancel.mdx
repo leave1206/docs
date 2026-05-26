@@ -1,0 +1,112 @@
+---
+title: "POST /tasks/cancel"
+description: "终止未终态的异步任务。幂等 —— 对已完成的任务调用返回当前状态。"
+---
+
+停掉还没结束的任务。幂等：对已经 `completed`、`failed`、`cancelled`
+的任务调用取消，会返回 HTTP 200 + 当前状态，不报错。可以从和
+`/tasks/query` 抢跑的轮询器里安全调用。
+
+## 何时选用
+
+- **用户改主意了** —— 在你的 UI 里渲染中按了「取消」
+- **触发了成本上限** —— 账号刚到软 credit 上限，想停掉 in-flight 工作
+- **卡在 `pending`** —— 上游异常排队，取消后用不同参数重投
+
+## Request
+
+### 按 task_id（path-param 形式，主用）
+
+```bash
+curl -X POST https://llm.bytespike.ai/v1/tasks/cancel/task_01HQX9F2P6Y8VEX3CRZ8GXJVD9 \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### 按 out_task_id（body 形式，备选）
+
+只有幂等键在手时：
+
+```bash
+curl -X POST https://llm.bytespike.ai/v1/tasks/cancel \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"out_task_id": "my-render-2026-05-25-001"}'
+```
+
+### Body
+
+只有 out_task_id 形式才需要 body。
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `task_id` | string | 二选一 | 与 path-param 相同，也能作 body 字段传。 |
+| `out_task_id` | string | 二选一 | submit 时提供的幂等键。 |
+
+恰好一个标识符要能解析。同时给 `task_id` 和 `out_task_id`、或两个都不给，
+返回 `400 invalid_param`。如果 path-param 和 body 里的 `task_id` 都有，
+path-param 优先。
+
+## Response
+
+结构与 [`/tasks/query`](./tasks-query) 相同 —— 任务的取消后状态。
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "cancelled",
+  "estimated_credits": 1.50,
+  "estimated_seconds": 35,
+  "upstream_provider": "openai"
+}
+```
+
+如果 cancel 到达时任务已经在终态，响应反映那个状态（无字段变化）：
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "status": "completed",
+  "credits_used": 1.47,
+  "output": [{ "type": "video", "url": "https://cdn.bytespike.ai/..." }]
+}
+```
+
+这让重试安全的调用方可以把 `200` 当作「任务不再 in-flight」，不需要
+对竞态分支。
+
+## 扣费语义
+
+| 取消前状态 | 扣费 |
+|---|---|
+| `pending`（上游还没接触） | $0 —— 免费取消 |
+| `running`（上游正在生成） | 取决于 provider —— 大多在到达不可逆点之前会退；见响应里的 `credits_used` |
+| `completed` / `failed`（已终态） | 无变化 —— 该任务的扣费已经结算（或者在 failed 情况下根本没结算） |
+
+要确认 running 状态的退款，cancel 返回后检查 `credits_used`。字段缺失
+即未扣费；存在即为最终金额。
+
+## 错误
+
+| HTTP | `code` | 触发时机 |
+|---|---|---|
+| 400 | `invalid_param` | 同时给 `task_id` 和 `out_task_id`，或两个都不给。 |
+| 401 | `invalid_api_key` | key 缺失 / 已撤销。 |
+| 404 | `task_not_found` | 没任务匹配 —— 或者任务属于另一把 API key。 |
+
+## 幂等
+
+cancel 在*终态*任务上幂等：对 `completed` / `failed` / `cancelled`
+任务调用 cancel 会返回 HTTP 200 + 当前状态，而不是报错。这是有意的 ——
+并行运行 `/tasks/query` 和 cancel 按钮的客户端不该分支处理「任务在
+我的 cancel 到达前几毫秒结束了？」。
+
+## 价格
+
+cancel 调用本身免费。任何 `credits_used` 的退款在 cancel 过程里完成，
+不是事后。
+
+## 下一步
+
+- [`POST /tasks/submit`](./tasks-submit)
+- [`POST /tasks/query`](./tasks-query)

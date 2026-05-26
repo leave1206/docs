@@ -1,0 +1,56 @@
+---
+title: "遗留兼容名"
+description: "旧的 DeepSeek 模型字符串（deepseek-chat、deepseek-reasoner）在 DeepSeek 官方 2026-07-24 下线之前仍可经 ByteSpike 解析。新代码应当直接用规范名 —— deepseek-v4-flash 和 deepseek-v4-pro。"
+---
+
+ByteSpike 接受一小组 **遗留兼容名** —— DeepSeek 自己在上游侧已经下线。它们留在这里是为了让现有客户代码能撑过 DeepSeek 官方的下线窗口。新代码不要再用。
+
+## 规范名（推荐）
+
+把你的代码写成这些：
+
+| 规范名 | 含义 |
+|---|---|
+| `deepseek-v4-flash` | DeepSeek V4 Flash —— 快速非思考模式，常规 chat / completion 的默认 |
+| `deepseek-v4-pro` | DeepSeek V4 Pro —— 加上 thinking / reasoning 模式（用 `reasoning_effort` 控制深度） |
+
+两者都是一等公民：在用量导出、审计日志、账单行项、[Models 索引](/zh/models) 里都直接出现，无需翻译。
+
+## 遗留兼容（截至 **2026-07-24**）
+
+DeepSeek 宣布这些名字会在 **2026-07-24 上游下线**。在此之前 ByteSpike 网关继续接受，把每个请求解析到下表的规范名。
+
+| 遗留名 | 解析为 | 备注 |
+|---|---|---|
+| `deepseek-chat` | `deepseek-v4-flash` | V4 之前最常见的 DeepSeek 字符串 |
+| `deepseek-reasoner` | `deepseek-v4-pro`（thinking 模式） | V4 之前的 "reasoner" 句柄 |
+
+2026-07-24 之后这些名字会从 ByteSpike 返回 400（与 DeepSeek 自己一致）。请在此之前更新代码。
+
+## 不要用的名字
+
+更早的 DeepSeek 谱系 —— `deepseek-coder`、`deepseek-r1`、`deepseek-v2`、`deepseek-v3` 系列句柄 —— 在上游和 ByteSpike 都已删除。用这些发请求会返回 404，并提示指向 V4 系列。
+
+对其他 provider，ByteSpike 直接接受上游规范的 model ID。没有别名层；没有同义词需要记忆。每个模型的确切字符串请在对应的 [models](/zh/models) 页查。
+
+## 怎么迁移
+
+大多数客户端一行代码改动：
+
+```diff
+- "model": "deepseek-chat"
++ "model": "deepseek-v4-flash"
+```
+
+```diff
+- "model": "deepseek-reasoner"
++ "model": "deepseek-v4-pro"
+```
+
+如果你用 `deepseek-reasoner` 且依赖 thinking 输出本身，还要确认客户端有设 `reasoning_effort`（V4 Pro 默认是 medium）。
+
+## 下一步
+
+- [Models 索引](/zh/models) —— ByteSpike 服务的所有规范模型，含价格与协议覆盖
+- [Provider 对比](/zh/concepts/provider-comparison) —— 多家都能服务同一工作负载时，怎么选
+- [DeepSeek provider 页](/zh/providers/deepseek) —— V4 分支（Flash vs Pro）、价格、双协议覆盖

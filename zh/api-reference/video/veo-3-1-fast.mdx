@@ -1,0 +1,129 @@
+---
+title: "Veo 3.1 Fast"
+description: "为约 30s 周转调优的 Veo 3.1 —— 保真度更低、自然世界镜头的快速迭代。"
+---
+
+**厂商：** Google
+**Model ID：** `veo-3.1-fast`
+**能力：** 720p · 最长 5s · 文本 + image init · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，fast 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Veo 3.1 Fast 是迭代变体。同样的 Veo 运动强项（自然世界镜头、符合物理）
+被压到 720p / 5s，周转通常在 30 秒以内。prompt 设计、定稿 Veo 3.1 之前
+跑 draft，以及用户点了「生成」之后盯着秒表的 UX —— 这些场景就用它。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo-3.1-fast",
+    "prompt": "Slow zoom into a bowl of ramen, steam rising.",
+    "duration_seconds": 4,
+    "resolution": "720p"
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `veo-3.1-fast` |
+| `prompt` | string | yes | — | 针对英文调优。 |
+| `duration_seconds` | integer | yes | — | 1–5。 |
+| `resolution` | string | no | `720p` | 仅支持 `720p`。 |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`。 |
+| `seed` | integer | no | — | 可复现性。 |
+| `image_init` | string | no | — | init image 的 URL。 |
+
+## Submit + poll
+
+```json
+// Submit 响应
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.18}
+
+// 完成响应
+{"task_id": "task_…", "status": "completed", "result": {"video_url": "https://cdn.bytespike.ai/vid/...", "duration_seconds": 4, "resolution": "720p"}, "credits": 0.18}
+```
+
+推荐节奏：前 30 秒每 1 秒，之后每 2 秒，最长到 60 秒。query 免费。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "veo-3.1-fast", "prompt": "Slow zoom into ramen", "duration_seconds": 4, "resolution": "720p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(
+    f"{API}/tasks/submit", headers=HEADERS,
+    json={"model": "veo-3.1-fast", "prompt": "Slow zoom into ramen", "duration_seconds": 4, "resolution": "720p"},
+).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(1)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "veo-3.1-fast", prompt: "Slow zoom into ramen", duration_seconds: 4, resolution: "720p" }),
+}).then((r) => r.json())
+
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 1000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 延迟敏感的 UX —— 用户在盯着秒表。
+- 定稿 Veo 3.1 / Sora 2 之前的 prompt 迭代。
+- 完整 1080p 保真度，见 [Veo 3.1](/zh/api-reference/video/veo-3-1)。
+- ByteDance 系 fast 级，见 [Seedance Fast](/zh/api-reference/video/seedance-fast)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 5s |
+| 最短时长 | 1s |
+| 分辨率 | 仅 720p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 4s 片段典型延迟 | 20-40s |
+| 通过 tasks API 异步 | 是 |

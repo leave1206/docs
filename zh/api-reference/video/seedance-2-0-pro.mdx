@@ -1,0 +1,115 @@
+---
+title: "Seedance 2.0 Pro"
+description: "Seedance 2.0 加一道延展精修 —— ByteDance 旗舰级角色运动视频。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedance-2.0-pro`
+**能力：** 1080p · 最长 10s · 文本 + image init · CJK prompt · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，pro 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Seedance 2.0 Pro 是 ByteDance 当前的视频旗舰。在 2.0 基础上加一道
+延展精修 —— 更锐利的纹理、更干净的角色边缘、对白场景更好的口型同步。
+片段就是交付物时选 Pro，迭代素材别用。draft 阶段用
+[Seedance 2.0](/zh/api-reference/video/seedance-2-0)；主视觉镜头用 Pro。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro",
+    "prompt": "一位主厨在专业厨房里抛炒锅，火焰升起，慢动作",
+    "duration_seconds": 8,
+    "resolution": "1080p"
+  }'
+```
+
+### Body 参数
+
+形状与 [Seedance 2.0](/zh/api-reference/video/seedance-2-0) 相同。
+最大 `duration_seconds` 是 10。
+
+## Submit + poll
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 1.20}
+```
+
+推荐节奏：前 90 秒每 2 秒，之后每 5 秒，最长到 240 秒。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-2.0-pro", "prompt": "主厨抛炒锅", "duration_seconds": 8, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-2.0-pro",
+    "prompt": "一位主厨在专业厨房里抛炒锅，火焰升起",
+    "duration_seconds": 8,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-2.0-pro", prompt: "主厨抛炒锅", duration_seconds: 8, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+标准。
+
+## 何时选用
+
+- 主视觉 / 终稿级 ByteDance 视频输出。
+- 对白场景 —— 口型同步连贯性要紧。
+- draft / 迭代，见 [Seedance 2.0](/zh/api-reference/video/seedance-2-0)。
+- 延迟调优过的 Pro 变体，见 [Seedance 2.0 Pro Fast](/zh/api-reference/video/seedance-2-0-pro-fast)。
+- 西方市场主视觉，见 [Sora 2 Pro](/zh/api-reference/video/sora-2-pro)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 10s |
+| 分辨率 | 720p、1080p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 8s 片段典型延迟 | 90-150s |
+| 通过 tasks API 异步 | 是 |

@@ -1,132 +1,132 @@
 ---
-title: "管理员运营手册 · ByteSpike admin"
-description: "管理员的 1 页运营指南：grant 员工模型权限、用量监控、model 配置、计费、紧急处置 SOP — 每个动作都标出口在哪。"
+title: "Admin operations runbook · ByteSpike admin"
+description: "A one-page operations guide for admins: grant employees model permissions, monitor usage, configure models, billing, emergency-response SOPs — every action has its exit point marked."
 ---
 
 <Note>
-**适用场景**：你是 ByteSpike 组织的管理员（owner / admin role），需要给员工开通模型权限、监控用量与余额、处理 abuse 或 upstream 故障。这份是配套 [员工 onboarding](./employee-onboarding) 的对偶文档 — 员工那份说"怎么用"，这份说"怎么运营"。
+**When this applies**: you're an admin (owner / admin role) on a ByteSpike org, and you need to grant employees model access, monitor usage and balance, or handle abuse or upstream incidents. This is the companion piece to [Employee onboarding](./employee-onboarding) — that one tells employees "how to use it", this one tells admins "how to run it".
 </Note>
 
-## 1. 三站职责快览
+## 1. Three surfaces at a glance
 
-ByteSpike 当前是 2 个域名 + 1 个子路径：
+ByteSpike currently lives on 2 domains + 1 sub-path:
 
-| 域名 / 路径 | 主要受众 | 你（admin）什么时候用 |
+| Domain / path | Primary audience | When you (admin) use it |
 |---|---|---|
-| **llm.bytespike.ai/admin** | 平台后台 | **当前主入口** — 用户管理、可用模型、渠道分组、审计日志 |
-| **console.bytespike.ai** | user-tier 视角 | 看自己的 key / 用量 / billing、企业级 dashboard、给员工开 key |
+| **llm.bytespike.ai/admin** | Platform backend | **Main entry point right now** — user management, available models, channel groups, audit logs |
+| **console.bytespike.ai** | User-tier view | View your own keys / usage / billing, enterprise dashboard, hand out keys to employees |
 
 <Note>
-未来会拆出 `admin.bytespike.ai` 独立子域名（与 user-facing 的 console 彻底分离）；当前阶段 admin 后台还挂在 `llm.bytespike.ai/admin` 路径下，跟 inference gateway 共用主机名。本文档统一用 `llm.bytespike.ai/admin` 引用 — 等迁移完成后会更新。
+Eventually `admin.bytespike.ai` will be split out as its own subdomain (cleanly separate from the user-facing console). Right now the admin backend still lives under the `llm.bytespike.ai/admin` path, sharing the hostname with the inference gateway. This document uniformly refers to `llm.bytespike.ai/admin` — once migration is done we'll update.
 </Note>
 
 <Tip>
-日常 90% 操作都在 `llm.bytespike.ai/admin`。Console 用于看你自己作为 user 的视角（充值、跑 API、看 audit log 自己那一行）。
+90% of day-to-day operations happen at `llm.bytespike.ai/admin`. The console is for seeing your own user-side view (top-up, calling the API, looking at your own row in the audit log).
 </Tip>
 
-## 2. 给员工 grant 模型权限（核心运营动作）
+## 2. Grant employees model permissions (core operations action)
 
-新员工加入后，**默认 0 个模型可用**。你需要给他们 grant 权限。
+When a new employee joins, **0 models are usable by default**. You need to grant them.
 
 <Tabs>
-  <Tab title="路径 1 · Bulk 批量配置（推荐）">
-    一次给多个员工同样的权限 — 最常用。
+  <Tab title="Path 1 · Bulk config (recommended)">
+    Grant the same permissions to multiple employees at once — most common.
 
     <Steps>
-      <Step title="进 admin → 用户管理">
-        llm.bytespike.ai/admin → 左侧导航 **用户管理 / Users**
+      <Step title="Open admin → User management">
+        llm.bytespike.ai/admin → left nav **User management / Users**
       </Step>
-      <Step title="多选员工">
-        勾选目标员工（可全选）→ 顶部按钮 **批量分配模型组**
+      <Step title="Multi-select employees">
+        Tick the target employees (select all is fine) → top button **Bulk assign model groups**
       </Step>
-      <Step title="勾 11 个公开 group">
-        弹窗里默认 11 个公开 channel group 全勾。如果想限制（如只给 Claude + GPT 不给 image），按需取消勾选。
+      <Step title="Tick the 11 public groups">
+        The dialog defaults to all 11 public channel groups ticked. To limit (e.g. only Claude + GPT, no image), untick as needed.
       </Step>
-      <Step title="保存">
-        点保存 — 后台批量写入。员工**下次 DOSIA 启动**或 console 刷新即生效（enterprise-managed-runtime 自动拉新权限）。
+      <Step title="Save">
+        Hit save — the backend writes in bulk. Takes effect the **next time the employee launches DOSIA** or refreshes console (enterprise-managed-runtime picks up new permissions automatically).
       </Step>
     </Steps>
   </Tab>
-  <Tab title="路径 2 · 单员工 grant">
-    需要给某员工特殊权限组合时用。
+  <Tab title="Path 2 · Single-employee grant">
+    Use this when one employee needs a special permission combination.
 
     <Steps>
-      <Step title="进 admin → 用户管理 → 点员工">
-        在 Users 列表里点该员工的行 → 进 detail 页
+      <Step title="Admin → User management → click employee">
+        In the Users list, click the employee's row → enter detail page.
       </Step>
-      <Step title="可用模型 tab">
-        切到 **可用模型 / Allowed Models** tab
+      <Step title="Allowed Models tab">
+        Switch to the **Allowed Models** tab.
       </Step>
-      <Step title="勾选 + 保存">
-        按模型 / capability 多选 → 保存
+      <Step title="Tick + save">
+        Multi-select by model / capability → save.
       </Step>
     </Steps>
   </Tab>
 </Tabs>
 
 <Note>
-公开 group 不需要写 `user_allowed_groups` 数据表 — backend 用 `User.CanBindGroup(_, is_exclusive=false)=true` 直接放行。所以即使 admin UI 显示员工权限为「未分配」，实际全公开 group 仍可调。Exclusive group 才需要显式 grant 写表。
+Public groups don't need to be written into the `user_allowed_groups` table — the backend uses `User.CanBindGroup(_, is_exclusive=false)=true` and waves them through. So even if the admin UI shows an employee's permissions as "unassigned", every public group is still callable. Exclusive groups are the ones that need explicit grant rows in the table.
 </Note>
 
-## 3. 用量监控 + 余额告警
+## 3. Usage monitoring + balance alerts
 
 <Steps>
-  <Step title="日用量看板">
-    **llm.bytespike.ai/admin → 用量 / Usage** → 按 day / model / api_key / user 多维度分组。可导出 CSV。
+  <Step title="Daily usage dashboard">
+    **llm.bytespike.ai/admin → Usage** → group by day / model / api_key / user across multiple dimensions. CSV export available.
   </Step>
-  <Step title="总览（仪表盘）">
-    **llm.bytespike.ai/admin → 总览** → 当日总用量、tier breakdown、活跃用户、余额走势
+  <Step title="Overview (dashboard)">
+    **llm.bytespike.ai/admin → Overview** → today's total usage, tier breakdown, active users, balance trend.
   </Step>
-  <Step title="低余额告警">
-    **llm.bytespike.ai/admin → 设置 → balance_notify** → 设阈值（如 $50）+ 接收邮箱。当组织钱包跌破阈值时 cron 发邮件 + 写一条 `system.balance.notify.dispatched` 通知到 console 通知中心。
+  <Step title="Low-balance alerts">
+    **llm.bytespike.ai/admin → Settings → balance_notify** → set a threshold (e.g. $50) + recipient email. When the org wallet drops below the threshold, cron sends an email + writes a `system.balance.notify.dispatched` notification into the console notification center.
 
-    详细机制看 [/me/notifications](./api-reference/account/me-notifications)。
+    Mechanism details at [/me/notifications](./api-reference/account/me-notifications).
   </Step>
 </Steps>
 
-## 4. Model 权限管理（平台层）
+## 4. Model permissions (platform layer)
 
-跟单个员工权限不同 — 这里管的是「ByteSpike 整体能调哪些 model」。
+Different from per-employee permissions — this governs "which models the ByteSpike platform itself can call".
 
 <CardGroup cols={2}>
-  <Card title="渠道分组（Channel Groups）" icon="layer-group">
-    **llm.bytespike.ai/admin → 渠道分组 / Groups** — 加 model 到 group、设倍率（如某 model 走 0.8x 折扣 group）、设 exclusive flag（限白名单可用）
+  <Card title="Channel Groups" icon="layer-group">
+    **llm.bytespike.ai/admin → Channel Groups** — add models to a group, set multiplier (e.g. route a model through a 0.8x discount group), set the exclusive flag (whitelist-only access).
   </Card>
-  <Card title="可用模型注册" icon="boxes">
-    **llm.bytespike.ai/admin → 可用模型 / Available Models** — 当你新加了一个 upstream provider account（如新开了 OpenAI org）就在这里 register model + 关联 channel group
+  <Card title="Available models registry" icon="boxes">
+    **llm.bytespike.ai/admin → Available Models** — when you add a new upstream provider account (e.g. spin up a new OpenAI org), register the model here + associate the channel group.
   </Card>
-  <Card title="API Keys（自己的）" icon="key">
-    **console.bytespike.ai/keys** — admin 给自己测试用的 key。生产 key 让员工自己在 DOSIA 里生成 / 由 admin 在 [console.bytespike.ai/org/keys](https://console.bytespike.ai) 批量发。
+  <Card title="API Keys (your own)" icon="key">
+    **console.bytespike.ai/keys** — your own admin test keys. For production keys, employees generate them inside DOSIA, or admin batch-issues them at [console.bytespike.ai/org/keys](https://console.bytespike.ai).
   </Card>
-  <Card title="审计日志" icon="scroll">
-    **llm.bytespike.ai/admin → 审计日志 / Audit Log** — 25+ action 类型，包含 admin / org / user 三层所有写操作。每条都带 actor + IP + UA。
+  <Card title="Audit log" icon="scroll">
+    **llm.bytespike.ai/admin → Audit log** — 25+ action types covering every write operation across admin / org / user layers. Each entry carries actor + IP + UA.
   </Card>
 </CardGroup>
 
-## 5. 充值与计费
+## 5. Top-up and billing
 
 <Steps>
-  <Step title="组织钱包充值">
-    **console.bytespike.ai/billing** → 选 Stripe（visa / mastercard / amex）或 Alipay → 输入金额 → 完成。Webhook 接收到 `system.payment.received` 通知，余额秒到账。
+  <Step title="Top up the org wallet">
+    **console.bytespike.ai/billing** → pick Stripe (visa / mastercard / amex) or Alipay → enter amount → done. The webhook receives `system.payment.received` and balance lands instantly.
   </Step>
-  <Step title="自动续费策略（可选）">
-    Billing 页面下方 **Auto-recharge** 区 — 设触发阈值（如余额低于 $50）+ 单次自动充 $200。靠 Stripe 卡保存的 payment method 自动扣款。
+  <Step title="Auto-recharge policy (optional)">
+    On the billing page, **Auto-recharge** section — set a trigger threshold (e.g. balance below $50) + an auto-charge amount per trigger (e.g. $200). Charges happen automatically via the Stripe saved payment method.
   </Step>
-  <Step title="历史账单 / 导出">
-    **console.bytespike.ai/billing → Transactions** → 完整 ledger（topup / refund / admin_credit / admin_debit / subscription_renew）。每行点 CSV 导出符合财务要求。
+  <Step title="Billing history / export">
+    **console.bytespike.ai/billing → Transactions** → complete ledger (topup / refund / admin_credit / admin_debit / subscription_renew). Each row has CSV export, meets finance-team requirements.
 
-    API 接口看 [/me/billing/transactions](./api-reference/account/me-billing-transactions)。
+    API endpoint at [/me/billing/transactions](./api-reference/account/me-billing-transactions).
   </Step>
 </Steps>
 
-## 6. 紧急处置 SOP
+## 6. Emergency response SOP
 
-完整运营 troubleshoot（余额突降 / upstream 故障 / 员工 abuse / 误吊销 + 处置员工反馈）见 [troubleshooting](./troubleshooting) · Admin 视角 tab。该页同时收纳了 [员工 onboarding](./employee-onboarding) 的所有员工卡点，按角色 + 场景 AccordionGroup 排版。
+The full operations troubleshooting (balance crash / upstream incidents / employee abuse / mistaken revocation + handling employee feedback) lives in [troubleshooting](./troubleshooting) · Admin view tab. That page also collects every employee blocker from [Employee onboarding](./employee-onboarding), organized by role + scenario in AccordionGroups.
 
-## 接下来
+## What's next
 
-- 想给员工分发新 dmg？看 [员工 onboarding](./employee-onboarding)
-- 想看 user-tier API 怎么调？看 [API Reference · Account](./api-reference/account/me-account)
-- 想看 model 完整目录 + 定价？看 [bytespike.ai/pricing](https://bytespike.ai/pricing)
+- Want to distribute a new dmg to employees? See [Employee onboarding](./employee-onboarding).
+- Want to know how to call user-tier APIs? See [API Reference · Account](./api-reference/account/me-account).
+- Want the full model catalog + pricing? See [bytespike.ai/pricing](https://bytespike.ai/pricing).
 
-运营问题或需要 OP 介入的 corner case：联系运维同事 / W1。
+For operations questions or corner cases that need OP intervention: ping the ops team / W1.

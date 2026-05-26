@@ -1,0 +1,62 @@
+---
+title: "gpt-4o-mini"
+description: "OpenAI 的小 / 快 / 便宜 GPT-4o —— 大规模分类、路由、结构化抽取。包含 vision 和 tools；ByteSpike 上成本最低的 OpenAI 选项。"
+---
+
+`gpt-4o-mini` 是小 / 快 / 便宜的 GPT —— **任何大规模运行的活**，prompt 又短、吞吐比推理深度更重要的场景，默认就该选它。$0.15 / 1M 输入是 ByteSpike 上成本最低的 GPT。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI 直连 | `api.openai.com` | $0.15 / 1M | $0.60 / 1M | ~400ms | global edge |
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tools / function calling | ✅ |
+| 并行 tools | — |
+| JSON mode | ✅ |
+| Reasoning effort | — |
+| 上下文窗口 | 128K tokens |
+
+## 什么时候用
+
+- **高吞吐分类、路由、分诊。** 工单 → 类别。邮件 → 优先级。来电 → 下一步动作。
+- **大规模结构化抽取。** 实体抽取、schema 驱动的解析。
+- **便宜的 vision OCR。** 小票、发票、截图，价格是 gpt-4o 的十六分之一。
+
+什么时候**不**用：
+
+- 推理任务 —— 上 [gpt-5-4-mini](/zh/models/gpt-5-4-mini)（比 gpt-5-4 便宜，但仍带推理能力）。
+- 硬核 QA —— Haiku 档模型在边角 case 上会幻觉；搭配检索来用。
+
+## 下一步
+
+- [gpt-4o](/zh/models/gpt-4o) —— 带音频输入的多模态中档
+- [gpt-5-4-mini](/zh/models/gpt-5-4-mini) —— 便宜但带推理的替代
+- [OpenAI provider 页](/zh/providers/openai)

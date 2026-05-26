@@ -1,0 +1,120 @@
+---
+title: "Kimi K2.6"
+description: "Moonshot 当前旗舰 —— 与 K2.5 同样 256K 上下文，但输出与 tool-call 生成可量化地更紧。"
+---
+
+**厂商：** Moonshot
+**Model ID：** `kimi-k2-6`
+**能力：** 256K 上下文 · 工具调用 · 流式 · 结构化输出 · CJK 原生
+**计价：** 按 token，中端档（[实时费率](https://bytespike.ai/pricing#text)）
+
+Kimi K2.6 是网关上新中文市场工作的推荐起点。原生 CJK prompt 理解（在成语和
+文档版式上比非中文旗舰更敏锐）、256K 上下文窗口、比 K2.5 更紧的 tool-call
+参数生成。对长文档抽取、对中文语气有要求的 agent 流程，以及 CJK 重度摘要场景，
+它就是默认款。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "kimi-k2-6",
+    "messages": [{"role": "user", "content": "用这本财报的内容回答：现金流量表的关键变化是什么？"}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `kimi-k2-6` |
+| `messages` | array | 是 | — | 原生支持 CJK。 |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：16384。 |
+| `tools` | array | 否 | — | 支持 function calling（并行）。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "kimi-k2-6",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 142850, "completion_tokens": 524, "total_tokens": 143374}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "kimi-k2-6", "messages": [{"role": "user", "content": "提取关键条款"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="kimi-k2-6",
+    messages=[{"role": "user", "content": "用这本财报的内容回答：现金流量表的关键变化是什么？"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "kimi-k2-6",
+  messages: [
+    { role: "user", content: "用这本财报的内容回答：现金流量表的关键变化是什么？" },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。自动 prompt caching —— 在 256K token 级 prompt 上，
+缓存命中是杠杆最高的成本优化。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 新的中文市场项目 —— CJK 工作的默认起点。
+- 中 / 日 / 韩 的长文档抽取。
+- 上一代版本，见 [Kimi K2.5](/zh/api-reference/text/kimi-k2-5)。
+- 旗舰价位下需要更大上下文（1M），见 [Gemini 3.1 Pro](/zh/api-reference/text/gemini-3-1-pro)。
+- 中文开源权重替代品，见 [GLM-5-1](/zh/api-reference/text/glm-5-1) 或 [DeepSeek V4 Pro](/zh/api-reference/text/deepseek-v4-pro)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 256K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 否 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

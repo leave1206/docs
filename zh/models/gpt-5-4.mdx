@@ -1,0 +1,100 @@
+---
+title: "gpt-5-4"
+description: "OpenAI GPT-5.4 —— GPT-5 家族的生产主力。Vision、tools、推理、web search、结构化输出全在中档价位上一起到位。同时支持 Chat Completions 和 Responses API。"
+---
+
+`gpt-5-4` 是 GPT-5 的生产主力 —— 价格曲线中档、特性全覆盖。以前默认 `gpt-4o`、但想要 GPT-5 家族的推理能力和更严格的结构化输出校验时，就上它。
+
+## 通道
+
+| 通道 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $3.00 / 1M | $12.00 / 1M | ~700ms | global edge |
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+Responses API 是较新的 agent 风格协议 —— Codex 要求它。Chat Completions 是无处不在的默认；大多数代码用这条。
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4",
+    "reasoning_effort": "medium",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (Chat Completions)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-4",
+    reasoning_effort="medium",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```python Python (Responses API)
+resp = client.responses.create(
+    model="gpt-5-4",
+    input="Hello, ByteSpike.",
+    reasoning={"effort": "medium"},
+)
+
+print(resp.output_text)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Responses API | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tool use（function calling） | ✅ 并行 |
+| JSON mode | ✅ |
+| 结构化输出（json_schema） | ✅ |
+| Reasoning effort（low/medium/high） | ✅ |
+| Web search | ✅ |
+| 上下文窗口 | 400K tokens |
+
+## 什么时候用
+
+- **生产主力** —— 想要 GPT-5 质量曲线，带 vision + tools + 推理，价格还在中档时。
+- **结构化输出。** `response_format: { type: "json_schema" }` 返回供应商校验过的 JSON。校验在上游侧；ByteSpike 不改 schema。
+- **Codex 风格客户端。** 走 Responses API 而非 Chat Completions，拿到结构化推理形态。
+- **新鲜事实查询。** 加 `tools: [{ "type": "web_search" }]`。
+
+什么时候**不**用：
+
+- 1M 上下文任务 —— 用 [`gpt-5-5`](/zh/models/gpt-5-5)（1M 上下文旗舰；即将）。
+- 高吞吐分类 —— [`gpt-5-4-mini`](/zh/models/gpt-5-4-mini) 便宜 6 倍。
+
+## 下一步
+
+- [gpt-5-4-mini](/zh/models/gpt-5-4-mini) —— GPT-5.4 家族的小中档
+- [gpt-5-3-codex](/zh/models/gpt-5-3-codex) —— Responses API 走的代码专用
+- [OpenAI provider 页](/zh/providers/openai) —— 完整 GPT 阵容

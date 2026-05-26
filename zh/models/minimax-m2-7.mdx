@@ -1,0 +1,51 @@
+---
+title: "minimax-m2-7"
+description: "MiniMax M2.7 —— 有竞争力的中文 LLM 通用 chat 模型。在 ByteSpike 上通过 Volcengine CodePlan 订阅 bundle 提供。"
+---
+
+`minimax-m2-7` 是 MiniMax 的生产旗舰 —— 中文任务能力面广，适合通用 chat 工作流。在 ByteSpike 上，它通过 **Volcengine CodePlan 订阅 channel** 提供。
+
+## Channels
+
+| Channel | Provider | Base URL | 计费 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Volcengine CodePlan** | Volcengine 订阅 | `ark.cn-beijing.volces.com/api/coding/v3` | 订阅制（按月，管理员分摊） | ~500ms | CN |
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "minimax-m2-7",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tools / function calling | — |
+| JSON mode | ✅ |
+| Vision (image input) | — |
+| 上下文窗口 | 128K tokens |
+
+## 何时使用
+
+- **中文通用 chat** —— 在 Doubao / GLM 之外多一种选择。
+- **成本打包的工作流** —— 已经在为 CodePlan 付费，把 MiniMax 加进组合没有边际成本。
+
+## 下一步
+
+- [minimax-m2-5](/zh/models/minimax-m2-5) —— 更老，但同样在 bundle 中
+- [Volcengine CodePlan provider 页面](/zh/providers/volcengine-codeplan)

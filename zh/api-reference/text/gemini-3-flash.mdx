@@ -1,0 +1,116 @@
+---
+title: "Gemini 3 Flash"
+description: "Google 小快版 Gemini 3 —— 高吞吐、视觉原生的分类和抽取。"
+---
+
+**厂商：** Google
+**Model ID：** `gemini-3-flash`
+**能力：** 1M context · vision · tool use · streaming · structured output
+**价格：** 按 token，flash 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Gemini 3 Flash 是 Gemini 3 家族的小快版。当你的输入大多是文本、偶尔
+夹图像、你宁愿多发几次便宜调用而不是少发几次贵调用时就用它。1M
+context 也让它适合长文档分类等不需要旗舰推理的任务。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-3-flash",
+    "messages": [{"role": "user", "content": "Classify the topic of this article."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gemini-3-flash` |
+| `messages` | array | 是 | — | OpenAI chat 形状，视觉用 `image_url` 块。 |
+| `max_tokens` | integer | 否 | model max | 最大：8192。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–2.0。 |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON mode + 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gemini-3-flash",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "technology / startups"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 412, "completion_tokens": 4, "total_tokens": 416}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gemini-3-flash", "messages": [{"role": "user", "content": "Classify the topic."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gemini-3-flash",
+    messages=[{"role": "user", "content": "Classify the topic of this article."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gemini-3-flash",
+  messages: [{ role: "user", content: "Classify the topic of this article." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式 + 缓存
+
+`"stream": true` 走 SSE。稳定前缀自动 prompt caching。
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时使用
+
+- 长文档输入的高吞吐分类 / 路由（1M context 优势）。
+- flash 档价位的视觉原生任务。
+- 深度推理见 [Gemini 3.1 Pro](/zh/api-reference/text/gemini-3-1-pro)。
+- OpenAI 同档对应物见 [GPT-5-mini](/zh/api-reference/text/gpt-5-mini)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 8192 tokens |
+| 支持 tool use | 是 |
+| 支持 vision | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 自动 |

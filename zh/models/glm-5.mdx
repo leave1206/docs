@@ -1,0 +1,52 @@
+---
+title: "glm-5"
+description: "Zhipu GLM-5 —— 通用 chat 场景下的中文 LLM 旗舰，支持 vision。在 ByteSpike 上通过 Volcengine CodePlan 订阅 bundle 提供。"
+---
+
+`glm-5` 是 Zhipu GLM 家族的生产旗舰 —— 中文任务表现强，支持 vision。在 ByteSpike 上，它通过 **Volcengine CodePlan 订阅 channel** 提供，与 Doubao、Kimi、MiniMax、DeepSeek-V3.2 共用一套凭据。
+
+## Channels
+
+| Channel | Provider | Base URL | 计费 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Volcengine CodePlan** | Volcengine 订阅 | `ark.cn-beijing.volces.com/api/coding/v3` | 订阅制（按月，管理员分摊） | ~500ms | CN |
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "glm-5",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | ✅ |
+| 上下文窗口 | 128K tokens |
+
+## 何时使用
+
+- **中文通用 chat** —— 在中文 benchmark 上与 Doubao 不相上下。
+- **CN 区域的 vision 任务** —— OCR / 文档理解表现都不错。
+- **成本可预测** —— CodePlan 上没有 per-token 的意外。
+
+## 下一步
+
+- [glm-5-air](/zh/models/glm-5-air) —— 更便宜的版本
+- [Volcengine CodePlan provider 页面](/zh/providers/volcengine-codeplan)

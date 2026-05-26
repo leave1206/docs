@@ -1,0 +1,66 @@
+---
+title: "sora2-pro"
+description: "OpenAI Sora 2 Pro —— 比 [`sora2`](/zh/models/sora2) 更长片段（最长 30s）、1080p、动态更丰富、主体一致性更强。视频家族里 per-second 成本最高；当片长和一致性比预算更重要时选它。"
+---
+
+`sora2-pro` 是 OpenAI Sora 2 的 Pro 档。相对 [`sora2`](/zh/models/sora2) 的增量：每片段最长 **30 秒**、默认 1080p、片段内主体一致性更强（角色漂移更少）、长镜头镜头动态更好。Per-second 成本在视频家族中最高。当片段*时长*和*一致性*要紧时选它 —— 30 秒的产品故事，而不是 5 秒的循环。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI Video Pro** | OpenAI direct | `api.openai.com` | 按秒计费（[/pricing](/zh/pricing) —— 视频费率卡的顶档） | 10s 片段 ~3 min wall-clock | global edge |
+
+失败不计费。Per-second 价格针对生成的视频长度计算。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora2-pro",
+    "prompt": "A product unboxing sequence: hands carefully open a wooden box, reveal a ceramic teacup, set it on a marble counter",
+    "duration_seconds": 15,
+    "size": "1920x1080"
+  }' | jq -r .task_id)
+
+# 轮询模式与 sora2 一致 —— 完整循环见 /models/sora2#quickstart
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| `duration_seconds` 最长 30 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| 片段内主体一致性 | ✅ 比 `sora2` 更强 |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **≥ 10s 的 hero 片段** —— 产品故事、品牌片头，brief 中明确出现"时长"的场景。
+- **需要主体一致性** —— 一个角色要在整段镜头中可辨识。
+- **最终营销投放创意** —— 在一次性 campaign 资产上，单片段预算比模型费率小得多。
+
+**不**适用的场景：
+
+- ≤ 5 秒片段 —— 同等长度下 [`sora2`](/zh/models/sora2) 明显便宜。
+- 高并发程序化 —— [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast) 或 [`veo3.1-fast`](/zh/models/veo3-1-fast)。
+
+## 下一步
+
+- [`sora2`](/zh/models/sora2) —— 基础档，5-15s 片段
+- [`veo3.1`](/zh/models/veo3-1) —— Google 视频旗舰
+- [多模态端点](/zh/concepts/multimodal) —— 总览

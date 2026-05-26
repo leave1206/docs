@@ -1,0 +1,105 @@
+---
+title: "gpt-5-5"
+description: "OpenAI GPT-5.5 —— GPT-5 家族当前旗舰。带 vision，可通过 `reasoning_effort` 调推理深度。非 Anthropic 主脑工作的默认选择，或者 DOSIA `chat_with` 外部 LLM 调用的默认落地点。"
+---
+
+`gpt-5-5` 是 OpenAI GPT-5 家族的当前旗舰。图像输入支持 vision，推理深度可通过 `reasoning_effort` 调节，工具 / 函数支持广泛，JSON mode 与结构化输出齐备。在网关上，它是 DOSIA `text-writing-tools.chat_with` 被要求"换一个 LLM"时的默认落地点 —— 所以用户提示 "让 GPT 重写这段" 就会路由到这里。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI 直连 | `api.openai.com` | 见 [/pricing](/zh/pricing) | 见 [/pricing](/zh/pricing) | ~900ms | global edge |
+
+失败不计费。定价位于 GPT-5 家族费率档的最顶端。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5",
+    "messages": [
+      { "role": "user", "content": "Untangle this contract paragraph." }
+    ],
+    "reasoning_effort": "medium"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-5",
+    messages=[{"role": "user", "content": "Untangle this contract paragraph."}],
+    reasoning_effort="medium",
+)
+
+print(resp.choices[0].message.content)
+```
+
+```typescript TypeScript (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-5-5",
+  messages: [{ role: "user", content: "Untangle this contract paragraph." }],
+  reasoning_effort: "medium",
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tools / function calling | ✅ 并行 |
+| JSON mode | ✅ |
+| 结构化输出 | ✅ |
+| `reasoning_effort` low / medium / high | ✅ |
+| 上下文窗口 | 200K tokens |
+| 模态 | chat + vision |
+| 能力桶 | `vision` + `external_chat` |
+
+## 什么时候用
+
+- **GPT-5 家族默认选** —— "用 GPT-5" 是任务描述时，这是它的别名。
+- **DOSIA `chat_with`** —— 用户喊出非 Claude 嗓音（"让 GPT 重写这段"）时，主脑就调它。
+- **推理重的 chat** —— 搭 `reasoning_effort: "high"` 应付更难的分析。
+
+什么时候**不**用：
+
+- 高吞吐 / 预算受限 —— 退到 [`gpt-5-4-mini`](/zh/models/gpt-5-4-mini) 或 [`gpt-4o-mini`](/zh/models/gpt-4o-mini)。
+- 想要 Claude 的 `tool_use` / `cache_control` 块模型 —— 上 [`claude-sonnet-4-6`](/zh/models/claude-sonnet-4-6)。
+
+## 下一步
+
+- [`gpt-5-4`](/zh/models/gpt-5-4) —— 上一代 GPT-5 家族旗舰
+- [`claude-opus-4-7`](/zh/models/claude-opus-4-7) —— 硬推理的 Anthropic 替代
+- [DOSIA MCP 集成](/zh/concepts/mcp-integration) —— `chat_with` 工具面

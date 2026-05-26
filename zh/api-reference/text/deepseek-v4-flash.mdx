@@ -1,0 +1,117 @@
+---
+title: "DeepSeek V4 Flash"
+description: "延迟优化版 V4 —— 在受限 prompt 上保留 DeepSeek Pro 品质，TTFB 亚秒。"
+---
+
+**厂商：** DeepSeek
+**Model ID：** `deepseek-v4-flash`
+**能力：** 128K context · tool use · streaming · structured output
+**价格：** 按 token，flash 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+DeepSeek V4 Flash 拿 V4 基础往延迟方向调。在受限 prompt 上保留 V4 同
+样的强代码生成，对短输入的等待时间只有 V4 Pro 的一半。适合内联代码
+建议、lint 风格的修复，以及任何一两秒就敏感的 agent 步骤。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-flash",
+    "messages": [{"role": "user", "content": "Add type hints to this Python function."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `deepseek-v4-flash` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | model max | 最大：8192。 |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "deepseek-v4-flash",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 64, "completion_tokens": 142, "total_tokens": 206}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "Add type hints."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "Add type hints to this Python function."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "deepseek-v4-flash",
+  messages: [
+    { role: "user", content: "Add type hints to this Python function." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式 + 缓存
+
+`"stream": true` 走 SSE。自动 prompt caching。
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时使用
+
+- 内联代码建议、lint 风格修复、IDE 集成 agent。
+- 延迟敏感的代码路由。
+- 难题上要完整 V4 Pro 品质，见 [DeepSeek V4 Pro](/zh/api-reference/text/deepseek-v4-pro)。
+- 上一代版本，见 [DeepSeek V3.2](/zh/api-reference/text/deepseek-v3-2)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 8192 tokens |
+| 支持 tool use | 是 |
+| 支持 vision | 否 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 自动 |

@@ -1,0 +1,188 @@
+---
+title: "ByteSpike 上的 DeepSeek"
+description: "DeepSeek V4 Pro 和 V4 Flash 接入 ByteSpike —— 同时支持 OpenAI Chat Completions shim 和 Anthropic Messages 请求结构。一把 ByteSpike key、双协议、credits 透明计费。HTTP API 当前未开放 vision。"
+---
+
+ByteSpike 用一把 ByteSpike key 提供 DeepSeek 的生产阵容 —— 当前是 `deepseek-v4-pro` 和 `deepseek-v4-flash`，并且**两种协议结构都接好了**：
+
+- **OpenAI Chat Completions**（`/v1/chat/completions`） —— 任意 openai-SDK 代码可直接 drop-in。
+- **Anthropic Messages**（`/v1/messages`） —— 规范的 agent 协议；用 DOSIA、Cline-claude 或其他 anthropic-SDK 客户端时必走这条。
+
+同一个 DeepSeek 模型、同样的响应质量、两套请求结构。选你客户端会说的那种。
+
+## 两个端点，一把 key
+
+| 端点 | 路径 | 使用场景 |
+|---|---|---|
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | 你已经有 openai-SDK 代码，或者你在用 Cursor、Cline 或任意 chat 客户端。 |
+| **Anthropic Messages** | `POST https://llm.bytespike.ai/v1/messages` | 你在用 anthropic-SDK 客户端。DOSIA Agent 模式必走这条；Cline-claude 也是。 |
+
+两个端点用同一把 ByteSpike key。切协议改路径就行，凭证不用换。
+
+要走老 DeepSeek-V3.2，并且它属于 **Volcengine CodePlan** 订阅 bundle 的话，见 [Volcengine CodePlan provider 页](/zh/providers/volcengine-codeplan)。这两条线服务不同的模型版本、不同的价格点 —— 路由模型见 [Channels](/zh/concepts/channels)。
+
+## 鉴权
+
+在 [Console](https://console.bytespike.ai) 创建 ByteSpike key。请求里带上：
+
+- OpenAI 端点用 `Authorization: Bearer $BYTESPIKE_API_KEY`
+- Anthropic 端点用 `x-api-key: $BYTESPIKE_API_KEY`
+
+同一把 key 在两个端点上都能用。
+
+## 模型
+
+DeepSeek V4 生产阵容。价格按每百万 token（USD）计；实时价目见 [bytespike.ai/pricing](https://bytespike.ai/pricing)。
+
+| 模型 ID | 档位 | 上下文 | 输入 | 输出 | 能力 |
+|---|---|---|---|---|---|
+| `deepseek-v4-pro` | flagship | 128K | $0.55 | $2.19 | chat · reasoning · tools · 128K context |
+| `deepseek-v4-flash` | small-mid | 128K | $0.20 | $0.80 | chat · tools · low latency |
+
+<Note>
+  DeepSeek V3.2 **不在**这个 provider 页 —— 它走 Volcengine CodePlan 订阅 bundle。见 [/providers/volcengine-codeplan](/zh/providers/volcengine-codeplan)。
+</Note>
+
+## 快速开始
+
+下面四个示例都通过两套协议向 `deepseek-v4-pro` 发出同样的请求。
+
+<CodeGroup>
+
+```bash cURL (OpenAI 结构)
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```bash cURL (Anthropic 结构)
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v4-pro",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```python Python (anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="deepseek-v4-pro",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.content[0].text)
+```
+
+</CodeGroup>
+
+## DeepSeek 专属能力
+
+### 推理链
+
+`deepseek-v4-pro` 会暴露一条推理链（"chain-of-thought"），DeepSeek 称之为 thinking 输出。在 Anthropic 端点上以 `thinking` 块出现在 `text` 块之前；在 OpenAI 端点上以 `reasoning_content` 字段挂在 choice 上。推理 token 计入输出计费。
+
+### 流式
+
+任一端点设 `stream: true` 即返回 SSE。流中途出错会用 `error` 事件关闭通道并计 0 credits —— 见 [credits 与计费](/zh/concepts/credits-and-billing)。
+
+### Tool use
+
+`tool_use` 块（Anthropic 结构）和 `tools` 数组（OpenAI 结构）都原样透传。`deepseek-v4-pro` 支持并行 tool use。
+
+### Vision（图像输入）⚠️ 未开放
+
+DeepSeek HTTP API 当前未开放 vision。
+
+| 通道 | Vision |
+|---|---|
+| `chat.deepseek.com` 网页应用 | ✅（部分用户 beta） |
+| DeepSeek 移动 App | ✅ |
+| HTTP API `/chat/completions` | ❌ —— schema 直接拒 `image_url` |
+| HTTP API `anthropic/v1/messages` | ❌ —— schema 能收 `image` 块，但模型并不处理 |
+| DeepSeek VL2（开源权重） | 需要本地 lmdeploy；云 API 未上线 |
+
+ByteSpike 的实现是把图像内容原样透传给上游。一旦 DeepSeek HTTP API 开 vision，无需我们这边改动代码即可直接生效。
+
+## 通道对比 —— V4 vs V3.2
+
+| 通道 | 模型 | 计费 | 何时用 |
+|---|---|---|---|
+| **DeepSeek 官方 API** | `deepseek-v4-pro` / `deepseek-v4-flash` | 按 token（USD） | 最新 V4 模型，带推理链。HTTP API **没有** vision。 |
+| **Volcengine CodePlan 订阅** | `deepseek-v3-2` | 按月订阅（管理员侧摊销） | 旧版 V3.2，但同一订阅可同时访问 Doubao / GLM / Kimi / MiniMax。 |
+
+两条路径、两个模型版本、两种计费曲线。V3.2 路径见 [/providers/volcengine-codeplan](/zh/providers/volcengine-codeplan)。
+
+## 能力矩阵
+
+| 能力 | deepseek-v4-pro | deepseek-v4-flash |
+|---|---|---|
+| Chat Completions（OpenAI 结构） | ✅ | ✅ |
+| Anthropic Messages | ✅ | ✅ |
+| 流式 | ✅ | ✅ |
+| Tools / function calling | ✅ | ✅ |
+| 并行 tools | ✅ | — |
+| JSON mode | ✅ | ✅ |
+| 推理链 | ✅ | — |
+| Vision（HTTP API） | ❌ | ❌ |
+| 128K 上下文 | ✅ | ✅ |
+
+## 错误与速率限制
+
+标准契约 —— 见 [credits 与计费](/zh/concepts/credits-and-billing) 和 [错误处理](/zh/concepts/error-handling)。
+
+| 状态码 | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 500 / 502 / 503 / 504 | 上游 | 否（自动重试 2 次） |
+
+## 什么时候用 DeepSeek
+
+- **deepseek-v4-pro** —— 高性价比旗舰，覆盖推理、代码、长文生成。大多数 benchmark 上质量接近 `gpt-5-4`，价格便宜 10–15 倍。
+- **deepseek-v4-flash** —— 想要 DeepSeek 的质量曲线，价格又要接近 Haiku 时。
+- **DOSIA Agent 模式** —— 这里必须用 Anthropic Messages 端点。
+
+## 下一步
+
+- [Volcengine CodePlan](/zh/providers/volcengine-codeplan) —— 订阅 bundle 下的 `deepseek-v3-2`
+- [ByteSpike 上的 Anthropic](/zh/providers/anthropic) —— Claude 家族，同一套 Anthropic Messages 结构
+- [端点类型](/zh/concepts/endpoints) —— 完整的八协议地图
+- [Channels](/zh/concepts/channels) —— 为什么同一个 DeepSeek 模型名会有多个价格

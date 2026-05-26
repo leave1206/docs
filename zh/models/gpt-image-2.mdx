@@ -1,0 +1,105 @@
+---
+title: "gpt-image-2"
+description: "OpenAI 旗舰图像模型。文生图与图生图（基于 mask 的编辑）共用一个端点，按张计费。当你需要 OpenAI 级别的版面、排版和产品图还原时的默认选择。"
+---
+
+`gpt-image-2` 是 OpenAI 的旗舰图像模型。文生图和图生图（基于 mask 的编辑）在同一个端点上，按张计费。版面还原、图内文字排版、产品 / 场景构图都很强 —— 当"看起来就像真正的 OpenAI 渲染"比单图成本更重要时，就选它。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI Images** | OpenAI direct | `api.openai.com` | 按图计费（实时价格见 [/pricing](/zh/pricing)） | ~6s（1024×1024） | global edge |
+
+定价随 `size` 与 `quality` 浮动，统一在 marketing 页的一张费率卡上。实时数字见 [/pricing](/zh/pricing) —— gateway 始终按同一来源计费。失败不计费。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "A flat-style red apple on a soft beige background, marketing hero",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="gpt-image-2",
+    prompt="A flat-style red apple on a soft beige background, marketing hero",
+    n=1,
+    size="1024x1024",
+)
+
+print(resp.data[0].url)
+```
+
+```typescript TypeScript (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.images.generate({
+  model: "gpt-image-2",
+  prompt: "A flat-style red apple on a soft beige background, marketing hero",
+  n: 1,
+  size: "1024x1024",
+})
+
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生图 | ✅ |
+| 图生图（带 `source_image`） | ✅ |
+| mask 驱动的编辑 | ✅ |
+| `n` ≥ 2 批量生成 | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| `quality` standard / hd | ✅ |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## 何时使用
+
+- **营销创意** —— hero 图、社交卡片，任何对图内文字排版有要求的场景。
+- **产品 mockup** —— 材质、光照、小号文字的还原度通常优于多数国内方案。
+- **DOSIA `generate_image` 工具** —— 当用户说"画一张 X"且权限允许时，主脑默认会路由到此模型。
+
+**不**适用的场景：
+
+- 高并发或预算敏感的工作 —— [`nano-banana`](/zh/models/nano-banana) 同形状但便宜很多。
+- 中式照相级 / 海报美学 —— 试试 [`seedream-4`](/zh/models/seedream-4) 或 [`seedream-4.5`](/zh/models/seedream-4-5)。
+
+## 下一步
+
+- [`nano-banana`](/zh/models/nano-banana) —— 更便宜的 Google 文生图
+- [`seedream-4`](/zh/models/seedream-4) —— ByteDance 旗舰
+- [多模态端点](/zh/concepts/multimodal) —— 图像 / 视频 / 音频 / embedding 入口总览

@@ -1,0 +1,211 @@
+---
+title: "流式"
+description: "三种协议下的 Server-Sent Events。如何启用、解析、终止，以及如何处理流式中途失败。"
+---
+
+每个文本端点都支持流式。格式是 **Server-Sent Events (SSE)** —— 网关把上游的原生流 1:1 透传，所以你 SDK 现有的 parser 不用改就能用。
+
+## 各协议形状
+
+<Tabs>
+  <Tab title="Anthropic Messages">
+    在请求体里传 `"stream": true`。事件名匹配 Anthropic 的原生协议：
+
+    ```bash
+    curl -N https://llm.bytespike.ai/v1/messages \
+      -H "x-api-key: $BYTESPIKE_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 256,
+        "messages": [{"role": "user", "content": "explain SSE briefly"}],
+        "stream": true
+      }'
+    ```
+
+    ```
+    event: message_start
+    data: {"type":"message_start","message":{...}}
+
+    event: content_block_start
+    data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    event: content_block_delta
+    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"SSE"}}
+
+    event: content_block_delta
+    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" is"}}
+
+    …
+
+    event: message_delta
+    data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":42}}
+
+    event: message_stop
+    data: {"type":"message_stop"}
+    ```
+  </Tab>
+  <Tab title="OpenAI Chat Completions">
+    传 `"stream": true`。行是 `data: {json}`，以 `data: [DONE]` 结束：
+
+    ```bash
+    curl -N https://llm.bytespike.ai/v1/chat/completions \
+      -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-5",
+        "messages": [{"role": "user", "content": "explain SSE briefly"}],
+        "stream": true,
+        "stream_options": {"include_usage": true}
+      }'
+    ```
+
+    ```
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{"content":"SSE"},"finish_reason":null}]}
+
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{"content":" is"},"finish_reason":null}]}
+
+    …
+
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":42,"total_tokens":54}}
+
+    data: [DONE]
+    ```
+
+    要在最后一帧拿到 usage token，必须传 `stream_options.include_usage: true` —— 否则 OpenAI 在流式响应里省略 `usage`。
+  </Tab>
+  <Tab title="OpenAI Responses">
+    传 `"stream": true`。事件名遵循 OpenAI 的 Responses 流式协议：
+
+    ```bash
+    curl -N https://llm.bytespike.ai/v1/responses \
+      -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-5",
+        "input": "explain SSE briefly",
+        "stream": true
+      }'
+    ```
+
+    ```
+    event: response.created
+    data: {"type":"response.created","response":{...}}
+
+    event: response.output_text.delta
+    data: {"type":"response.output_text.delta","delta":"SSE"}
+
+    event: response.output_text.delta
+    data: {"type":"response.output_text.delta","delta":" is"}
+
+    …
+
+    event: response.completed
+    data: {"type":"response.completed","response":{"usage":{...}}}
+    ```
+  </Tab>
+  <Tab title="Gemini Native">
+    把方法换成 `:streamGenerateContent` 并传 `alt=sse`：
+
+    ```bash
+    curl -N "https://llm.bytespike.ai/v1beta/models/gemini-2-5-pro:streamGenerateContent?alt=sse&key=$BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "contents": [{"parts": [{"text": "explain SSE briefly"}]}]
+      }'
+    ```
+
+    ```
+    data: {"candidates":[{"content":{"parts":[{"text":"SSE"}],"role":"model"}}]}
+
+    data: {"candidates":[{"content":{"parts":[{"text":" is"}],"role":"model"}}]}
+
+    …
+
+    data: {"candidates":[{"content":{"parts":[{"text":"."}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{...}}
+    ```
+
+    没有 `[DONE]` 标记 —— 连接关闭即流结束。
+  </Tab>
+</Tabs>
+
+## 响应头在第一帧 SSE 之前发出
+
+配额 + 速率限制响应头在 HTTP 响应头里发出，*早于* 第一个事件。你可以在读到响应头之后关闭连接，短路一次太贵的流：
+
+```python
+import requests
+
+with requests.post(URL, json=payload, headers=HEADERS, stream=True) as r:
+    remaining = float(r.headers.get("X-Quota-Remaining-Credits", "0"))
+    if remaining < 5:
+        # 预算不足 —— 在消费任何 token 之前关闭
+        r.close()
+        raise RuntimeError("Low credits, top up first")
+    for line in r.iter_lines():
+        # 解析 SSE 帧...
+        pass
+```
+
+流中关闭连接是硬中止 —— 上游看到客户端断开，按目前已产出的部分输出结算。对 Anthropic / OpenAI 文本流而言，就是到中止点为止消费掉的 `output_tokens`。
+
+## 干净地终止
+
+如果你有一个长流想要切断（用户点了 *stop*），直接关 HTTP 连接 —— 没有单独的 "abort" 接口。网关把断连传播到上游，按部分输出结算。
+
+对 **视频** 生成（异步走 `/v1/tasks/submit`），用
+[`POST /v1/tasks/cancel`](/zh/api-reference/utility/tasks-cancel)
+来取消 —— 关掉 submit 响应并不会取消正在渲染的任务。
+
+## 流中错误
+
+如果上游中途失败，网关发一个最终的 `event: error`（Anthropic）或带 `error` 字段的最终帧（OpenAI），然后关闭连接。你已经收到的部分输出归你 —— 但流中错误的情况下，请求 **不计费**。失败从不计费，没有例外。
+
+## 重连
+
+SSE 支持 `Last-Event-ID` 头做重连，但 ByteSpike **不** 在服务端暂存流 —— 没有可重放的内容。流中断开就只能从头重发请求。
+
+对担心断网的长 completion，更建议用非流式 + 充足的客户端超时，或者用 Anthropic prompt caching 让重试变便宜。
+
+## SDK 行为
+
+三个官方 SDK 都自动处理流式：
+
+```python
+# Anthropic SDK
+with client.messages.stream(model="claude-sonnet-4-6", messages=[...], max_tokens=256) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+
+# OpenAI SDK
+stream = client.chat.completions.create(model="gpt-5-5", messages=[...], stream=True)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="", flush=True)
+
+# Google Generative AI SDK
+for chunk in model.generate_content("...", stream=True):
+    print(chunk.text, end="", flush=True)
+```
+
+各 SDK 的 base URL 覆盖（在 [配置你的客户端](/zh/configure-client) 里有介绍）能把三家透明路由到 ByteSpike。
+
+## 常见坑
+
+| 现象 | 原因 | 修法 |
+|---|---|---|
+| 第一块之后流卡住 | 公司代理在缓冲 / 非透传 | 把 `llm.bytespike.ai` 加进 `NO_PROXY` |
+| 行成块 N 个一起到 | 默认 HTTP 缓冲 —— 纯粹是显示问题 | 用 SDK 或 `iter_lines()` —— 语义块永远对齐 |
+| 缺 `event:` 行 | 你的 parser 只读 `data:` 行 | 用真正的 SSE parser —— 事件名对 Anthropic-shape 和 Responses-shape 很重要 |
+| 最后一帧没有 usage（OpenAI） | 没设 `stream_options.include_usage: true` | 设上 |
+| Gemini 最后一帧缺失 | 没有 `[DONE]` 标记 —— 流以连接关闭收尾 | 把连接关闭当作 end-of-stream |
+
+## 相关
+
+- [`/v1/messages` 参考](/zh/api-reference/text/claude-messages)
+- [`/v1/chat/completions` 参考](/zh/api-reference/text/openai-chat-completions)
+- [`/v1/responses` 参考](/zh/api-reference/text/openai-responses)
+- [`/v1beta/...generateContent` 参考](/zh/api-reference/text/gemini-generate-content)
+- [错误处理](/zh/concepts/error-handling)

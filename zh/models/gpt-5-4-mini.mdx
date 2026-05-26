@@ -1,0 +1,87 @@
+---
+title: "gpt-5-4-mini"
+description: "OpenAI 的小中档 GPT —— 生产级推理，价格只是 gpt-5-4 的零头。适合分类、路由、结构化抽取，以及短 prompt 的 agent 循环。"
+---
+
+`gpt-5-4-mini` 是 GPT-5 的小中档。保留了 GPT-5 的推理能力，但按 token 成本大约只有 `gpt-5-4` 的**六分之一**。高吞吐流量想要好于 Haiku 的质量、又不愿付旗舰价时的默认选项。
+
+## 通道
+
+| 通道 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $0.50 / 1M | $2.00 / 1M | ~500ms | global edge |
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-mini",
+    "reasoning_effort": "low",
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+```python Python (Chat Completions)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-4-mini",
+    reasoning_effort="low",
+    messages=[{"role": "user", "content": "Classify this support ticket."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Responses API | ✅ |
+| 流式（SSE） | ✅ |
+| Vision | ✅ |
+| Tool use | ✅ 并行 |
+| JSON mode | ✅ |
+| 结构化输出 | ✅ |
+| Reasoning effort | ✅（`low` / `medium`） |
+| Web search | — |
+| 上下文窗口 | 256K tokens |
+
+## 什么时候用
+
+- **高吞吐分类、路由、结构化抽取** —— 任何为成本而想用 Haiku、但又想要 GPT 风味推理的场景。
+- **短 prompt 的 agent 循环** —— 每步都不大、看重吞吐的 tool use 链。
+- **更便宜的 Codex 风格** via Responses API，配 `reasoning_effort: "low"`。
+
+什么时候**不**用：
+
+- 需要 `reasoning_effort: "high"` 才能受益的硬推理 —— 上 `gpt-5-4` 或 `gpt-5-4-pro`。
+- 需要 web search —— 只有 `gpt-5-2` 及以上自带。
+
+## 下一步
+
+- [gpt-5-4](/zh/models/gpt-5-4) —— 生产主力
+- [gpt-5-3-codex](/zh/models/gpt-5-3-codex) —— 代码专用
+- [OpenAI provider 页](/zh/providers/openai) —— 完整 GPT 阵容

@@ -1,0 +1,104 @@
+---
+title: "Platforms vs. channels"
+description: "Platform 是协议契约 —— 上游暴露的请求形状和鉴权方式。Channel 是 platform 背后的具体账号，ByteSpike 在某次请求里实际拨打的就是它。日常对话里这两个词常被混用；网关把它们分清楚，你的心智模型也应该。"
+---
+
+**Platform** 和 **channel** 这两个词经常被混用。它们指的是不同东西，一旦你开始推理价格、路由、管理员配置，差别就重要起来了。本页是一个简短的辨析。
+
+## 一句话答案
+
+- **Platform** = 一份协议契约。和上游对话的方式 —— 请求形状、鉴权方式、base URL 模板。
+- **Channel** = 一个具体的上游账号。一个凭证、一个 base URL 实例、外加路由层可挑选的一组模型映射。
+
+Platform 是类；channel 是实例。一个 platform 可以有多条 channel。
+
+## 一个具体例子
+
+以 Anthropic platform 为例。契约是固定的：
+
+- Base URL 模板：`https://api.anthropic.com` 或 Bedrock 等价物
+- 鉴权头：`x-api-key: <token>`（Bedrock 用 AWS SigV4）
+- 请求形状：Anthropic Messages（`/v1/messages`，带 `model`、`max_tokens`、`messages`、`tool_use`、`cache_control`、`thinking`）
+- 流式：SSE
+- 错误语义：4xx / 5xx 透传
+
+这是 platform。它没说你能调哪些 Claude 模型、价格多少、ByteSpike 会用哪个账号。
+
+Platform 变成 **channel** 时才落地。Channel 记录还加上：
+
+- 用哪个凭证（`acme_anthropic_key_prod`）
+- 实际拨到哪个 base URL（`https://api.anthropic.com` vs. `https://bedrock-runtime.us-east-1.amazonaws.com`）
+- 这个凭证能服务哪些模型
+- 该 channel 上的每个模型的价格
+- 优先级、速率限制、区域标签
+
+ByteSpike 可以为 Anthropic platform 维护多条 channel —— `anthropic-api`、`bedrock-us-east-1`、`bedrock-eu-west-1`、`vertex-anthropic-claude`（万一 Anthropic 上了 Vertex）。它们都讲 Anthropic Messages 契约；区别在价格、延迟、区域、容量。
+
+## 为什么这两个概念都需要
+
+如果只有 "channel"，每次路由决策都得从每个上游重新推导协议形状 —— 代码重复、脆弱。如果只有 "platform"，网关就没法表达多区域、多账号或合作伙伴专属的上游。
+
+把它们拆开，路由层得到一个干净的分工：
+
+- **Platform** 回答 "我用什么 wire protocol 跟这个上游说话？"
+- **Channel** 回答 "哪个账号、哪个区域、哪个价格、哪个 key？"
+
+你发给 ByteSpike 的同一个 Anthropic Messages 请求，可能落到 Anthropic platform 的任意一条 channel。它讲的协议不变。它扣的钱会变。
+
+## 这两者在管理员配置里如何出现
+
+对账号管理员来说，工作流是：
+
+1. **挑一个 platform** —— 添加新上游时。ByteSpike 有一组固定选项：anthropic、openai、gemini、deepseek、moonshot、zhipu、volcengine。platform 决定表单问哪些凭证字段、要哪种鉴权方式。
+2. **创建一条 channel**，填好 platform 特定的凭证字段，再加上 channel 级字段如名称、区域、优先级、默认成本覆盖。
+3. **把模型绑到 channel** —— 选这条 channel 能服务的 model ID。
+
+Console 不会问 "你想要哪条 channel？" —— 那是路由层的活。它问 "哪些模型、哪个凭证、什么优先级" —— channel 作为一条记录。
+
+## 客户怎么看这个差别
+
+对一个调 `POST /v1/messages` 的客户来说：
+
+- **Platform** 隐含在你调用的 endpoint 里（`/v1/messages` ≡ Anthropic Messages platform）。把 endpoint 换成 `/v1/chat/completions` 就把 platform 换成 OpenAI Chat Completions 了。
+- **Channel** 在请求侧是不透明的 —— 由路由层根据你 API key 绑定的分组挑选。要看哪条 channel 实际服务了某次调用，查 [`GET /api/v1/usage`](/zh/api-reference/account/me-usage)；每行 usage 的 `upstream_provider` 字段写着跑这次请求的 channel 名。
+
+你绝不会在请求里指名 channel。默认是 "网关按 key 的分组绑定决定"。
+
+## 心智模型小结
+
+一个请求是这样流的：
+
+```
+你发：           POST /v1/messages { model: "claude-sonnet-4-6", ... }
+Endpoint 形状：  /v1/messages  -> Anthropic Messages platform
+Key 携带：       group_id = 1（例如 "claude-default"）
+路由挑出：       分组 1 内服务 "claude-sonnet-4-6" 的最高优先级 channel
+                （例如 claude-default channel #3）
+Channel 取出：   凭证、base_url、该模型的费率
+网关拨打：       用这个凭证拨打那个 base_url 上的上游
+你收到：         响应体 + X-RateLimit + X-Quota 响应头
+                （哪条 channel 服务的你：在 /api/v1/usage 可见）
+```
+
+两层、各做各的事。混在一起谈，价格会变得困惑；分开看，多区域、多账号的路由就好搞了。
+
+## Volcengine CodePlan 怎么算？
+
+CodePlan 是一个有助于澄清概念的边缘案例。Volcengine 卖的是一个订阅，一份订阅同时授权多个模型 —— DeepSeek-V3.2、Doubao、GLM、MiniMax、Kimi 都在一个凭证下。
+
+在 ByteSpike 的表示里：
+
+- **Platform** 是 `volcengine-codeplan`（它自己有一套协议 + 鉴权方式条目）。
+- 一条 **channel** 包住这个订阅凭证。
+- 这条 channel 的 `serves[]` 列出订阅里的每一个模型。
+
+当你请求 `deepseek-v3-2` 且路由挑到 `volcengine-codeplan` channel 时，计费按 channel 算：每月订阅费摊到组织里的 CodePlan 成员头上，不是按 token。这就是 [channels 页](/zh/concepts/channels) 所说的 "channel rate" —— CodePlan channel 上的计费模型和按 token 的 Anthropic channel 在本质上完全不一样。
+
+两条 channel、同一个模型、两条完全不同的计费曲线。这就是分层结构发挥价值的地方。
+
+## 下一步
+
+- [Channels](/zh/concepts/channels) —— 更深入的页面，讲路由、按 channel 定价、管理员杠杆
+- [Endpoint 类型](/zh/concepts/endpoints) —— 映射到 platform 契约的八种请求形状
+- [Models 索引](/zh/models)（即将推出）—— 每个模型一页，列出所有服务它的 channel
+- [Providers](/zh/providers)（即将推出）—— 每个 platform 的管理员侧配置文档

@@ -1,0 +1,195 @@
+---
+title: "从 OpenAI 迁移"
+description: "从 OpenAI 的 API 切到 ByteSpike 只需要改三个东西：base URL、API key、model id。还是 OpenAI SDK、还是你的代码、用我们目录里所有模型。"
+---
+
+如果你已经在用 OpenAI 的 API，切到 ByteSpike 就是**改三个东西然后
+发版**。OpenAI SDK 不动；请求结构一样；只有 endpoint、key 和
+model id 不同。
+
+## 三处修改
+
+```diff
+- client = OpenAI(api_key="sk-...")
++ client = OpenAI(
++   base_url="https://llm.bytespike.ai/v1",
++   api_key="sk-byts-...",
++ )
+```
+
+就这些。你代码里剩下的部分 —— 工具定义、结构化输出、流式、重试 ——
+原样跑。
+
+## Model id 映射
+
+ByteSpike 的目录里 model id 基本和 OpenAI 一致，外加非 OpenAI
+provider 的 id：
+
+| 你之前用的 OpenAI id | ByteSpike id（直接替换） |
+|---|---|
+| `gpt-4o` | `gpt-4o` |
+| `gpt-4o-mini` | `gpt-4o-mini` |
+| `gpt-5`（最新） | `gpt-5-5` |
+| `gpt-5-nano` | `gpt-5-nano` |
+| `gpt-5-mini` | `gpt-5-mini` |
+| `o1-preview` / `o1` | `gpt-5-4-mini`（最接近的推理能力） —— 想要可复现就钉到一个具体 id |
+| `gpt-image-1` | `gpt-image-2` |
+
+完整的实时目录在 `GET /v1/models` 或
+[bytespike.ai/pricing](https://bytespike.ai/pricing)。
+
+## 你能多拿到什么
+
+| OpenAI 直连 | ByteSpike |
+|---|---|
+| 只有 OpenAI 模型 | 所有前沿模型都在一把 key 下（Claude、Gemini、DeepSeek、……） |
+| 每家厂商单独计费 | 一个钱包，一张发票 |
+| 每家厂商单独限速 | 一套限速封装，按 key 配置 |
+| 失败也计费 | 失败不计费 |
+| Stripe + 手动开票 | Console + Stripe 自动处理 |
+
+## 不变的东西
+
+- **OpenAI SDK** —— Python、TypeScript、Go，所有官方客户端。只改 `base_url`。
+- **请求体结构** —— `messages`、`tools`、`tool_choice`、`response_format`、`stream` 等等 —— 完全一致。
+- **响应结构** —— `choices[].message.content`、`tool_calls`、`usage` —— 完全一致。
+- **流式协议** —— SSE 的 `data: {json}` + `data: [DONE]` —— 逐字节兼容。
+- **工具调用** —— 带 `function` 对象的 `tools` 数组 + `tool_choice` —— 完全一致。
+- **结构化输出** —— `response_format: {type: "json_schema", ...}` —— 完全一致（OpenAI 原生路径上；走 Claude/Gemini 路径时会翻译成上游原生）。
+
+## 具体例子
+
+### 聊天补全
+
+```python
+# 原来:
+from openai import OpenAI
+client = OpenAI()
+r = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "ping"}],
+)
+
+# 现在:
+from openai import OpenAI
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="sk-byts-...",
+)
+r = client.chat.completions.create(
+    model="gpt-4o",  # 同一个 id；或者换成 gpt-5-5 / claude-sonnet-4-6 / gemini-2-5-pro
+    messages=[{"role": "user", "content": "ping"}],
+)
+```
+
+### 工具调用
+
+```python
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get current weather",
+        "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"]
+        }
+    }
+}]
+
+# 同样的调用结构 —— 对 gpt-5、claude、gemini 等都能跑。
+r = client.chat.completions.create(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "weather in Tokyo?"}],
+    tools=tools,
+)
+```
+
+### 图像生成
+
+```python
+# OpenAI 的 images.generate 在 ByteSpike 目录上也能用：
+r = client.images.generate(
+    model="seedream-4-5",      # 或 "nano-banana"、"gpt-image-2"、……
+    prompt="A timelapse of Tokyo at sunset",
+    size="1024x1024",
+    n=1,
+)
+print(r.data[0].url)
+```
+
+### Responses API（o-系列 + GPT-5 + agents）
+
+```python
+r = client.responses.create(
+    model="gpt-5-5",
+    input="Summarize the doc at https://example.com/doc",
+    reasoning={"effort": "medium"},
+)
+```
+
+对目录里所有模型都生效 —— ByteSpike 在背后会把 Responses 翻译成
+非 OpenAI id 的上游原生协议。
+
+## 需要再确认的点
+
+<AccordionGroup>
+  <Accordion title='单 key 的模型可用性'>
+    每把 ByteSpike key 绑到一个**路由分组**。挑包含你要调的模型的
+    分组。如果同一个客户端里要既调 GPT-5 又调 Claude，要么建两把
+    key（每个分组一把），要么挑一个多分组的 key 套餐。详见
+    [Channels](/zh/concepts/channels)。
+  </Accordion>
+  <Accordion title='token 计数与价格'>
+    token 计数算法一致（OpenAI 模型用 OpenAI 的 tokenizer）。价格可能
+    不同 —— 非 OpenAI provider 在 ByteSpike 这边通常更便宜，OpenAI
+    透传则持平。实时费率：[bytespike.ai/pricing](https://bytespike.ai/pricing)。
+  </Accordion>
+  <Accordion title='Organization / project ID'>
+    OpenAI 的 `organization` 和 `project` 头会被接受但忽略 —— ByteSpike
+    自己有一套组织模型。要按项目归因消费，每个项目建一把 key 配独立的
+    `quota`。
+  </Accordion>
+  <Accordion title='Files / Assistants / Vector store API'>
+    ByteSpike 不提供 OpenAI 的有状态 API（`/files`、`/assistants`、
+    `/vector_stores`）。如果你依赖它们，那部分继续直连 OpenAI；chat
+    completions 可以照常走 ByteSpike。两个客户端并存没问题。
+  </Accordion>
+  <Accordion title='Fine-tuning'>
+    同上 —— ByteSpike 没有 fine-tuning 接口。直连 fine-tune、直连
+    部署，chat 走 ByteSpike。
+  </Accordion>
+</AccordionGroup>
+
+## 分步操作
+
+1. 在 [console.bytespike.ai](https://console.bytespike.ai) **注册账号** —— 详见 [注册账号](/zh/register)。
+2. **充值** 至少 $5 用于真实测试 —— 详见 [充值 credits](/zh/top-up)。
+3. 在匹配你所需模型的分组（`default` / `claude-default` / 等等）下**创建一把 key**。
+4. 在代码里**改一处 `base_url` + `api_key`**。
+5. **先打 `gpt-4o`**（直接替换）确认接线没问题，再去换模型。
+6. **逐个换上非 OpenAI id**（`claude-sonnet-4-6`、`gemini-2-5-pro`、`deepseek-v4-pro`）。
+7. 在一份代表性样本上**对比 token 计数 + 延迟**。非 OpenAI id 通常 ByteSpike 更有优势；OpenAI 透传持平。
+
+## 反向迁移
+
+要回到 OpenAI 直连，把上面三处修改反过来即可。想 A/B 路由就把两个
+客户端一起留在代码里 —— 唯一不同的点只在 SDK 构造函数。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="从 Anthropic 迁移" icon="arrow-right-arrow-left" href="/zh/migrate-from-anthropic">
+    同样思路，Anthropic 那一边。
+  </Card>
+  <Card title="配置你的客户端" icon="terminal" href="/zh/configure-client">
+    各 SDK 完整配置细节。
+  </Card>
+  <Card title="/chat/completions 参考" icon="code" href="/zh/api-reference/text/openai-chat-completions">
+    请求 / 响应 / 流式协议。
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/zh/models">
+    迁移完后能调用的完整目录。
+  </Card>
+</CardGroup>

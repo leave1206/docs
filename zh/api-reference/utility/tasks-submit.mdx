@@ -1,0 +1,141 @@
+---
+title: "POST /tasks/submit"
+description: "发起一个异步多模态任务（image、video……），立即拿到 task_id。等待发生在后台。"
+---
+
+ByteSpike 多模态目录（Sora 2、Veo 3.1、Seedance、Seedream、Nano-Banana、
+GPT-Image……）的异步派发入口。像 `/images/generations` 和 `/messages`
+这种同步端点会阻塞到上游返回；tasks 端点不会 —— `submit` 接受你的请求，
+毫秒级返回 `task_id`，真正的上游调用在服务端跑。然后 polling
+[`/tasks/query`](./tasks-query)，或通过 SSE 在 `/tasks/stream/{task_id}`
+上订阅状态变化。
+
+## 何时选用
+
+- **视频生成** —— 每个视频模型都是长跑（10–60s+），tasks/submit 是
+  唯一合理的形状
+- **批量图像生成** —— fire-and-forget；几分钟后再对账结果
+- **高并发生产者** —— 让 worker 池不被 HTTP keep-alive 卡住
+- **`callback_url` 集成** —— 注册一个 webhook 就完全不用轮询
+
+实时聊天（`/messages`、`/chat/completions`、`/responses`）请用同步端点。
+tasks 只用于多模态长尾。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora-2-pro",
+    "out_task_id": "my-render-2026-05-25-001",
+    "params": {
+      "prompt": "A timelapse of a city skyline at sunset, 16:9, 1080p, 8 seconds",
+      "duration_seconds": 8,
+      "aspect_ratio": "16:9"
+    },
+    "callback_url": "https://my-app.example.com/bytespike/webhook"
+  }'
+```
+
+### Headers
+
+| Header | Required | Notes |
+|---|---|---|
+| `Authorization` | yes | `Bearer sk-byts-…`（这个端点也接受 Anthropic 风格的 `x-api-key`）。 |
+| `content-type` | yes | `application/json`。 |
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | 目录 slug —— 见 [Models](/zh/models)。tasks 端点只接受多模态模型（image/video）。文本模型会被 `400 invalid_param` 拒掉。 |
+| `params` | object | yes | 模型特定参数。结构镜像底层 provider —— 例如 Sora 2 是 `prompt`、`duration_seconds`、`aspect_ratio`；Seedream 是 `prompt`、`n`、`size`。各模型详情见 [API 参考 → Image / Video](/zh/api-reference/overview)。 |
+| `out_task_id` | string | no | 你的幂等键。用相同 `model` + `params` 重复提交同一个 `out_task_id` 会返回已存在的任务（200）。重复 `out_task_id` 但参数冲突返回 `409 duplicate_out_task_id`。 |
+| `callback_url` | string | no | 任务进入终态时网关 POST 通知的 webhook。 |
+| `stream` | boolean | no | 为 `/tasks/stream/{task_id}` SSE 投递保留。本端点忽略此字段。 |
+
+### Body 大小上限
+
+`/v1/tasks/*` 的 body 上限为 **1 MiB**。对任何合理的 params 结构都够用，
+甚至包含小的 `data:image/...;base64,...` 内联图像。更大的输入应该先
+上传到 URL，然后在 `params` 里传 URL。
+
+## Response
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "pending",
+  "estimated_credits": 1.50,
+  "estimated_seconds": 35
+}
+```
+
+### Response 字段
+
+| Field | Type | Notes |
+|---|---|---|
+| `task_id` | string | 服务端生成的 ULID。`/tasks/query` 和 `/tasks/cancel` 都用它。 |
+| `out_task_id` | string | 你传了的话原样回显。否则省略。 |
+| `status` | string | `pending`、`running`、`completed`、`failed`、`cancelled` 之一。submit 时永远是 `pending`。 |
+| `estimated_credits` | number | provider 的预估成本，单位 credits。如果 provider 不返回，则省略。最终扣费用 `/tasks/query` 的 `credits_used`。 |
+| `estimated_seconds` | integer | provider 的预估 ETA，单位秒。用来设定轮询节奏。未知则省略。 |
+
+### 任务生命周期
+
+```
+pending  →  running  →  completed
+                    ↘
+                       failed
+                    ↘
+                       cancelled (via /tasks/cancel)
+```
+
+- `pending` —— 派发器已接受请求，尚未送上游
+- `running` —— 上游正在生成
+- `completed` —— `output` 已填，扣费定稿
+- `failed` —— `error_code` + `error_message` 已填，**不计费**
+- `cancelled` —— 用户在终态前调用了 `/tasks/cancel`
+
+## 错误
+
+所有错误使用 OpenAI envelope 结构（即使用 `x-api-key` 调用也是）。
+
+```json
+{
+  "error": {
+    "code": "invalid_param",
+    "message": "model \"claude-sonnet-4-6\" is not a multimodal task model",
+    "type": "invalid_request_error"
+  }
+}
+```
+
+| HTTP | `code` | 触发时机 |
+|---|---|---|
+| 400 | `invalid_param` | JSON 错、model 不支持、缺必填字段。 |
+| 401 | `invalid_api_key` | key 缺失 / 已撤销 / 已禁用。 |
+| 409 | `duplicate_out_task_id` | 已存在的任务 `out_task_id` 相同但 `params` 不同。 |
+| 413 | `request_entity_too_large` | Body > 1 MiB。把内联 base64 改用 URL。 |
+| 429 | `rate_limit_exceeded` | 见 [Pricing](/zh/pricing) 的速率限制章节。 |
+| 500 | `internal_error` | provider 端或网关端故障。重试。 |
+
+## 幂等
+
+`out_task_id` 就是你的幂等键。派发器按 `(api_key_id, out_task_id)` 元组
+去重。相同组合 + 相同 params 重复提交会返回原 `task_id` 和当前状态 ——
+对重试安全的客户端代码很有用：网络抖动也不会重复出图。
+
+## 价格
+
+按秒计（视频）/ 按次计（图像）。完整实时费率表见
+[bytespike.ai/pricing](https://bytespike.ai/pricing) —— 只在
+`completed` 时扣费；`failed` 和 `cancelled` 任务免费。
+
+## 下一步
+
+- [`POST /tasks/query`](./tasks-query) —— 读任务当前状态
+- [`POST /tasks/cancel`](./tasks-cancel) —— 终止未终态任务

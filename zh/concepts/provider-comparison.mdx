@@ -1,0 +1,106 @@
+---
+title: "Provider 对比"
+description: "ByteSpike 目前路由到的所有上游 platform 的并排视图 —— 各自擅长什么、讲什么协议、收多少钱、当多家都能服务你的工作负载时怎么挑。"
+---
+
+ByteSpike 路由到 7 个上游 platform：Anthropic、OpenAI、Google（Gemini）、DeepSeek，再加上 Volcengine CodePlan 订阅 bundle，后者自身打包了 Doubao、GLM、Kimi、MiniMax。每个 platform 各有优势、各讲不同协议、各有不同的计费模型。本页是用于挑选的并排参考。
+
+关于*为什么*同一个模型能在多个 platform 上以不同价格出现，读 [channels](/zh/concepts/channels)。关于底层的协议契约，读 [Endpoint 类型](/zh/concepts/endpoints)。
+
+## 七个 platform 一览
+
+| Platform | 默认协议 | 计费 | 擅长 | Provider 页 |
+|---|---|---|---|---|
+| **Anthropic** | Anthropic Messages | 按 token（USD） | Tool-use agent、cache_control、thinking、web search | [→](/zh/providers/anthropic) |
+| **OpenAI** | OpenAI Chat Completions + Responses | 按 token（USD） | 多模态（含音频）、Codex、structured outputs、web search | [→](/zh/providers/openai) |
+| **Gemini** | OpenAI shim → Gemini | 按 token（USD） | 2M 上下文、原生 PDF 输入、Google grounding、长上下文最便宜 | [→](/zh/providers/gemini) |
+| **DeepSeek** | Anthropic + OpenAI 双协议 | 按 token（USD） | 性价比最高的 reasoning chain；中文 LLM 的"美元换质量"王 | [→](/zh/providers/deepseek) |
+| **Volcengine CodePlan**（Doubao + GLM + Kimi + MiniMax + DeepSeek-V3.2） | OpenAI Chat Completions | **订阅**（¥/月） | 一个凭证打通整套中文 LLM；月度成本可预测 | [→](/zh/providers/volcengine-codeplan) |
+
+## 能力对比
+
+每个 platform 的旗舰模型支持哪些能力，并排放在一起。（每个模型的细节在 [Models 索引](/zh/models)。）
+
+| 能力 | Anthropic | OpenAI | Gemini | DeepSeek | Volcengine CodePlan |
+|---|---|---|---|---|---|
+| Anthropic Messages endpoint | ✅ | — | — | ✅ | 部分（选定模型） |
+| OpenAI Chat Completions | shim | ✅ | shim | ✅ | ✅ |
+| OpenAI Responses（Codex） | — | ✅ | — | — | — |
+| Vision（图像输入） | ✅ | ✅ | ✅ | ❌（HTTP API） | 部分（Doubao + GLM ✅） |
+| Tool use（function calling） | ✅ 并行 | ✅ 并行 | ✅ 并行 | ✅ 并行 | 部分 |
+| Prompt caching（`cache_control`） | ✅ | — | — | — | — |
+| Extended thinking | ✅ Sonnet 4.6+ / Opus | —（用 reasoning_effort 替代） | — | ✅ V4 Pro reasoning | — |
+| Reasoning effort 旋钮 | — | ✅ GPT-5 家族 | — | 部分（V4 Pro） | — |
+| Web search / grounding | ✅ web_search 工具 | ✅ web_search 工具 | ✅ google_search 工具 | — | — |
+| JSON / structured outputs | ✅ | ✅ json_schema | ✅ | ✅ | ✅ |
+| 最大上下文窗口 | 1M（Opus 4.7） | 1M（GPT-5.5） | **2M**（Gemini 2.5 Pro） | 128K | 1M（Kimi K2.6） |
+| 流式（SSE） | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 图像生成 | — | DALL-E + GPT-Image-2 | Imagen + Nano Banana | — | 部分（看 bundle） |
+| 视频生成 | — | Sora 2、Sora 2 Pro | Veo 3.1、Veo 3.1 Fast | — | — |
+| Embeddings | — | text-embedding-3 | text-embedding-004 | — | — |
+| Audio（转写 / TTS） | — | Whisper / TTS-1 | —（Vertex Speech 单独） | — | — |
+
+## 计费模型对比
+
+| Platform | 怎么付 | 可预测性 | 最适合 |
+|---|---|---|---|
+| Anthropic | 按 token 美元（按模型公布费率） | 浮动 | 用量起伏大、难预测时 |
+| OpenAI | 按 token 美元 | 浮动 | 同上 |
+| Gemini | 按 token 美元（AI Studio）；按 token + Cloud 项目配额（Vertex） | 浮动 | 企业：Vertex 项目配额给出上限 |
+| DeepSeek | 按 token 美元；在 ByteSpike 里属最便宜的一档 | 浮动 | 大量低成本 reasoning，追求美元换质量 |
+| Volcengine CodePlan | **订阅** 上游 ¥299/月；管理员摊到团队 | **固定** | 团队跑混合中文 LLM 工作负载，财务想要固定数字 |
+
+CodePlan vs. 单独付费每家中文厂商的盈亏平衡点：约 10 万次混合厂商请求 / 月。低于此，按 token 的 provider 划算；高于此，CodePlan 划算。算法见 [/providers/volcengine-codeplan](/zh/providers/volcengine-codeplan)。
+
+## 什么时候挑哪个 platform
+
+针对最常见场景的简短决策辅助。这些选项并非互斥 —— 你可以从同一把 key 把不同请求路由到不同 platform。
+
+| 场景 | 选 |
+|---|---|
+| 构建需要 `tool_use` + `thinking` + `cache_control` 的 agent | **Anthropic**（Sonnet 4.6 或 Opus 4.7） |
+| Codex CLI 集成 | **OpenAI**（gpt-5-3-codex via Responses） |
+| 多模态、需要原生音频输入 | **OpenAI**（gpt-4o 是 ByteSpike 上唯一支持音频输入的模型） |
+| 1M+ 上下文、最低成本 | **Gemini**（1M 用 2.5 Flash，2M 用 2.5 Pro） |
+| 高级层级的 web search + reasoning | **OpenAI**（gpt-5-4-pro）或 **Anthropic**（Opus 4.6 + 4.7） |
+| 预算友好的 reasoning chain | **DeepSeek**（V4 Pro；同等质量下比 gpt-5-4 便宜约 10×） |
+| 中文 LLM 团队、混合厂商用量 | **Volcengine CodePlan** 订阅 |
+| OpenAI-SDK 代码、想切去更便宜的中文模型 | **DeepSeek** Chat Completions 或 **CodePlan** Chat Completions |
+| Anthropic-SDK agent、需要中文 LLM 兜底 | **DeepSeek** Anthropic Messages（目前唯一带 anthropic-compat HTTP API 的中文厂商） |
+
+## 协议覆盖矩阵
+
+每种协议形状当前可由哪些 platform 服务。
+
+| 协议 | Anthropic | OpenAI | Gemini | DeepSeek | CodePlan |
+|---|---|---|---|---|---|
+| `/v1/messages`（Anthropic Messages） | ✅ | translated | translated | ✅ | 部分 |
+| `/v1/chat/completions`（OpenAI Chat） | shim | ✅ | shim | ✅ | ✅ |
+| `/v1/responses`（OpenAI Responses、Codex） | translated | ✅ | translated | — | — |
+| `/v1beta/.../generateContent`（Gemini Native） | — | — | ✅ | — | — |
+| `/v1/images/generations`（同步图像） | — | ✅ | — | — | ✅（Seedream） |
+| `/v1/tasks/submit`（异步多模态） | — | ✅ Sora | ✅ Veo | — | ✅ Seedance |
+
+同一把 ByteSpike key 授权所有协议形状。换协议只是换路径，不是换凭证。
+
+## 同一 platform 内的 channel 对 channel
+
+针对 Anthropic 和 Gemini，ByteSpike 维护多条 **同一 platform 下的 channel**：
+
+- **Anthropic**：Anthropic API 直连、AWS Bedrock（多个区域）
+- **Gemini**：Google AI Studio 上游为主 channel；接入完成后，管理员配置的 Vertex / Workspace OAuth channel 可以并列存在同一分组中
+
+这些 channel 讲同一个协议，但在价格、区域、审计接入、配额结构上不同。路由模型见 [channels](/zh/concepts/channels)，术语辨析见 [Platforms vs. channels](/zh/concepts/platforms-vs-channels)。
+
+## 本对比不覆盖的内容
+
+- **延迟层级** —— 生产 p50 / p90 / p99 延迟按 channel 按区域而异。Console 的延迟看板才是权威来源。
+- **速率限制默认值** —— 每个 platform 在 free / paid 层有自己的 RPM / TPM 上限；ByteSpike 自己的按方案速率限制叠加其上。见 [pricing footer](https://bytespike.ai/pricing)。
+- **每个模型的小差异** —— Sonnet 4.5 vs 4.6、GPT-5.4 vs 5.4-pro 等细粒度差异，在 [/models](/zh/models) 下每个模型的页面里。
+
+## 下一步
+
+- [Channels](/zh/concepts/channels) —— N:M 模型到 channel 的映射
+- [Endpoint 类型](/zh/concepts/endpoints) —— ByteSpike 接受的五种真实请求形状
+- [Models 索引](/zh/models) —— 每个模型的深入页
+- [Providers](/zh/providers/anthropic) —— 每个 platform 的管理员文档

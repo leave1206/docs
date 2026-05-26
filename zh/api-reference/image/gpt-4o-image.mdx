@@ -1,0 +1,171 @@
+---
+title: "GPT-4o Image"
+description: "GPT-4o 的图像输出模式 —— 在 chat completions 响应内直接产出图像的视觉模型。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-4o-image`
+**能力：** 1024² – 2048² · 多轮图像生成 · 会话内编辑
+**价格：** 按张计费，会话级 ([实时费率](https://bytespike.ai/pricing#image))
+
+GPT-4o Image 是会话式图像生成器 —— 不是一次性调用
+`/images/generations`，而是发一个 chat completions 请求，模型在响应里
+返回图像内容。在多轮工作流里这点关键：「生成这个」、「把背景改成蓝色」、
+「现在加一只狗」。会话记忆保留了底层图像，所以后续轮次是编辑、不是
+重新生成。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-image",
+    "messages": [
+      {"role": "user", "content": "Generate an image of a koi pond at dusk."}
+    ],
+    "image_output": {"size": "1024x1024", "quality": "high"}
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-4o-image` |
+| `messages` | array | yes | — | 标准 chat 结构。模型以 `image_url` 内容块返回图像。 |
+| `image_output.size` | string | no | `1024x1024` | 支持：`1024x1024`、`1024x1536`、`1536x1024`、`2048x2048`。 |
+| `image_output.quality` | string | no | `"medium"` | `"low"` / `"medium"` / `"high"`。 |
+| `image_output.n` | integer | no | 1 | 单轮 1–2 张。 |
+| `tools` | array | no | — | 图像输出可与 function calling 并用。 |
+| `stream` | boolean | no | false | 支持流式的部分图像 delta。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-4o-image",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "Here's the koi pond at dusk:"},
+        {"type": "image_url", "image_url": {"url": "https://cdn.bytespike.ai/img/..."}}
+      ]
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {"prompt_tokens": 18, "completion_tokens": 14, "image_tokens": 1024, "total_tokens": 1056}
+}
+```
+
+URL 预签名，24h 有效。把对话回传到 `messages` 即可在后续轮次编辑同一张图。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-image",
+    "messages": [{"role": "user", "content": "Generate an image of a koi pond at dusk."}],
+    "image_output": {"size": "1024x1024", "quality": "high"}
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-4o-image",
+    messages=[{"role": "user", "content": "Generate an image of a koi pond at dusk."}],
+    extra_body={"image_output": {"size": "1024x1024", "quality": "high"}},
+)
+for block in resp.choices[0].message.content:
+    if block["type"] == "image_url":
+        print(block["image_url"]["url"])
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-4o-image",
+  messages: [
+    { role: "user", content: "Generate an image of a koi pond at dusk." },
+  ],
+  // @ts-expect-error — gateway extension
+  image_output: { size: "1024x1024", quality: "high" },
+})
+const blocks = resp.choices[0].message.content
+for (const b of blocks) {
+  if (b.type === "image_url") console.log(b.image_url.url)
+}
+```
+
+</CodeGroup>
+
+## 多轮编辑工作流
+
+把 assistant 的响应（连同 image url）原样回传到下一次的 `messages` 数组。
+模型把会话上下文里的图作为待编辑的画布：
+
+```python
+# Turn 1 — generate
+turn1 = client.chat.completions.create(
+    model="gpt-4o-image",
+    messages=[{"role": "user", "content": "Generate a koi pond at dusk."}],
+    extra_body={"image_output": {"size": "1024x1024"}},
+)
+
+# Turn 2 — edit
+turn2 = client.chat.completions.create(
+    model="gpt-4o-image",
+    messages=[
+        {"role": "user", "content": "Generate a koi pond at dusk."},
+        turn1.choices[0].message,
+        {"role": "user", "content": "Make it dawn instead, with mist on the water."},
+    ],
+    extra_body={"image_output": {"size": "1024x1024"}},
+)
+```
+
+每一轮作为独立的图像生成计费。
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 多轮图像编辑 —— 会话上下文要紧。
+- 把文字推理和图像输出混合的工作流（模型能描述它生成的东西、提澄清问题）。
+- 一次性 / 批量图像生成，见 [GPT-Image 2](/zh/api-reference/image/gpt-image-2)。
+- 纯写实，见 [Nano Banana Pro](/zh/api-reference/image/nano-banana-pro) 或 [Nano Banana 2](/zh/api-reference/image/nano-banana-v2)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 2048×2048 |
+| 单轮最大张数（`n`） | 2 |
+| 多轮编辑 | 是 |
+| 支持 `quality` 修饰 | 是 |
+| 同步？ | 是（典型 ≤30s） |
+| 1024² 平均延迟 | 10-16s |

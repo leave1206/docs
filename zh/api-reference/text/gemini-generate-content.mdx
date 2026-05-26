@@ -1,0 +1,304 @@
+---
+title: "POST /v1beta/models/{model}:generateContent"
+description: "Gemini 原生协议 —— Google Generative AI SDK 直接接入。"
+---
+
+Google 原生协议。逐字讲 Gemini `generateContent` 的 REST 契约，所以
+`google-generativeai` Python SDK 和 `@google/generative-ai` JS SDK 都能
+原样使用 —— 切换 base URL 和你的 `apiKey` 即可。跨厂商模型（Claude、
+GPT、DeepSeek、Doubao）在底下被翻译成 Gemini 形状。
+
+## 何时使用
+
+以下情况选这个端点：
+
+- **`google-generativeai` / Gemini SDK 客户端的直接替换**
+- **Gemini 独有的特性** 比如带 Gemini 风格 JSON schema 的 `responseSchema`，或 `safetySettings`
+- **已经围绕 `contents[].parts[]` 组织代码** 的项目（和 OpenAI / Anthropic 的 `messages` 不一样）
+
+要走 Anthropic 形状打同样的模型，用 [`/v1/messages`](./claude-messages)；要 OpenAI 形状用 [`/chat/completions`](./openai-chat-completions)。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1beta/models/gemini-3-1-pro:generateContent \
+  -H "x-goog-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [
+      {"role": "user", "parts": [{"text": "Summarize the first chapter of Moby Dick."}]}
+    ],
+    "generationConfig": {"maxOutputTokens": 1024}
+  }'
+```
+
+路径中的 `{model}` 是模型 slug（例如 `gemini-3-1-pro`）。流式请用配套的 `:streamGenerateContent` 路径 —— 见下文 [流式](#streaming)。
+
+### 请求头
+
+| Header | 是否必填 | 说明 |
+|---|---|---|
+| `x-goog-api-key` | 是 | 你的 ByteSpike key。（也接受 `Authorization: Bearer …`。） |
+| `content-type` | 是 | `application/json`。 |
+
+### Body
+
+| 字段 | 类型 | 是否必填 | 说明 |
+|---|---|---|---|
+| `contents` | array | 是 | 对话轮次。每项含 `role`（`user` / `model`）+ `parts[]`。 |
+| `systemInstruction` | object | 否 | `{"parts":[{"text": "…"}]}` —— Gemini 的 system prompt 位。 |
+| `generationConfig.maxOutputTokens` | integer | 否 | 响应长度硬上限。 |
+| `generationConfig.temperature` | number | 否 | 0.0–2.0。 |
+| `generationConfig.topP` | number | 否 | Nucleus sampling。 |
+| `generationConfig.topK` | integer | 否 | Top-K 采样。 |
+| `generationConfig.stopSequences` | string[] | 否 | 自定义 stop token。 |
+| `generationConfig.responseMimeType` | string | 否 | `application/json` 强制 JSON 输出。 |
+| `generationConfig.responseSchema` | object | 否 | Gemini 形状 JSON schema 约束。 |
+| `tools` | array | 否 | Function 声明 —— 见 [工具调用](#tool-calling)。 |
+| `toolConfig` | object | 否 | `{"functionCallingConfig": {"mode": "ANY"\|"AUTO"\|"NONE"}}`。 |
+| `safetySettings` | array | 否 | 按类别的阈值（HARM_CATEGORY_HARASSMENT 等）。透传上游 Gemini。 |
+
+## 响应
+
+```json
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {"text": "Ishmael, the narrator, signs onto a whaling ship..."}
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0,
+      "safetyRatings": [/* … */]
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 23,
+    "candidatesTokenCount": 87,
+    "totalTokenCount": 110
+  }
+}
+```
+
+### 响应字段
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `candidates[].content.parts[]` | array | 文本和/或 `functionCall` parts。 |
+| `candidates[].finishReason` | string | `STOP`、`MAX_TOKENS`、`SAFETY`、`RECITATION`。 |
+| `candidates[].safetyRatings` | array | Gemini 的内容安全评分。 |
+| `usageMetadata.promptTokenCount` | integer | 输入计费 token 数。 |
+| `usageMetadata.candidatesTokenCount` | integer | 输出计费 token 数。 |
+
+### 计费类请求头
+
+与其他端点一致的信封：
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+详见 [API 参考总览](/zh/api-reference/overview#conventions)。
+
+## 流式
+
+用配套路径 `:streamGenerateContent`：
+
+```bash
+curl 'https://llm.bytespike.ai/v1beta/models/gemini-3-1-pro:streamGenerateContent?alt=sse' \
+  -H "x-goog-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"role": "user", "parts": [{"text": "Tell me a joke."}]}]
+  }'
+```
+
+响应是 SSE（`alt=sse`），每一帧带部分 `candidates` payload：
+
+```
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Why"}]}}]}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":" did"}]}}]}
+
+…
+
+data: {"candidates":[{"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":21}}
+```
+
+（不带 `alt=sse` 时，响应是一个 JSON 数组的帧 —— SDK 的默认行为。）
+
+## 工具调用
+
+Gemini 的 `tools[].functionDeclarations[]` 形状。两次请求轮转：
+
+### 第一轮 —— 提供工具
+
+```json
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "What's the weather in Tokyo?"}]}
+  ],
+  "tools": [
+    {
+      "functionDeclarations": [
+        {
+          "name": "get_weather",
+          "description": "Get current weather for a city.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+响应包含一个 `functionCall` part：
+
+```json
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "functionCall": {
+              "name": "get_weather",
+              "args": {"city": "Tokyo"}
+            }
+          }
+        ]
+      },
+      "finishReason": "STOP"
+    }
+  ]
+}
+```
+
+注意这里的 `args` 是 **结构化对象**，不是 JSON 字符串（与 OpenAI 的 `tool_calls.arguments` 不同）。
+
+### 第二轮 —— 回传工具结果
+
+```json
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "What's the weather in Tokyo?"}]},
+    {
+      "role": "model",
+      "parts": [{"functionCall": {"name": "get_weather", "args": {"city": "Tokyo"}}}]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "get_weather",
+            "response": {"temperature": "18°C", "conditions": "partly cloudy"}
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [ /* same schema */ ]
+}
+```
+
+## 多模态（图像 / 音频 parts）
+
+把 base64 编码的图像直接内联到 user 消息的 part 上：
+
+```json
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "inlineData": {
+            "mimeType": "image/jpeg",
+            "data": "/9j/4AAQSkZJRg..."
+          }
+        },
+        {"text": "What's in this image?"}
+      ]
+    }
+  ]
+}
+```
+
+外部存储的文件用 `fileData.fileUri`（要求文件对上游 Gemini 的网络可达）。多模态模型上音频（`audio/wav`、`audio/mp3`）和视频（`video/mp4`）parts 的用法相同。
+
+## 跨模型路由
+
+路径中的 `{model}` 段接受 **任意** ByteSpike 目录模型 —— 网关把 Gemini 形状翻译成上游协议：
+
+```
+POST /v1beta/models/gemini-3-1-pro:generateContent       → Google native
+POST /v1beta/models/claude-sonnet-4-6:generateContent    → Anthropic（Gemini→Anthropic 形状）
+POST /v1beta/models/gpt-5-4:generateContent              → OpenAI
+POST /v1beta/models/deepseek-v4-pro:generateContent      → DeepSeek
+```
+
+注意：
+
+- `responseSchema` 约束需要上游支持；否则返回 400 `unsupported_feature`。
+- `safetySettings` 仅在 Gemini 上游被尊重 —— 在 Anthropic/OpenAI/DeepSeek 上被静默忽略（它们有自己的安全栈）。
+- 不论上游是什么，`usageMetadata` 字段名始终是 Gemini 形状。
+
+完整目录：[`GET /v1/models`](../utility/v1-models)。按模型计价：[bytespike.ai/pricing](https://bytespike.ai/pricing)。
+
+## 错误
+
+所有非 2xx 响应 **免费**。Body 形状与 Gemini 的错误信封一致：
+
+```json
+{
+  "error": {
+    "code": 429,
+    "message": "You exceeded your current requests-per-minute budget.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+```
+
+| Status | `error.status` | 触发 |
+|---|---|---|
+| 400 | `INVALID_ARGUMENT` | Body 校验失败。message 指出字段。 |
+| 400 | `INVALID_ARGUMENT`（msg `unsupported_model`） | model slug 不在范围。 |
+| 400 | `INVALID_ARGUMENT`（msg `unsupported_feature`） | 例如对非结构化输出模型用 `responseSchema`。 |
+| 401 | `UNAUTHENTICATED` | key 缺失 / 已撤销。 |
+| 402 | `FAILED_PRECONDITION`（msg `insufficient_credits`） | 钱包用尽。 |
+| 403 | `PERMISSION_DENIED` | 范围拒绝、IP 白名单、模型受限。 |
+| 404 | `NOT_FOUND` | 路径打错或未知 model id。 |
+| 429 | `RESOURCE_EXHAUSTED` | tier 速率限制。按 `x-ratelimit-reset-*` 退避。 |
+| 5xx | `INTERNAL` / `UNAVAILABLE` | 上游 provider 问题。免费 + 自动重试信封。 |
+
+## SDK 示例
+
+`google-generativeai` Python SDK，base URL 指向 ByteSpike：
+
+```python
+import google.generativeai as genai
+
+genai.configure(
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+    client_options={"api_endpoint": "api.bytespike.ai"},
+    transport="rest",
+)
+
+model = genai.GenerativeModel("gemini-3-1-pro")
+r = model.generate_content("Hello!")
+print(r.text)
+```

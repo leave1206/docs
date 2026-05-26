@@ -1,0 +1,122 @@
+---
+title: "MCP 集成 · DOSIA 桥"
+description: "DOSIA 如何通过 MCP 与 ByteSpike 对话 —— 一次 OAuth 连接之后，你正在聊的主脑就能生成图像、用其他 LLM 写作、产出视频，这些布线都不再是你的问题。"
+---
+
+DOSIA 通过单次 OAuth 握手连接 ByteSpike。之后，你正在聊的主脑就拿到了图像生成、图像分析、视频生成以及"用另一个 LLM 来写这个"的工具 —— 你从不需要粘贴 API key、切换面板、操心哪家 provider 托管哪个模型。
+
+本页描述这个集成在用户视角下长什么样，以及其下的架构，方便任何在 debug 或在上面构建的人。
+
+## 连接流程
+
+```
+DOSIA → 设置 → 账号 → "Connect ByteSpike account"
+   ↓ 浏览器 OAuth (PKCE)
+DOSIA 收到 token → GET /v1/account/capabilities
+   ↓ partition + persist + reloadPlugins()
+toast: "Connected · N 个主模型 + M 项工具能力"
+```
+
+桌面端一次点击、浏览器一次允许，DOSIA 就接好线了。Token 存在 macOS Keychain 里。手动 key 流程仍然支持，偏好那种方式的用户也能用 —— OAuth 是阻力最小的路径，不是硬要求。
+
+## 连接之后你能做什么
+
+你在 DOSIA 里对话的主脑现在拿到了能干活的工具：
+
+| 你说 | DOSIA 做 |
+|---|---|
+| "画一个扁平风格的红苹果" | `image-tools.generate_image(model=gpt-image-2, prompt=...)` |
+| "把这张图的背景换成蓝色" + 附件 | `image-tools.generate_image` 配 `source_image` |
+| "这张照片里有几只猫？" + 附件 | `image-tools.analyze_image(model=gpt-4o, ...)` |
+| "做一段 5 秒的产品视频" | `video-tools.generate_video` → `poll_video` |
+| "让 GPT-5.5 帮我写一份这串对话的摘要" | `text-writing-tools.chat_with(model=gpt-5-5, ...)` |
+| "让 Gemini 把这段翻译成英文" | `text-writing-tools.chat_with(model=gemini-3.1-pro, ...)` |
+
+主脑根据你的话术决定调哪个工具。你不切标签页；你不挑面板；你继续打字。
+
+## 插件 / 工具表面
+
+三个插件、三个 MCP server、共六个工具。
+
+| 插件 | 工具 | 解决什么 |
+|---|---|---|
+| `image-tools` | `generate_image(model, prompt, source_image?)` <br /> `analyze_image(model, image_url, question)` | 文生图、图生图、图像视觉 |
+| `video-tools` | `generate_video(model, prompt, source_image?) → task_id` <br /> `poll_video(task_id)` <br /> `analyze_video(model, video_url, question)` ⚠️ | 文生视频、图生视频、视频视觉（analyze 端点在 feature flag 后） |
+| `text-writing-tools` | `chat_with(model, prompt, system?)` | 用非主用 LLM（GPT / Gemini / DeepSeek / Doubao）做写作协处理器 |
+
+⚠️ `analyze_video` 是预留的；对应的端点在写作本页时尚未在公开网关上线。工具定义放着，方便主脑做规划；调用时会返回明确的 "尚未可用" 错误，直到端点上线。
+
+## known-models 注册表 —— 四个桶
+
+DOSIA 拉取 `/v1/account/capabilities` 时，ByteSpike 返回两个模型列表：
+
+- `anthropicModels[]` —— 你能用来聊天的 "主脑" 集合（claude-\*、claude-via-channel-X 等）。驱动模型选择器。
+- `otherModels[]` —— 你账号被允许调用的其他所有模型（gpt-\*、gemini-\*、deepseek-\*、gpt-image-2、sora-\*、veo-\* 等）。
+
+DOSIA 用 **known-models 注册表** 对 `otherModels[]` 分桶，把每个 model id 映射到四类能力桶之一：
+
+| 桶 | 成员喂给 | 用户看到的含义 |
+|---|---|---|
+| `image_generate` | `generate_image.model.enum` | "我能画图" |
+| `video_generate` | `generate_video.model.enum` | "我能做视频" |
+| `vision` | `analyze_image.model.enum`、`analyze_video.model.enum`、**以及** `chat_with.model.enum` | "我能看图 / 用有视觉能力的模型来写" |
+| `external_chat` | `chat_with.model.enum` | "我能用非 Claude 的 LLM 来写文字" |
+
+像 `gpt-4o` 这样的视觉能力模型合理地出现在三个工具 enum 里 —— SDK 允许同一个 model id 出现在多个 `enum` 列表里，注册表把 vision 当作横切能力而不是单一桶。
+
+注册表在 DOSIA 里，不在你账号里。给 ByteSpike 加新模型不会让旧 DOSIA build 出问题；它们只是忽略不认识的 id，直到下个 DOSIA 版本告诉它们这个 id 属于哪个桶。
+
+## 端到端数据流
+
+```
+ByteSpike 管理员配置账号能力
+        ↓
+用户登录 DOSIA、点 Connect
+        ↓
+GET /v1/account/capabilities
+   → { baseUrl, token, anthropicModels[], otherModels[] }
+        ↓
+DOSIA 主进程：
+  ① anthropicModels → ModelSelector + 持久化到本地 DB
+  ② otherModels 经 KNOWN_OTHER_MODELS 注册表分桶：
+     { imageGenModels, videoGenModels, visionModels, externalChatModels }
+  ③ 更新 user_capabilities 行
+        ↓
+DOSIA 注册一个 userMcpServerProvider 回调
+        ↓ 每次 createSession() 调用
+回调返回相应的 MCP server 集合：
+  - image-tools         (baseUrl, token, imageGenModels, visionModels)
+  - video-tools         (baseUrl, token, videoGenModels, visionModels)
+  - text-writing-tools  (baseUrl, token, chatModels = external_chat ∪ vision)
+        ↓
+主脑看到的工具，其 enum 完全对应你账号的权限集合。
+```
+
+一个能力上没有图像生成模型的用户，根本拿不到 `generate_image` 工具 —— 不是灰色的、不是 "permission denied"。这个工具就没被加载。
+
+## 权限刷新
+
+权限会在会话中变（管理员把你加到一个模型、配额抬升、试用到期）：
+
+| 触发 | 发生什么 |
+|---|---|
+| 用户在 设置 → AI Models 里点 "Refresh permissions" | 重新拉取 capabilities → 重新分桶 → 持久化 → `reloadPlugins()` |
+| DOSIA app 启动 | 启动时静默拉取 + 重载 |
+| ByteSpike webhook（P7 之后的 stretch） | 服务端推动重载 —— 不需用户操作 |
+
+重载后主脑的工具集合在下一次会话生效。现有会话保留它们的工具集合；这是有意的，权限变更不会打断进行中的对话。
+
+## 这一切怎么对得上
+
+如果你已经熟悉 [DOSIA Agent 模式](/zh/concepts/dosia-agent-mode)，本页描述的 MCP 集成是 DOSIA-ByteSpike 故事的 **另一** 半：Agent 模式讲的是 Anthropic Messages 协议把 `tool_use` / `cache_control` block 透传过去；MCP 集成讲的是 *主脑一开始有哪些工具可用*。
+
+多模态端点 —— 见 [多模态](/zh/concepts/multimodal) —— 是 `image-tools` / `video-tools` 调用的底层 HTTP 表面。插件层把这些端点变成 chat 驱动的用户永远不必想的东西。
+
+## 新用户配置清单
+
+1. 安装 DOSIA（对应平台最新签名 build）
+2. 打开 设置 → 账号 → **Connect ByteSpike account**
+3. 在浏览器批准 → 看到连接 toast
+4. 开一个新对话 → 让主脑画点东西、用 GPT 写、生成一段短片
+
+如果你期望的工具没出现，先在 设置 → AI Models 里点 **Refresh permissions** 再开工单。大多数 "找不到工具" 的反馈追到底都是权限授予尚未传播 —— 一次刷新就能解决，不用 support 介入。

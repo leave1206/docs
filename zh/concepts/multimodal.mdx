@@ -1,0 +1,52 @@
+---
+title: "多模态"
+description: "图像、视频、音频、embedding 端点如何与文本并列在同一把 key 之下。"
+---
+
+ByteSpike 把每种模态都当作文本的平级 —— 同一个鉴权头、同一个钱包、同一组响应头。
+请求的形状按家族不同（图像用 `/images/generations`、视频用 `/tasks/submit` 等），
+但鉴权和计费表面是统一的。
+
+## 家族总览
+
+| 家族 | 同步？ | 关键端点 |
+|---|---|---|
+| 文本 | 是（可选流式） | `/v1/messages`、`/v1/chat/completions`、`/v1/responses`、`/v1beta/models/{model}:generateContent` |
+| 图像（同步） | 是（≤30s） | `/v1/images/generations`、`/v1/images/edits` |
+| 图像 / 视频（异步） | 否，异步 | `POST /v1/tasks/submit` → 轮询 `/v1/tasks/query`（或 SSE `/v1/tasks/stream/:id`） |
+| 工具 | 是（免费） | `/v1/models`、`/v1/usage`、`/v1/balance`、`/v1/tasks/{query,cancel}` |
+
+## 为什么视频走异步
+
+视频生成通常要 30–180 秒的 GPU 时间。把 HTTP 连接挂这么久很脆弱（proxy 超时、重试加倍成本）。异步模式是：
+
+1. `POST /v1/tasks/submit` → 立即返回 `task_id` + `estimated_credits` + `estimated_seconds`
+2. 用 `{"task_id": "..."}` 轮询 `POST /v1/tasks/query`（免费），频率配合 ETA；或者通过 SSE 流式 `GET /v1/tasks/stream/{task_id}` 接收推送；或者 submit 时注册 `callback_url`，完全免轮询
+3. 当 `status == "completed"` 时，`output` 数组里是结果 URL
+
+状态转移：`pending → running → completed`（成功路径）、
+`pending → running → failed`（不计费），或者
+`pending|running → cancelled`（手动取消，计费看上游退款策略）。
+
+## 同一应用里混用模态
+
+每把 API key 在 ByteSpike 上绑定到 **一个** channel 路由分组，分组决定它能触达哪些模型。对横跨多个 provider 家族的应用，按分组分别建 key：
+
+```bash
+# 绑到 Anthropic 分组的 key —— 触达 Claude + （经翻译）DeepSeek-Anthropic + 跨协议翻译过来的 Gemini
+curl https://llm.bytespike.ai/api/v1/keys -H "x-api-key: $ADMIN_KEY" -d '{
+  "name": "vision-claude-prod",
+  "group_id": 1
+}'
+
+# 绑到 Gemini 分组的 key —— 触达 Gemini 原生 + 该池里的图像/视频模型
+curl https://llm.bytespike.ai/api/v1/keys -H "x-api-key: $ADMIN_KEY" -d '{
+  "name": "vision-gemini-prod",
+  "group_id": 3
+}'
+```
+
+你账号可用的分组列表在
+[`GET /api/v1/groups/available`](https://console.bytespike.ai/keys)
+或 console 的 **创建 key** 对话框里。要按流水线归因花费，调
+[`GET /api/v1/usage`](/zh/api-reference/account/me-usage) 并按 `api_key_id` 过滤。

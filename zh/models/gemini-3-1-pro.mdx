@@ -1,0 +1,74 @@
+---
+title: "gemini-3-1-pro"
+description: "Google Gemini 3.1 Pro —— Gemini 当前旗舰。原生支持图像与视频 vision 输入、1M 上下文、广泛的工具支持。默认的 Google 栈 vision 模型，DOSIA `analyze_video` 的搭档。"
+---
+
+`gemini-3-1-pro` 是 Google 当前旗舰 Gemini 模型。原生支持**图像与视频**双重 vision 输入，1M token 上下文、并行 tool use、JSON mode。在网关上，它是 DOSIA vision 工具默认的 Google 栈落地点 —— 主脑调 `analyze_image`，或（端点上线后）调 `analyze_video` 并偏好 Google 时，请求就落到这里。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **Google AI** | Google 直连 | `aiplatform.googleapis.com` | 见 [/pricing](/zh/pricing) | 见 [/pricing](/zh/pricing) | ~850ms | global edge |
+
+失败不计费。定价位于 Gemini 家族费率档的最顶端。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions（shim） | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-3-1-pro",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "How many people are in this image?" },
+          { "type": "image_url", "image_url": { "url": "https://example.com/scene.jpg" } }
+        ]
+      }
+    ]
+  }'
+```
+
+Python 与 TypeScript 调用与 [`gpt-5-5`](/zh/models/gpt-5-5#quickstart) 一致 —— 换掉 `model` 字段即可。
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| **视频 vision 输入** | ✅（原生，无需单独的 analyze_video 端点） |
+| Tools / function calling | ✅ 并行 |
+| JSON mode | ✅ |
+| 上下文窗口 | **1M tokens** |
+| 模态 | chat + vision + video-vision |
+| 能力桶 | `vision` + `external_chat` |
+
+## 什么时候用
+
+- **长上下文 vision** —— 分析整套幻灯片、多页截图、塞不进短上下文窗口的视频。
+- **Google 栈默认** —— 主脑出于成本或合规偏好 Google 时，这就是 vision 端点。
+- **DOSIA `analyze_image` / `analyze_video`** —— 当被授权且 prompt 偏好 Gemini 时，主脑会路由到这里。
+
+什么时候**不**用：
+
+- 纯文本推理（不需要 vision） —— 按栈偏好选 [`gpt-5-5`](/zh/models/gpt-5-5) 或 [`claude-sonnet-4-6`](/zh/models/claude-sonnet-4-6)。
+- 高吞吐成本敏感的 vision —— [`gemini-2-5-flash`](/zh/models/gemini-2-5-flash) 提供基础 vision，成本只有零头。
+
+## 下一步
+
+- [`gemini-2-5-pro`](/zh/models/gemini-2-5-pro) —— 上一代 Gemini 旗舰
+- [`gemini-2-5-flash`](/zh/models/gemini-2-5-flash) —— 成本敏感的 Gemini 档位
+- [`gpt-5-5`](/zh/models/gpt-5-5) —— OpenAI 替代
+- [DOSIA MCP 集成](/zh/concepts/mcp-integration) —— vision 工具面

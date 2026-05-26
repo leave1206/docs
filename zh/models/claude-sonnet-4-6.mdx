@@ -1,0 +1,109 @@
+---
+title: "claude-sonnet-4-6"
+description: "Anthropic 的生产主力中档。Vision、tool use、prompt 缓存、extended thinking、web search —— 全在 Sonnet 价格上一起到位。同时支持 Anthropic Messages 协议和 OpenAI Chat Completions shim。"
+---
+
+`claude-sonnet-4-6` 是 Claude 家族的生产主力 —— 当用户想要一个**什么都能干**且价格还在中档时，ByteSpike 客户多数会默认选它。Vision、tools、prompt 缓存、extended thinking、web search 全部齐活；唯一留给 Opus 的特性是 1M 上下文窗口。
+
+## 通道
+
+| 通道分组 | 输入 | 输出 | 缓存读取 |
+|---|---|---|---|
+| **claude-default**（Anthropic 上游） | $3.00 / 1M | $15.00 / 1M | $0.30 / 1M |
+
+缓存写入档为输入的 1.25×（Anthropic 标准比例）。路由层根据你 key 的 `group_id` 自动挑通道 —— 见 [Channels](/zh/concepts/channels)。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions（shim） | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+同样的输入下两套协议的响应等价；选你客户端已经在用的那种。
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.content[0].text)
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tool use（function calling） | ✅ 并行 |
+| Prompt 缓存（cache_control） | ✅ |
+| Extended thinking | ✅ |
+| Web search（web_search 工具） | ✅ |
+| JSON / 结构化输出 | ✅ |
+| 上下文窗口 | 200K tokens |
+
+## 什么时候用
+
+- **默认中档。** 需要一个 vision + tools + thinking + web search 全到位的模型，价格还在 Sonnet 档时。
+- **Agent。** 用 Anthropic Messages 端点；`tool_use` 和 `thinking` 块原样透传。
+- **RAG。** 在长系统提示上挂 `cache_control` 摊销到多轮。首次请求按缓存写入档付费，后续命中同前缀的请求按 $0.30/1M（输入的 10%）付费。
+- **新鲜事实任务。** 在 tools 数组里加 `web_search`。
+
+什么时候**不**用：
+
+- 代码库级任务（200K 太小）—— 上 [`claude-opus-4-7`](/zh/models/claude-opus-4-7) 拿 1M 上下文。
+- 最低成本的分类或路由 —— 用 [`claude-haiku-4-5`](/zh/models/claude-haiku-4-5)，价格只有四分之一。
+
+## 下一步
+
+- [claude-opus-4-7](/zh/models/claude-opus-4-7) —— 旗舰，1M 上下文
+- [claude-haiku-4-5](/zh/models/claude-haiku-4-5) —— 小、快、便宜
+- [Anthropic provider 页](/zh/providers/anthropic) —— 完整家族总览
+- [Channels](/zh/concepts/channels) —— 为什么同一个模型有多个价格

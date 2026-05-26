@@ -1,0 +1,173 @@
+---
+title: "Claude Opus 4.6"
+description: "精修过的 4 系列 Opus —— 与 4.5 同样的 1M context，长文输出更紧致，多文档综合的幻觉显著减少。"
+---
+
+**厂商：** Anthropic
+**Model ID：** `claude-opus-4-6`
+**能力：** 1M context · tool use · vision · prompt caching · streaming · extended thinking
+**价格：** 按 token，Opus 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Opus 4.6 是在 4.5 上的精修 —— 同样的 1M token context、更紧致的长文
+散文，且在跨多文档综合时幻觉有可测量的下降。它是 4.5 几乎够用、但还
+差点意思的多文档工作流的正确 Opus：法律评审、科技文献综合、代码库
+审计报告。[Opus 4.7](/zh/api-reference/text/claude-opus-4-7) 是又一步前进；
+4.6 保留是给已经针对此特定版本验证过的团队。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-6",
+    "max_tokens": 16384,
+    "messages": [
+      {"role": "user", "content": "Synthesize the methodology sections of these 14 papers."}
+    ]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `claude-opus-4-6` |
+| `messages` | array | 是 | — | 对话历史。最多 1M token 输入。 |
+| `max_tokens` | integer | 是 | — | 硬上限。本模型最大：32768。 |
+| `system` | string \| array | 否 | — | array 形式支持 `cache_control`。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–1.0。 |
+| `top_p` | number | 否 | 1.0 | Nucleus sampling。 |
+| `tools` | array | 否 | — | 支持。 |
+| `tool_choice` | object | 否 | `{"type":"auto"}` | `auto` / `any` / `tool`（指定名）。 |
+| `thinking` | object | 否 | — | Extended-thinking 预算。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "msg_opus_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-6",
+  "content": [
+    {"type": "text", "text": "Across the 14 papers, three methodological themes emerge..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 287430,
+    "output_tokens": 4218
+  }
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-6",
+    "max_tokens": 16384,
+    "messages": [{"role": "user", "content": "Synthesize the methodology sections of these papers."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-opus-4-6",
+    max_tokens=16384,
+    messages=[
+        {"role": "user", "content": "Synthesize the methodology sections of these papers."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-opus-4-6",
+  max_tokens: 16384,
+  messages: [
+    {
+      role: "user",
+      content: "Synthesize the methodology sections of these papers.",
+    },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## Cache control
+
+```json
+{
+  "model": "claude-opus-4-6",
+  "system": [
+    {
+      "type": "text",
+      "text": "<the corpus you keep referring to>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+缓存读取的折扣价见 [pricing table](https://bytespike.ai/pricing#text)。
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 | Body 校验失败 | 否 |
+| 401 | key 缺失 / 已撤销 | 否 |
+| 402 | 钱包用尽 | 否 |
+| 413 | 输入超过 1M token | 否 |
+| 429 | 速率限制 | 否 |
+| 5xx | 上游 provider 问题 | 否（自动重试信封） |
+
+## 何时使用
+
+- 4.5 几乎够用但还差点意思的多文档综合。
+- 需要紧致、不重复散文的长文总结。
+- 最新 Opus，见 [Opus 4.7](/zh/api-reference/text/claude-opus-4-7)。
+- 上一版 Opus，见 [Opus 4.5](/zh/api-reference/text/claude-opus-4-5)。
+- 中端成本 / 延迟，见 [Sonnet 4.6](/zh/api-reference/text/claude-sonnet-4-6)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| 支持 tool use | 是 |
+| 支持 vision | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 是 |
+| 支持 extended thinking | 是 |

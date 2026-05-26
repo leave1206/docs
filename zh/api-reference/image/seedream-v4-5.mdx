@@ -1,0 +1,128 @@
+---
+title: "Seedream V4.5"
+description: "ByteDance 的 2048² 美学图像生成器 —— 文字和包装边缘更精细，原生 CJK prompt 理解。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedream-v4.5`
+**能力：** 2048² · 精细边缘 · CJK prompt · 图中文字
+**价格：** 按张计费，精细级 ([实时费率](https://bytespike.ai/pricing#image))
+
+需要 2048² 输出 + 文字和包装边缘干净时，Seedream V4.5 就是对的选择。
+V4 会让那些边缘略软；V5 lite 的尺度又不对。当你的 brief 要求图内文字
+必须正确渲染 —— 产品 mockup、包装静帧、带行内文案的编辑型版式时，
+就专门用 V4.5。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v4.5",
+    "prompt": "Minimalist product packaging on a teal background, brand name LUMEN in serif type",
+    "size": "2048x2048",
+    "n": 1
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `seedream-v4.5` |
+| `prompt` | string | yes | — | 原生接受 CJK。 |
+| `size` | string | no | `2048x2048` | 支持：`1024x1024`、`2048x2048`、`1024x2048`、`2048x1024`。 |
+| `n` | integer | no | 1 | 1–4 张。每张单独计费。 |
+| `seed` | integer | no | — | 支持可复现性。 |
+| `negative_prompt` | string | no | — | 标准 SD 风格的反向 prompt。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/...",
+      "revised_prompt": "..."
+    }
+  ]
+}
+```
+
+URL 预签名，24 小时有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedream-v4.5", "prompt": "Product packaging mockup", "size": "2048x2048"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="seedream-v4.5",
+    prompt="Minimalist product packaging on a teal background, brand name LUMEN in serif type",
+    size="2048x2048",
+    n=1,
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "seedream-v4.5",
+  prompt: "Minimalist product packaging on a teal background, brand name LUMEN in serif type",
+  size: "2048x2048",
+  n: 1,
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 | Body 校验（size 不支持、prompt 为空） | 不计费 |
+| 401 / 402 / 403 | 鉴权 / 钱包 / scope | 不计费 |
+| 413 | prompt 过长 | 不计费 |
+| 429 | 限流 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 包装 / 产品 mockup —— 文字边缘要紧。
+- 带行内排版的编辑型静帧。
+- 1024² 美学输出，见 [Seedream V4](/zh/api-reference/image/seedream-v4)。
+- 低分辨率廉价迭代，见 [Seedream V5 lite](/zh/api-reference/image/seedream-v5lite)。
+- 写实风格，见 [Nano-Banana Pro](/zh/api-reference/image/nano-banana-pro)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 2048×2048 |
+| 单次最大张数（`n`） | 4 |
+| 支持 init image（img2img） | 否 |
+| 支持反向 prompt | 是 |
+| 支持 seed 可复现 | 是 |
+| 同步？ | 是（典型 ≤30s） |
+| 2048² 平均延迟 | 12-18s |

@@ -1,0 +1,128 @@
+---
+title: "Seedance 1.5 Pro"
+description: "ByteDance 上一代视频旗舰 —— 擅长角色运动和中文市场 brief，为已用基准验证过的链路保留。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedance-1.5-pro`
+**能力：** 1080p · 最长 6s · 文本 + image init · CJK prompt · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，mid 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Seedance 1.5 Pro 是 ByteDance 视频家族上一代的旗舰。在 Sora 2 显得过度
+的价格档位下，靠角色运动（面部、手势、走路步态）打出口碑。原生 CJK
+prompt 理解，能认出来的 ByteDance 美学。新工作优先选
+[Seedance 2.0 Pro](/zh/api-reference/video/seedance-2-0-pro)；1.5 Pro 为
+已经在此版本上跑过基准的团队保留。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-1.5-pro",
+    "prompt": "一个女孩在樱花树下转身微笑，柔和的春日阳光",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `seedance-1.5-pro` |
+| `prompt` | string | yes | — | 原生接受 CJK。 |
+| `duration_seconds` | integer | yes | — | 1–6。 |
+| `resolution` | string | no | `1080p` | 支持：`720p`、`1080p`。 |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`。 |
+| `seed` | integer | no | — | 可复现性。 |
+| `image_init` | string | no | — | init image 的 URL。 |
+| `motion_intensity` | string | no | `medium` | `low` / `medium` / `high`。 |
+
+## Submit + poll
+
+标准 tasks 形状 —— envelope 见 [tasks/submit](/zh/api-reference/utility/tasks-submit)。
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.42}
+```
+
+推荐节奏：前 60 秒每 2 秒，之后每 5 秒，最长到 180 秒。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-1.5-pro", "prompt": "樱花树下女孩微笑", "duration_seconds": 5, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-1.5-pro",
+    "prompt": "一个女孩在樱花树下转身微笑",
+    "duration_seconds": 5,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-1.5-pro", prompt: "樱花树下女孩微笑", duration_seconds: 5, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 已在此版本上验证过的现有 pipeline。
+- 新工作优先选 [Seedance 2.0 Pro](/zh/api-reference/video/seedance-2-0-pro)。
+- 更低成本 / 更低延迟，见 [Seedance 2.0](/zh/api-reference/video/seedance-2-0)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 6s |
+| 分辨率 | 720p、1080p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 5s 片段典型延迟 | 60-90s |
+| 通过 tasks API 异步 | 是 |

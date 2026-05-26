@@ -1,0 +1,141 @@
+---
+title: "Claude Code CLI"
+description: "把 Anthropic 的 Claude Code CLI 指向 ByteSpike。两个环境变量搞定 —— 适用于目录里所有兼容 Anthropic 协议的模型。"
+---
+
+Claude Code 是 Anthropic 出的编码 agent CLI。开箱即用时它打到
+Anthropic 自家网关；把它重定向到 ByteSpike 之后，整套模型目录都能
+用一把 key 拿到（Claude，加上 DeepSeek-Anthropic，加上经
+Anthropic-via-Gemini 翻译的等等）。
+
+## 前置条件
+
+- 一个 ByteSpike 账号 + 一把绑到 **`claude-default`** 分组的 key
+  （或任何包含 Claude/DeepSeek-Anthropic 的分组）。详见
+  [注册账号](/zh/register)。
+- 装好 Claude Code：
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  # 或
+  brew install claude-code
+  ```
+
+## 配置
+
+两个环境变量。加到你的 shell profile（`~/.zshrc`、`~/.bashrc`，或者
+`~/.config/fish/config.fish`）：
+
+```bash
+export ANTHROPIC_BASE_URL="https://llm.bytespike.ai"
+export ANTHROPIC_API_KEY="sk-byts-..."
+```
+
+重新加载 shell（`exec $SHELL` 或开个新 tab）。完事 —— `claude` 现在
+所有 Messages-API 调用都走 ByteSpike。
+
+<Tip>
+想只对单个项目生效，不影响整个 shell？放一个 `.envrc`（配合
+`direnv`）或者一个 project-local 脚本，让变量只在仓库内导出：
+
+```bash
+# .envrc
+export ANTHROPIC_BASE_URL="https://llm.bytespike.ai"
+export ANTHROPIC_API_KEY="sk-byts-..."
+```
+</Tip>
+
+## 验证
+
+```bash
+claude --version
+```
+
+然后开个 session：
+
+```bash
+claude
+```
+
+在 session 里跑一个小任务：
+
+```
+> what model are you?
+```
+
+你应该看到模型自报家门（例如 "I'm Claude Sonnet 4.6 served via
+ByteSpike"）。如果是鉴权错误，回头检查 `ANTHROPIC_API_KEY`；如果是
+`400 model_not_allowed`，说明你 key 绑定的分组里没有 Claude Code
+默认用的那个模型 —— 切到包含该模型的分组，或者用 `--model` 覆盖。
+
+## 切换模型
+
+Claude Code 会按命令挑合适的工具。按 session 覆盖：
+
+```bash
+claude --model claude-opus-4-7    # 本次 session 用 Opus
+```
+
+或者在 session 内按工具切：
+
+```
+> /model claude-haiku-4-5
+```
+
+你 key 绑定的 `claude-default`（或其他分组）里任意一个 model id
+都能用。完整目录见 [Models](/zh/models)。
+
+## 常见配置
+
+<AccordionGroup>
+  <Accordion title="一项目一把 key">
+    在 [Console → API keys](https://console.bytespike.ai/keys) 给每个
+    项目生成单独的 key，配独立的 `quota`（USD 累计上限）和
+    `rate_limit_*` 速率窗口。把每个项目的 `.envrc` 接到对应的 key。
+    在 [`/api/v1/me/usage`](/zh/api-reference/account/me-usage) 里消费
+    仍按 `api_key_id` 归因。
+  </Accordion>
+  <Accordion title="流式 + 工具调用">
+    端到端都能直接跑通 —— 不用额外配置。网关原样保留 `tool_use`
+    块、`cache_control` 标记，以及 `thinking` 块（Opus / Sonnet 4.x）。
+  </Accordion>
+  <Accordion title="MCP server 兼容性">
+    Claude Code 的 MCP server（`mcp__*` 工具）全部跑在客户端 ——
+    它们不在乎 CLI 和模型之间是哪一个网关。设好环境变量，已有的
+    MCP 配置直接继续用。
+  </Accordion>
+  <Accordion title="企业代理后面">
+    Claude Code 会读 `HTTPS_PROXY` / `NO_PROXY`。如果你的代理会
+    切碎 SSE 流，把 `llm.bytespike.ai` 加到 `NO_PROXY`；否则正常
+    设 `HTTPS_PROXY=https://proxy.corp:443` 即可。
+  </Accordion>
+</AccordionGroup>
+
+## 排错
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| `401 invalid x-api-key` | key 值错了或者已经被吊销 | 在 [Console → API keys](https://console.bytespike.ai/keys) 重新复制；必要时轮换 |
+| `402 insufficient_balance` | 账户没 credits 了，或者 key 触发了自己的 `quota` | 在 [Console → 账单](https://console.bytespike.ai/billing) 充值；或提高 key 的 quota |
+| `403 permission_denied`（模型） | 模型不在 key 的路由分组里 | 换 key，或用 `--model` 切模型 |
+| `503 no available accounts` | key 的分组里没有任何能服务该模型的活跃 channel | 在 [Console → Models](https://console.bytespike.ai/dosia/models) 点该模型旁的 **Test** 确认；如果分组不匹配就换分组 |
+| 流式中途卡住（SSE） | 企业代理缓冲 | 把 `llm.bytespike.ai` 加到 `NO_PROXY` |
+
+实时响应结构见
+[`/v1/messages`](/zh/api-reference/text/claude-messages)。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Codex CLI" icon="terminal" href="/zh/codex-cli">
+    OpenAI 的编码 CLI —— 同样思路，OpenAI 那边的环境变量。
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/zh/models">
+    Claude Code 实际能调的模型。
+  </Card>
+  <Card title="鉴权" icon="key" href="/zh/authentication">
+    分组绑定、quota、速率限制。
+  </Card>
+  <Card title="DOSIA Agent 模式" icon="robot" href="/zh/concepts/dosia-agent-mode">
+    构建在 Claude Code Messages 结构之上的 agent 集成。
+  </Card>
+</CardGroup>

@@ -1,0 +1,157 @@
+---
+title: "POST /tasks/query"
+description: "按 task_id 或 out_task_id 读异步任务当前状态。免费。"
+---
+
+向派发器轮询由 [`/tasks/submit`](./tasks-submit) 发起的任务当前状态。
+返回此刻已知的一切 —— `pending`、`running`，或者三个终态之一
+（`completed`、`failed`、`cancelled`）。
+
+要实时投递（服务端推送状态变化，而不是客户端轮询），用
+`GET /v1/tasks/stream/{task_id}`（SSE），或者在 submit 时注册一个
+`callback_url`。
+
+## 何时选用
+
+- **廉价轮询循环** —— `/tasks/query` 免费；按任务的 `estimated_seconds`
+  匹配的节奏来调用
+- **进程重启后对账** —— 你的客户端挂了，DB 里只剩 `out_task_id`；
+  用它查询恢复当前状态
+- **取最终输出** —— `status` 为 `completed` 后，`output` 数组里就是
+  生成的图像 / 视频
+
+## Request
+
+### 按 task_id
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/query \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9"}'
+```
+
+### 按 out_task_id（幂等键）
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/query \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"out_task_id": "my-render-2026-05-25-001"}'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `task_id` | string | 二选一 | `/tasks/submit` 返回的服务端 ULID。 |
+| `out_task_id` | string | 二选一 | submit 时你提供的幂等键。 |
+
+`task_id` 或 `out_task_id` 必填其一。同时给两个返回 `400 invalid_param`。
+
+## Response
+
+### Running 状态
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "running",
+  "estimated_credits": 1.50,
+  "estimated_seconds": 35,
+  "upstream_provider": "openai"
+}
+```
+
+### 完成后
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "completed",
+  "credits_used": 1.47,
+  "upstream_provider": "openai",
+  "output": [
+    {
+      "type": "video",
+      "url": "https://cdn.bytespike.ai/multimodal/sora-2/2026-05-25/01HQX9F2P6Y8VEX3CRZ8GXJVD9.mp4",
+      "duration_seconds": 8,
+      "width": 1920,
+      "height": 1080
+    }
+  ]
+}
+```
+
+### 失败后
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "failed",
+  "upstream_provider": "openai",
+  "error_code": "content_policy_violation",
+  "error_message": "Upstream rejected the prompt under content policy."
+}
+```
+
+### Response 字段
+
+| Field | Type | Notes |
+|---|---|---|
+| `task_id` | string | 总是存在。 |
+| `out_task_id` | string | submit 时你给了的话原样回显。 |
+| `status` | string | `pending`、`running`、`completed`、`failed`、`cancelled`。 |
+| `estimated_credits` | number | 预估成本。`pending` 起即存在，`credits_used` 写入后清空。 |
+| `estimated_seconds` | integer | 预估 ETA。 |
+| `credits_used` | number | 最终扣费 credits。仅 `completed` 存在。failed 和 cancelled 任务免费（字段缺失）。 |
+| `output` | array | 结果对象数组。结构取决于模型。仅 `completed` 存在。 |
+| `upstream_provider` | string | 服务此任务的底层厂商（`openai`、`google`、`volcengine`……）。便于排查。 |
+| `error_code` | string | 机器可读错误标签。仅 `failed` 存在。 |
+| `error_message` | string | 人类可读错误。仅 `failed` 存在。 |
+
+### 轮询节奏
+
+把轮询间隔匹配到 submit 响应里模型的 `estimated_seconds`。视频的一个
+不错的默认：
+
+```python
+import time, requests
+
+eta = submit_resp.json()["estimated_seconds"] or 30
+sleep_for = max(2, eta // 6)  # poll ~6 times across the expected duration
+
+while True:
+    r = requests.post(
+        "https://llm.bytespike.ai/v1/tasks/query",
+        headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+        json={"task_id": task_id},
+    )
+    state = r.json()
+    if state["status"] in ("completed", "failed", "cancelled"):
+        break
+    time.sleep(sleep_for)
+```
+
+要零轮询投递，优先用 `callback_url`（submit 时设）或 SSE stream 端点。
+
+## 错误
+
+| HTTP | `code` | 触发时机 |
+|---|---|---|
+| 400 | `invalid_param` | 同时给了 `task_id` 和 `out_task_id`，或两个都空。 |
+| 401 | `invalid_api_key` | key 缺失 / 已撤销。 |
+| 404 | `task_not_found` | 没任务匹配此标识符 —— 或者任务属于另一把 API key。 |
+
+## 价格
+
+**免费。** 轮询不消耗 credits。只有 `completed` 任务扣费（通过原始
+submit）。无限次重新查询一个已完成任务，零成本。
+
+## 下一步
+
+- [`POST /tasks/cancel`](./tasks-cancel) —— 终止未终态任务
+- [`POST /tasks/submit`](./tasks-submit) —— 发起任务

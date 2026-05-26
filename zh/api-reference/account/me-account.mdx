@@ -1,0 +1,98 @@
+---
+title: "GET /me/account"
+description: "你的账户 dashboard 一次性返回 —— 余额、可用模型、配额、profile。"
+---
+
+dashboard 端点。返回
+[console.bytespike.ai/dashboard](https://console.bytespike.ai/dashboard)
+首屏渲染的同一份 payload：余额、可调模型列表、每模型配额上限、基础
+profile 信息。调用**免费**，永不扣 credits。
+
+## 何时选用
+
+- **启动一个镜像 console 的自定义 dashboard / 状态栏**
+- **不用枚举 `/v1/models` 就验证当前 key 能调哪些模型**
+- **在 IDE 扩展 / agent 里展示余额 + 低余额标志**
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/account \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+`x-api-key: $BYTESPIKE_API_KEY` 也行。无 body。
+
+## Response
+
+```json
+{
+  "user": {
+    "id": 88,
+    "username": "ada",
+    "email": "ada@dosia.ai",
+    "created_at": "2026-01-04T07:11:00Z",
+    "tier": "individual"
+  },
+  "balance": {
+    "available_usd": 31.40,
+    "lifetime_topup_usd": 250.00,
+    "lifetime_spent_usd": 218.60,
+    "low_balance_threshold_usd": 5.00,
+    "low_balance_flagged": false
+  },
+  "allowed_models": [
+    {"id": "claude-sonnet-4-6", "quota_used_usd": 64.04, "quota_cap_usd": null},
+    {"id": "gpt-5-4", "quota_used_usd": 18.22, "quota_cap_usd": 50.00},
+    {"id": "gemini-3-1-pro", "quota_used_usd": 0.41, "quota_cap_usd": null}
+  ],
+  "org": {
+    "id": 1,
+    "name": "Dosia AI",
+    "role": "admin"
+  }
+}
+```
+
+### Response 字段
+
+| Field | Type | Notes |
+|---|---|---|
+| `user.tier` | string | `individual`（个人钱包）或 `enterprise`（组织计费）。 |
+| `balance.available_usd` | number | 扣掉 pending hold 后的可用余额。 |
+| `balance.lifetime_topup_usd` | number | 该用户 / 组织全时段充值。 |
+| `balance.lifetime_spent_usd` | number | 全时段所有 API 调用花费。 |
+| `balance.low_balance_threshold_usd` | number | 用户在 `/account/notifications` 设的通知阈值。 |
+| `balance.low_balance_flagged` | bool | `available_usd` 已到或低于阈值时为 `true`。 |
+| `allowed_models[]` | array | 该 key 可路由的模型。 |
+| `allowed_models[].quota_cap_usd` | number \| null | 单模型花费上限；`null` = 不限。 |
+| `org` | object \| null | 仅当调用方是组织成员时存在。`role` 是 `owner` / `admin` / `member`。 |
+
+## 错误
+
+| Status | `error.type` | 触发条件 |
+|---|---|---|
+| 401 | `authentication_error` | key 缺失 / 已撤销。 |
+| 403 | `permission_error` | key 是在被暂停的组织下创建的。 |
+
+端点免费；无 `402` 路径。`429` 理论上可能，但 per-key 上限约 600/min ——
+只有 key-rotation 风暴时才现实。
+
+## 示例 —— 低余额闸门
+
+```python
+import os, requests
+
+acc = requests.get(
+    "https://llm.bytespike.ai/api/v1/me/account",
+    headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+    timeout=10,
+).json()
+
+if acc["balance"]["low_balance_flagged"]:
+    print(f"Balance ${acc['balance']['available_usd']:.2f} ≤ threshold "
+          f"${acc['balance']['low_balance_threshold_usd']:.2f} — top up.")
+```
+
+搭配 [`POST /me/webhooks`](./me-webhooks) 订阅
+`system.balance.notify.dispatched` 事件，就能被推送而不必轮询。

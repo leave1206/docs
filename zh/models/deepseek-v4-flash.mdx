@@ -1,0 +1,84 @@
+---
+title: "deepseek-v4-flash"
+description: "DeepSeek V4 Flash —— DeepSeek V4 系列的中小档。Anthropic 与 OpenAI 双协议。目前中文 LLM 中性价比最高的一档，适合高并发分类与 agent 循环。"
+---
+
+`deepseek-v4-flash` 是 DeepSeek V4 系列的**中小**档。$0.20 / 1M input 的价位大致与 Haiku 持平，同时支持 OpenAI Chat Completions 与 Anthropic Messages 两种形状 —— 在追求降本的高并发流水线里，它是常见的 `gpt-5-4-mini` 或 `claude-haiku-4-5` 替代品。
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **DeepSeek API** | `api.deepseek.com` | $0.20 / 1M | $0.80 / 1M | ~500ms | CN + global |
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-flash",
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "Classify this ticket."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Anthropic Messages | ✅ |
+| Streaming (SSE) | ✅ |
+| Tool use | ✅ |
+| 并行工具调用 | — |
+| JSON mode | ✅ |
+| Reasoning chain | —（请用 `deepseek-v4-pro`） |
+| Vision (HTTP API) | ❌ |
+| 上下文窗口 | 128K tokens |
+
+## 何时使用
+
+- **高并发分类、路由、结构化抽取** —— 同时覆盖 OpenAI + Anthropic 协议的最便宜中文 LLM 档。
+- **预算紧张的 agent 循环** —— `tool_use` 在 Anthropic 端点可用，价格接近 Haiku。
+- **成本优化的兜底** —— 任务能装进 Flash 时，优先用这个 id，比 `deepseek-v4-pro` 便宜约 3×。
+
+**不**适用的场景：
+
+- 需要 reasoning chain 的任务 —— 改用 `deepseek-v4-pro`。
+- Vision 输入 —— HTTP API 目前不支持。
+
+## 下一步
+
+- [deepseek-v4-pro](/zh/models/deepseek-v4-pro) —— 推理旗舰
+- [deepseek-v3.2](/zh/models/deepseek-v3-2) —— 通过 CodePlan 提供的老 V3
+- [DeepSeek provider 页面](/zh/providers/deepseek) —— channel 细节、vision 状态

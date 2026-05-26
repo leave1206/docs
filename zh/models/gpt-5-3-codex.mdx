@@ -1,0 +1,95 @@
+---
+title: "gpt-5-3-codex"
+description: "OpenAI 的代码专用 GPT-5 变体，针对 Codex CLI 调优。仅通过 OpenAI Responses API 暴露 —— Codex 的执行框架要求的 agent 风格结构化推理协议。"
+---
+
+`gpt-5-3-codex` 是**代码调优**的 GPT-5 模型。OpenAI Codex CLI 底层每个请求都打向它，并且专门通过 **Responses API** 对外暴露 —— Codex 的执行框架要求 agent 风格的结构化推理协议。
+
+如果你不直接用 Codex CLI，也可以调它 —— 但大多数代码相关任务用 `gpt-5-4` 更合适（同价位下通用能力更广）。
+
+## 通道
+
+| 通道 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $2.50 / 1M | $10.00 / 1M | ~800ms | global edge |
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+Chat Completions **不是**这里的主入口 —— Codex 要求 Responses。模型在 Chat Completions 上也能作为兜底用，但结构化推理 + tool use 语义是围绕 Responses 设计的。
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL (Responses API)
+curl https://llm.bytespike.ai/v1/responses \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-3-codex",
+    "input": "Implement a thread-safe LRU cache in Rust.",
+    "reasoning": { "effort": "medium" }
+  }'
+```
+
+```python Python (openai SDK Responses)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.responses.create(
+    model="gpt-5-3-codex",
+    input="Implement a thread-safe LRU cache in Rust.",
+    reasoning={"effort": "medium"},
+)
+
+print(resp.output_text)
+```
+
+```bash codex CLI (passthrough)
+# Codex CLI honors OPENAI_BASE_URL — point it at ByteSpike, the model
+# routes to gpt-5-3-codex by default.
+export OPENAI_BASE_URL=https://llm.bytespike.ai/v1
+export OPENAI_API_KEY=$BYTESPIKE_API_KEY
+codex "Refactor src/cache.rs to add TTL eviction."
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | （仅作为兜底） |
+| Responses API | ✅ 主入口 |
+| 流式（SSE） | ✅ |
+| Vision | — |
+| Tool use（function calling） | ✅ 并行 |
+| 结构化输出（json_schema） | ✅ |
+| Reasoning effort（low/medium/high） | ✅ |
+| Web search | — |
+| 上下文窗口 | 256K tokens |
+
+## 什么时候用
+
+- **Codex CLI** —— 每个 Codex 请求默认落到这里。
+- **代码风格的 agent 循环** —— 实现定义清楚的算法、带硬约束的重构、代码库级别迁移。`reasoning.effort: "medium"` 起，Responses API 的结构化推理形态会把每一步工作过程显式暴露出来。
+
+什么时候**不**用：
+
+- 多模态 —— 这个模型没有 vision。用 `gpt-5-4`。
+- 代码之外的硬推理 —— `gpt-5-4-pro` 的通用推理余量更高。
+
+## 下一步
+
+- [gpt-5-4](/zh/models/gpt-5-4) —— 通用生产主力
+- [gpt-5-4-mini](/zh/models/gpt-5-4-mini) —— 更便宜的小中档
+- [OpenAI provider 页](/zh/providers/openai) —— 完整 GPT 阵容
+- [端点类型](/zh/concepts/endpoints) —— 为什么 Responses 与 Chat Completions 之分重要

@@ -1,0 +1,56 @@
+---
+title: "doubao-seed-2.0-pro"
+description: "ByteDance 旗舰 Doubao Seed 2.0 Pro —— 支持 vision、tool、长上下文。在 ByteSpike 上仅通过 Volcengine CodePlan 订阅 bundle 提供。"
+---
+
+`doubao-seed-2.0-pro` 是 ByteDance Doubao 家族的旗舰 —— 中文任务表现强，支持 vision，且上下文窗口很长。在 ByteSpike 上，它通过 **Volcengine CodePlan 订阅 channel** 提供，与 DeepSeek-V3.2、GLM、Kimi、MiniMax 共用一套凭据。
+
+## Channels
+
+| Channel | Provider | Base URL | 计费 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Volcengine CodePlan** | Volcengine 订阅 | `ark.cn-beijing.volces.com/api/coding/v3` | 订阅制（按月，管理员分摊） | ~500ms | CN |
+
+请求行项目上的 per-token 成本是零，成本落在订阅层级。分摊模型见 [/providers/volcengine-codeplan](/zh/providers/volcengine-codeplan)。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "doubao-seed-2.0-pro",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | ✅ |
+| 长上下文（200K+） | ✅ |
+| 上下文窗口 | 200K tokens |
+
+## 何时使用
+
+- **中文工作负载** —— Doubao 最擅长的维度。
+- **混合 LLM 团队** —— CodePlan 订阅打包了 5 个家族；如果团队同时用多个，这条 channel 自然回本。
+- **CN 区域 vision 任务** —— OCR + 图像理解都很强。
+
+## 下一步
+
+- [Volcengine CodePlan provider 页面](/zh/providers/volcengine-codeplan) —— 订阅机制
+- [doubao-seed-1.5-pro](/zh/models/doubao-seed-1-5-pro) —— 更老、稍便宜
+- [Channels](/zh/concepts/channels) —— 订阅 vs 按 token 计费模式

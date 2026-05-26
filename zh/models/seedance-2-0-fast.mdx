@@ -1,0 +1,65 @@
+---
+title: "seedance-2.0-fast"
+description: "Seedance 2.0 Fast —— 最轻的 Seedance 档。保真度低于 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro)，per-second 价格明显更低，Seedance 家族里 wall-clock 最快。ByteDance 视频栈批量场景的默认。"
+---
+
+`seedance-2.0-fast` 是 Seedance 2.0 家族里最轻的一档。相对于 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) 的取舍：难运动 / 复杂主体上保真度明显更松，per-second 成本明显更低，首帧 wall-clock 更快。适合够用就好、便宜优先的高并发程序化视频工作 —— 社交卡片、A/B 变体、内部创意。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance Fast** | Volcengine | `ark.cn-beijing.volces.com` | 按秒计费（[/pricing](/zh/pricing) —— Seedance 最低档） | 5s 片段 ~35s wall-clock | cn-beijing |
+
+失败不计费。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-fast",
+    "prompt": "Quick demo loop: a cup of tea steaming, top-down, 3 seconds",
+    "duration_seconds": 3,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# 轮询模式 —— 见 /models/sora2#quickstart
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ 基础 |
+| `duration_seconds` 3 / 5 | ✅ |
+| `size` 1280×720 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **批量程序化视频** —— 社交卡片、A/B 变体、demo 循环。
+- **境内区域出片速度** —— cn-beijing 服务 + Seedance 家族最快 wall-clock = 国内用户"点击 → 看到片段"最快。
+- **内部创意** —— 设计评审 mockup、路演 deck，"够用就好"胜过"贵的旗舰"。
+
+**不**适用的场景：
+
+- 面向用户的营销创意 —— 升一档到 [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro)。
+- 需要 Sora 级物理质量 —— [`sora2`](/zh/models/sora2) 或 [`sora2-pro`](/zh/models/sora2-pro)。
+
+## 下一步
+
+- [`seedance-2.0-pro`](/zh/models/seedance-2-0-pro) —— Seedance 旗舰
+- [`veo3.1-fast`](/zh/models/veo3-1-fast) —— Google 的 fast 档
+- [多模态端点](/zh/concepts/multimodal) —— 总览

@@ -1,160 +1,160 @@
 ---
 title: "Troubleshooting · ByteSpike × DOSIA"
-description: "员工 / admin 一站式 troubleshoot — 装机 / SSO / 模型权限 / 余额 / abuse / 紧急处置 SOP 全在这里。"
+description: "One-stop troubleshooting for employees / admins — install / SSO / model permissions / balance / abuse / emergency-response SOP all in one place."
 ---
 
 <Note>
-**适用场景**：在 [员工 onboarding](./employee-onboarding) 或 [admin 运营手册](./admin-operations) 上某一步卡住、报错、看到非预期空状态。下方按角色 (Tabs) + 场景 (AccordionGroup) 排版，先按身份对号入座再找症状。
+**When this applies**: you got stuck, hit an error, or saw an unexpected empty state at some step of [Employee onboarding](./employee-onboarding) or the [Admin operations runbook](./admin-operations). The page below is organized by role (Tabs) + scenario (AccordionGroup) — pick your role first, then find your symptom.
 </Note>
 
 <Tabs>
-  <Tab title="员工视角">
+  <Tab title="Employee view">
 
-## 装机 / 启动
+## Install / launch
 
 <AccordionGroup>
-  <Accordion title='首次启动报 "文件已损坏" / "来自身份不明的开发者"'>
-    macOS Gatekeeper 拦截未公证 dmg — Terminal 跑：
+  <Accordion title='First launch reports "file damaged" / "from unidentified developer"'>
+    macOS Gatekeeper is blocking the un-notarized dmg — run this in Terminal:
 
     ```bash
     xattr -cr /Applications/DOSIA.app
     ```
 
-    然后重新启动 DOSIA。
+    Then relaunch DOSIA.
   </Accordion>
 
-  <Accordion title='DOSIA 启动后无 "ByteSpike 共享" provider'>
-    按顺序排查（最常见在前）：
+  <Accordion title='No "ByteSpike Shared" provider after DOSIA launches'>
+    Check in order (most common first):
 
-    1. **企业模式没切** → 进 **Settings → Deploy Mode**，确认显示「企业版」非「个人版」
-    2. **企业服务地址 typo** → 同页核对地址，admin 给的字符串复制要完整（默认 `http://122.51.0.230:3012`）
-    3. **admin 没 publish token** → 联系 admin 在 DOSIA Settings → **ByteSpike tab** 顶部应有「已配置 · 员工启动时自动拉取」绿条；如缺，admin 重新 publish 一次
-    4. **员工 lark OAuth 过期** → DOSIA **Settings → "我的账户"** 看 SSO 状态；过期就点退出 + 重登
-    5. 全做完仍无 → 截图 lark 群 @ByteSpike Ops
+    1. **Enterprise mode not switched on** → go to **Settings → Deploy Mode**, confirm it shows "Enterprise" not "Personal"
+    2. **Enterprise service URL typo** → same page, double-check the URL — copy the full string the admin gave you (default `http://122.51.0.230:3012`)
+    3. **Admin hasn't published the token** → in DOSIA Settings → **ByteSpike tab**, the top should show a green bar "Configured · auto-fetched on employee launch"; if missing, ask admin to publish again
+    4. **Employee lark OAuth expired** → DOSIA **Settings → My Account**, check SSO status; if expired, sign out + sign back in
+    5. None of the above work → screenshot + @ByteSpike Ops in the lark group
   </Accordion>
 
-  <Accordion title='lark 授权后 DOSIA 卡死 / 反复登录'>
-    清掉本地 auth state 重启：
+  <Accordion title='After lark authorization DOSIA freezes / loops on login'>
+    Clear local auth state and restart:
 
     ```bash
     rm -rf ~/Library/Application\ Support/DOSIA/auth
     ```
 
-    重启 DOSIA 触发新 OAuth。如还不行，截图 + lark 私聊 admin。
+    Relaunch DOSIA to trigger a fresh OAuth. If still broken, screenshot + DM the admin on lark.
   </Accordion>
 </AccordionGroup>
 
-## 模型权限
+## Model permissions
 
 <AccordionGroup>
-  <Accordion title='对话框报 "无权限" / "model not allowed"'>
-    Admin 没给你的组开通该模型权限。联系 admin 在 [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → **Users** → 你的账户 → **Allowed Models** 勾上对应渠道组。
+  <Accordion title='Chat box says "permission denied" / "model not allowed"'>
+    Admin hasn't granted your group access to that model. Ask admin to go to [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → **Users** → your account → **Allowed Models** and tick the matching channel group.
   </Accordion>
 
-  <Accordion title='测试连接 modelCount = 0（DOSIA 配置面板）'>
-    DOSIA Settings → ByteSpike tab 测试连接时显示 `modelCount: 0`：
+  <Accordion title='Test connection shows modelCount = 0 (DOSIA config panel)'>
+    DOSIA Settings → ByteSpike tab, "Test connection" returns `modelCount: 0`:
 
-    1. 之前 W1/W2 修过 `/admin/available-models` 401 → 现在用 `/me/available-models`，**对正常用户应该 ≥ 1**
-    2. 仍为 0 → admin 没给 user 绑 group。按上一条联系 admin 处理
-    3. token 本身有问题 → 见下「测试连接报 401」
+    1. Previously W1/W2 fixed `/admin/available-models` 401 → it now uses `/me/available-models`, **a normal user should see ≥ 1**
+    2. Still 0 → admin hasn't bound the user to a group. Per the previous accordion, ask admin to handle.
+    3. The token itself has an issue → see below "Test connection returns 401"
   </Accordion>
 
-  <Accordion title='图片识别报错 (vision)'>
-    选的模型不含 vision capability。在 [console.bytespike.ai/zh/models](https://console.bytespike.ai/zh/models) 「模型库」找带 vision 标签的（如 Claude Sonnet 4.6、GPT-5-4、Gemini 3.1 Pro），切回 DOSIA 选这些模型再重试。
+  <Accordion title='Image recognition errors (vision)'>
+    The selected model doesn't have vision capability. At [console.bytespike.ai/zh/models](https://console.bytespike.ai/zh/models) "Model library", find ones tagged with vision (e.g. Claude Sonnet 4.6, GPT-5-4, Gemini 3.1 Pro), switch DOSIA to one of those and retry.
   </Accordion>
 
-  <Accordion title='图像 / 视频生成 tab 看不到'>
-    多模态权限是独立 grant 的（独立于文本模型）。Admin 在 [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → 你的组 → 加上 `image` / `video` capability，DOSIA 重启即可看到对应工具。
+  <Accordion title='Image / video generation tab is missing'>
+    Multimodal capability is granted separately (independent of text models). Admin should go to [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → your group → add `image` / `video` capability, and DOSIA will pick up the tool after a restart.
   </Accordion>
 </AccordionGroup>
 
-## 余额 / 测试
+## Balance / testing
 
 <AccordionGroup>
-  <Accordion title='对话框报 "余额不足"'>
-    组织钱包余额耗尽。截图 + 联系 admin，admin 在 [console.bytespike.ai/billing](https://console.bytespike.ai/billing) 充值后立即恢复。
+  <Accordion title='Chat box says "insufficient balance"'>
+    The org wallet ran out. Screenshot + ask admin — once admin tops up at [console.bytespike.ai/billing](https://console.bytespike.ai/billing) it recovers immediately.
   </Accordion>
 
-  <Accordion title='测试连接报 401 (token invalid)'>
-    Token 失效。回 [console.bytespike.ai/keys](https://console.bytespike.ai/keys) 重新创建一个 key，粘贴到 DOSIA Settings → ByteSpike tab → 重测连接。
+  <Accordion title='Test connection returns 401 (token invalid)'>
+    Token expired. Go to [console.bytespike.ai/keys](https://console.bytespike.ai/keys), create a new key, paste it into DOSIA Settings → ByteSpike tab → re-test connection.
 
-    如新 key 仍 401 → 联系 admin 检查你的 user 状态（可能被暂停了）。
+    If a new key still 401s → ask admin to check your user status (you may have been suspended).
   </Accordion>
 </AccordionGroup>
 
   </Tab>
-  <Tab title="Admin 视角">
+  <Tab title="Admin view">
 
-## 紧急处置 SOP
+## Emergency-response SOP
 
 <AccordionGroup>
-  <Accordion title='余额突降（怀疑被刷）'>
+  <Accordion title='Balance crash (suspected abuse)'>
     <Steps>
-      <Step title="查审计日志">
-        [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → **审计日志** → 按 `created_at desc` → 找异常高频 `admin.api_key.*` 或异常调用。
+      <Step title="Check audit log">
+        [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → **Audit log** → sort `created_at desc` → look for anomalously high-frequency `admin.api_key.*` or unusual calls.
       </Step>
-      <Step title="定位可疑 api_key">
-        **用量** → `group_by api_key` → 找 24h 内消费异常的 key
+      <Step title="Locate the suspicious api_key">
+        **Usage** → `group_by api_key` → find keys with abnormal 24h spend.
       </Step>
-      <Step title="立即 revoke">
-        **用户管理** → 点该 user → 点 key → **吊销 / Revoke**。被吊销的 key 立即返 401，再无成本。
+      <Step title="Revoke immediately">
+        **User management** → click the user → click the key → **Revoke**. The revoked key returns 401 instantly — no further cost.
       </Step>
-      <Step title="复盘">
-        如果是员工泄露 key：联系员工换 key + 教育安全意识。如果是 admin 误操作：在 audit log 反查 + 补还员工额度。
+      <Step title="Postmortem">
+        If the employee leaked the key: ask them to rotate + educate on security. If it's an admin mis-operation: trace it back via audit log + refund the employee's quota.
       </Step>
     </Steps>
   </Accordion>
 
-  <Accordion title='Upstream provider 故障（如 OpenAI 一个 account 挂了）'>
+  <Accordion title='Upstream provider incident (e.g. one OpenAI account is down)'>
     <Steps>
-      <Step title="确认故障">
-        **渠道分组** → 找到该 account 所在 group → 看 schedulable / health 状态
+      <Step title="Confirm the incident">
+        **Channel groups** → find the group the account belongs to → look at schedulable / health status.
       </Step>
-      <Step title="临时下线">
-        group 详情页 → 切该 account `schedulable=false`。router 立即停止往此 account 派流量，自动 fallback 到同 group 其它 account。
+      <Step title="Temporarily take it offline">
+        On the group detail page → set that account `schedulable=false`. The router stops sending traffic to it immediately and auto-falls-back to other accounts in the same group.
       </Step>
-      <Step title="upstream 恢复后">
-        切回 `schedulable=true`。期间损失的请求会自动被同 group 其它 channel 接住 — 用户层面感知不到（除非整 group 都挂）。
+      <Step title="After upstream recovers">
+        Switch back to `schedulable=true`. Lost requests during the window were already absorbed by other channels in the same group — users don't notice (unless the entire group went down).
       </Step>
     </Steps>
   </Accordion>
 
-  <Accordion title='某员工 abuse（高频调用 / 拉爆余额）'>
-    路径 1 · **限速**：**用户管理** → 点员工 → **Concurrency** 调到 1 + **RPM** 调到 6 → 保存。该员工后续调用会被 429 拦截。
+  <Accordion title='An employee abuses the system (high-frequency calls / draining balance)'>
+    Path 1 · **Rate-limit**: **User management** → click employee → **Concurrency** down to 1 + **RPM** down to 6 → save. Their subsequent calls are blocked with 429.
 
-    路径 2 · **暂停账号**：**用户管理** → 点员工 → **Status**: active → disabled → 保存。该员工的 key 立即 401，DOSIA 也无法 SSO。
+    Path 2 · **Suspend account**: **User management** → click employee → **Status**: active → disabled → save. Their keys 401 instantly and DOSIA also can't SSO.
 
-    路径 3 · **调倍率**（针对特定 model）：**渠道分组** → 把该 group 倍率从 1.0 调到 5.0 — 全局生效，慎用。
+    Path 3 · **Adjust multiplier** (for a specific model): **Channel groups** → bump that group's multiplier from 1.0 to 5.0 — global effect, use carefully.
   </Accordion>
 </AccordionGroup>
 
-## 员工反馈处置
+## Handling employee feedback
 
 <AccordionGroup>
-  <Accordion title='员工反馈 "暂无可用模型"'>
-    最常见原因是员工**没被 grant 任何 group**（新员工默认 0）。按 [admin-operations § 2 路径 1](./admin-operations#2-给员工-grant-模型权限-核心运营动作) bulk 给员工勾上 11 个公开 group 即可。
+  <Accordion title='Employee reports "no available models"'>
+    The most common cause is the employee **hasn't been granted any group** (default 0 for new employees). Per [admin-operations § 2 path 1](./admin-operations#2-给员工-grant-模型权限-核心运营动作), bulk-tick all 11 public groups for the employee.
 
-    如果 bulk grant 后员工仍报 — 让员工 DOSIA 退出账号重新登录（清 token cache）。
+    If after bulk-grant the employee still reports it — ask them to sign out of DOSIA and sign back in (clears the token cache).
   </Accordion>
 
-  <Accordion title='员工反馈 "ByteSpike 共享" provider 不出现'>
-    跟员工 onboarding 卡住的同症状。让员工按「员工视角 → 装机 / 启动」第二条排查 5 个 check。多数情况是 **企业服务地址 typo** 或 **admin token 没 publish**。
+  <Accordion title='Employee reports "ByteSpike Shared" provider does not appear'>
+    Same symptom as an onboarding-stuck employee. Have them follow "Employee view → Install / launch" second accordion's 5 checks. Most commonly it's an **enterprise service URL typo** or the **admin token hasn't been published**.
   </Accordion>
 
-  <Accordion title='员工反馈测试连接 modelCount = 0'>
-    检查 admin 是否给该员工绑了 group：[llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → 用户管理 → 点该员工 → 「可用模型」tab 看勾选项。如全空 → bulk 勾上 11 个公开 group → 员工重启 DOSIA。
+  <Accordion title='Employee reports test-connection modelCount = 0'>
+    Check whether admin bound the employee to a group: [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → User management → click employee → "Allowed Models" tab and look at ticks. If all empty → bulk-tick the 11 public groups → employee restarts DOSIA.
   </Accordion>
 
-  <Accordion title='通知中心收到 admin.api_key.revoke 但不是我吊销的'>
-    可能 platform admin（如运维同事）吊销了。在 audit log filter `action=admin.api_key.revoke` → 看 actor。如果是误操作，让对方撤销 + 给员工补发 key。如果是合法 abuse 处置，不用动。
+  <Accordion title='Got admin.api_key.revoke in notification center but I did not revoke it'>
+    A platform admin (e.g. ops teammate) might have revoked. In the audit log filter `action=admin.api_key.revoke` → look at the actor. If it's a mis-op, ask them to roll back + reissue the employee's key. If it's a legitimate abuse-response action, leave it.
   </Accordion>
 </AccordionGroup>
 
   </Tab>
 </Tabs>
 
-## 还是搞不定？
+## Still stuck?
 
-- **员工**：lark 群 @ByteSpike Ops
-- **Admin / OP**：lark 私聊 W1，或者直接 SSH lisahost (`38.78.146.204`) + 122.51 backend 自查
-- **集成 issue**：[GitHub Issues](https://github.com/leave1206/bytespike-website/issues)（仓库内部，需登录）
+- **Employees**: @ByteSpike Ops in the lark group
+- **Admins / OP**: DM W1 on lark, or directly SSH into lisahost (`38.78.146.204`) + the 122.51 backend to investigate
+- **Integration issues**: [GitHub Issues](https://github.com/leave1206/bytespike-website/issues) (internal repo — login required)

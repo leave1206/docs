@@ -1,0 +1,86 @@
+---
+title: "nano-banana"
+description: "Google 的轻量级图像模型。与 gpt-image-2 相比单图成本显著更低，使用同一套 OpenAI Images 协议。面向高并发 / 成本敏感场景的默认选择。"
+---
+
+`nano-banana` 是 Google 的轻量级图像生成模型，挂在 gateway 图像档共用的 OpenAI Images 协议入口下。相对于 [`gpt-image-2`](/zh/models/gpt-image-2) 的取舍：单图便宜得多，代价是图内排版和复杂构图的还原度略松。当你在做高并发生成 —— 程序化缩略图、A/B 测试图、内部 mockup —— 时，它是合适的默认。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google AI** | Google direct | `aiplatform.googleapis.com` | 按图计费（实时价格见 [/pricing](/zh/pricing)） | ~4s（1024×1024） | global edge |
+
+失败不计费。价格档位低于 `gpt-image-2`、高于最低档的 seedream —— 当前数值见 [/pricing](/zh/pricing)。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana",
+    "prompt": "Minimalist line drawing of a cat sitting in a window, morning light",
+    "n": 4,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="nano-banana",
+    prompt="Minimalist line drawing of a cat sitting in a window, morning light",
+    n=4,
+    size="1024x1024",
+)
+
+for img in resp.data:
+    print(img.url)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生图 | ✅ |
+| `n` ≥ 2 批量生成 | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| 图生图 | —（请用 [`nano-banana-v2`](/zh/models/nano-banana-v2)） |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## 何时使用
+
+- **批量场景** —— `n=4` 批量用于 A/B 测试、缩略图生成、程序化资产流水线。
+- **成本敏感的默认** —— 内部工具需要一张插图，但预算撑不起 `gpt-image-2` 时。
+- **图内文字较少的场景** —— 风景、抽象、极简插画。
+
+**不**适用的场景：
+
+- 图内排版很关键 —— 改用 [`gpt-image-2`](/zh/models/gpt-image-2)。
+- 需要图生图编辑 —— 改用 [`nano-banana-v2`](/zh/models/nano-banana-v2)。
+
+## 下一步
+
+- [`nano-banana-v2`](/zh/models/nano-banana-v2) —— 加入图生图的继任版本
+- [`gpt-image-2`](/zh/models/gpt-image-2) —— OpenAI 旗舰
+- [`seedream-v5lite`](/zh/models/seedream-v5lite) —— 中式美学下的最便宜档

@@ -1,0 +1,135 @@
+---
+title: "GPT-4o"
+description: "OpenAI 传统 4o 旗舰 —— 原生视觉、高质量，被 GPT-5 系列接替的新项目首选。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-4o`
+**能力：** 128K 上下文 · 视觉 · 工具调用 · 流式
+**计价：** 按 token，4o 档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-4o 是把原生视觉塞进 OpenAI Chat Completions 结构里的那款模型，2024 年贯穿
+全年坐镇生产旗舰位。在视觉密集型流程，以及已经针对这个具体版本做完验证的现有
+代码里，它依然是个完全够用的模型。新项目优先选
+[GPT-5.5](/zh/api-reference/text/gpt-5-5) —— 同样的结构、更好的质量、更低的延迟。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [
+      {"role": "user", "content": [
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/photo.jpg"}}
+      ]}
+    ]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-4o` |
+| `messages` | array | 是 | — | OpenAI chat 结构。视觉输入用 `image_url` content block。 |
+| `max_tokens` | integer | 否 | 模型上限 | 硬性上限。最大值：16384。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–2.0。 |
+| `tools` | array | 否 | — | 支持 function calling（并行）。 |
+| `response_format` | object | 否 | — | `{"type":"json_object"}` 或 `{"type":"json_schema",...}`。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-4o",
+  "choices": [
+    {"index": 0, "message": {"role": "assistant", "content": "A koi pond at dusk..."}, "finish_reason": "stop"}
+  ],
+  "usage": {"prompt_tokens": 1024, "completion_tokens": 87, "total_tokens": 1111}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Refactor this Python function for readability."}]
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+
+resp = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Refactor this Python function for readability."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Refactor this Python function for readability." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+通过 `"stream": true` 走流式。稳定前缀自动 prompt caching —— 无需
+`cache_control` 参数。缓存命中按折扣档计费，见
+[价格表](https://bytespike.ai/pricing#text)。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 | Body 校验失败 | 否 |
+| 401 | key 缺失 / 已吊销 | 否 |
+| 402 | 钱包余额不足 | 否 |
+| 422 | 参数不支持 | 否 |
+| 429 | 触发限流 | 否 |
+| 5xx | 上游问题 | 否 |
+
+## 何时选用
+
+- 依赖 GPT-4o 特定视觉表现的视觉密集型流程。
+- 已针对这个具体版本验证过的现有代码。
+- 新项目优先选 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+- 想要更低成本，见 [GPT-4o-mini](/zh/api-reference/text/gpt-4o-mini) 或 [GPT-5-mini](/zh/api-reference/text/gpt-5-mini)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 128K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

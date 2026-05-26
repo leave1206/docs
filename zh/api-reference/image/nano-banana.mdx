@@ -1,0 +1,119 @@
+---
+title: "Nano Banana"
+description: "Google 的写实图像生成器 —— 影棚级打光与材质渲染，Nano Banana 家族的入门款。"
+---
+
+**厂商：** Google
+**Model ID：** `nano-banana`
+**能力：** 1024² · 写实 · 影棚打光 · 材质准确性
+**价格：** 按张计费，写实级 ([实时费率](https://bytespike.ai/pricing#image))
+
+Nano Banana 是 Google 写实图像生成器的入门款。brief 里写着「影棚打光、
+玻璃表面、解剖学正确」、而 Seedream 家族的插画美学会和你的方向打架时，
+就用它。要更高保真带延展后处理，见
+[Nano Banana Pro](/zh/api-reference/image/nano-banana-pro)；要最新迭代版
++ 改善的文字渲染，见 [Nano Banana 2](/zh/api-reference/image/nano-banana-v2)。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana",
+    "prompt": "A glass of red wine on a marble counter, side-lit by afternoon sun",
+    "size": "1024x1024",
+    "n": 1
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `nano-banana` |
+| `prompt` | string | yes | — | 推荐英文；支持 CJK 但针对英文调优。 |
+| `size` | string | no | `1024x1024` | 支持：`1024x1024`、`1024x1536`、`1536x1024`。 |
+| `n` | integer | no | 1 | 1–2 张。 |
+| `seed` | integer | no | — | 支持可复现性。 |
+| `aspect_ratio` | string | no | — | `size` 的替代写法：`1:1` / `9:16` / `16:9` / `4:3` / `3:4`。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "nano-banana", "prompt": "A glass of red wine on a marble counter"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="nano-banana",
+    prompt="A glass of red wine on a marble counter, side-lit by afternoon sun",
+    size="1024x1024",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "nano-banana",
+  prompt: "A glass of red wine on a marble counter, side-lit by afternoon sun",
+  size: "1024x1024",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 写实静帧 —— 材质准确性要紧。
+- 影棚打光的产品 / 食物 / 生活方式图像。
+- 更高保真的后处理，见 [Nano Banana Pro](/zh/api-reference/image/nano-banana-pro)。
+- 更锐利的文字渲染，见 [Nano Banana 2](/zh/api-reference/image/nano-banana-v2)。
+- 美学 / 插画输出，见 [Seedream V4](/zh/api-reference/image/seedream-v4)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 1536×1536 |
+| 单次最大张数（`n`） | 2 |
+| 支持 init image（img2img） | 否 |
+| 支持反向 prompt | 否 |
+| 支持 seed 可复现 | 是 |
+| 同步？ | 是（典型 ≤30s） |
+| 1024² 平均延迟 | 6-10s |

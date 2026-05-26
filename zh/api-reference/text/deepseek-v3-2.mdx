@@ -1,0 +1,116 @@
+---
+title: "DeepSeek V3.2"
+description: "DeepSeek 最后一代 3 系列旗舰 —— 代码生成强，保留给已在该版本上做过基准的路径。"
+---
+
+**厂商：** DeepSeek
+**Model ID：** `deepseek-v3-2`
+**能力：** 128K context · tool use · streaming · structured output
+**价格：** 按 token，mid 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+DeepSeek V3.2 是最后一代 3 系列模型，靠超越其价位档的代码生成获得
+口碑。对于已经针对该版本做过验证的代码密集工作流，它仍是一个不错的
+生产模型。新工作建议选 [DeepSeek V4 Pro](/zh/api-reference/text/deepseek-v4-pro)
+或更快的 [V4 Flash](/zh/api-reference/text/deepseek-v4-flash)。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v3-2",
+    "messages": [{"role": "user", "content": "Write a Python implementation of trie."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `deepseek-v3-2` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | model max | 最大：8192。 |
+| `temperature` | number | 否 | 1.0 | — |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON mode。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "deepseek-v3-2",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "class Trie..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 28, "completion_tokens": 412, "total_tokens": 440}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "deepseek-v3-2", "messages": [{"role": "user", "content": "Implement trie in Python."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="deepseek-v3-2",
+    messages=[{"role": "user", "content": "Write a Python implementation of trie."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "deepseek-v3-2",
+  messages: [{ role: "user", content: "Write a Python implementation of trie." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式 + 缓存
+
+`"stream": true` 走 SSE。稳定前缀自动 prompt caching。
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时使用
+
+- 跑在既有基准上的代码密集工作流。
+- 新工作建议选 [DeepSeek V4 Pro](/zh/api-reference/text/deepseek-v4-pro)。
+- 更低延迟，见 [DeepSeek V4 Flash](/zh/api-reference/text/deepseek-v4-flash)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 8192 tokens |
+| 支持 tool use | 是 |
+| 支持 vision | 否 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 自动 |

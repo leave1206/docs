@@ -1,0 +1,109 @@
+---
+title: "deepseek-v4-pro"
+description: "DeepSeek V4 Pro —— 性价比最高的推理旗舰。多数 benchmark 上与 gpt-5-4 质量相当，价格仅为其 1/10–1/15。双端点（Chat Completions + Anthropic Messages）。Reasoning chain 已暴露。HTTP API 暂不支持 vision。"
+---
+
+`deepseek-v4-pro` 是 DeepSeek 的推理旗舰，也是 ByteSpike 上最具性价比的高能力模型。在**多数 benchmark 上与 `gpt-5-4` 质量相当**，价格却低 10–15×，并且保留了 DeepSeek 原生支持的双协议入口。
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **DeepSeek API** | `api.deepseek.com` | $0.55 / 1M | $2.19 / 1M | ~700ms | CN + global |
+
+DeepSeek V4 系列**不**在 Volcengine CodePlan 订阅 bundle 中 —— 只有 V3.2 在。V3.2 见 [`deepseek-v3-2`](/zh/models/deepseek-v3-2)。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+两个协议都是一等公民。同一把 ByteSpike key 在两边都能用；按你客户端讲的形状挑一个。
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (OpenAI shape)
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```bash cURL (Anthropic shape)
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v4-pro",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Anthropic Messages | ✅ |
+| Streaming (SSE) | ✅ |
+| Tool use (function calling) | ✅ 并行 |
+| JSON mode | ✅ |
+| **Reasoning chain** | ✅（`reasoning_content` 字段 / `thinking` 块） |
+| Vision (HTTP API) | ❌（见 provider 页面） |
+| 上下文窗口 | 128K tokens |
+
+Reasoning chain（"thinking 输出"）出现在：
+
+- OpenAI 端点：choice 上的 `reasoning_content` 字段。
+- Anthropic 端点：`content[]` 中位于 `text` 块前的 `thinking` 块。
+
+Reasoning tokens 计入 output 计费。
+
+## 何时使用
+
+- **成本敏感的推理任务** —— 平时会用 `gpt-5-4`，但希望成本降到 1/10。
+- **预算紧张的 agent** —— `tool_use` 块通过 Anthropic 端点透明透传；DOSIA Agent 大量使用此模型。
+- **DOSIA Agent 模式** —— 必须走 Anthropic Messages 端点。
+
+**不**适用的场景：
+
+- 需要 vision 的任务 —— HTTP API 目前不支持。
+- Web 检索 —— DeepSeek 不暴露 grounding 工具。
+- 200K+ 上下文 —— 这里上限 128K；要 1M 用 `claude-opus-4-7`，要 2M 用 `gemini-2-5-pro`。
+
+## 下一步
+
+- [deepseek-v4-flash](/zh/models/deepseek-v4-flash) —— 中小档
+- [deepseek-v3.2](/zh/models/deepseek-v3-2) —— 通过 CodePlan 订阅提供的老 V3 系列
+- [DeepSeek provider 页面](/zh/providers/deepseek) —— 完整 channel 上下文，含 vision 详情

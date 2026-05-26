@@ -1,0 +1,128 @@
+---
+title: "GPT-Image 2"
+description: "OpenAI 的写实图像生成器 —— 擅长描述 + 显式构图规则混合的 prompt。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-image-2`
+**能力：** 1024² – 4096² · 写实 · prompt 遵从 · 图中文字
+**价格：** 按张计费，写实级 ([实时费率](https://bytespike.ai/pricing#image))
+
+GPT-Image 2 是 OpenAI 的写实生成器。和 Nano Banana 拉开距离的是
+*prompt following* —— 当你的 brief 写着「水壶在**左边**、马克杯在
+**右边**、两者都冒着蒸汽」时，GPT-Image 2 对空间关系的尊重比大多数
+写实方案要好。纯材质保真上，Nano Banana Pro 和 2 还是更胜一筹；
+要指令服从，这通常就是对的选择。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "A kettle on the left and a mug on the right, both steaming, on a marble counter",
+    "size": "1024x1024",
+    "quality": "high"
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-image-2` |
+| `prompt` | string | yes | — | 针对英文调优。 |
+| `size` | string | no | `1024x1024` | 支持：`1024x1024`、`1024x1536`、`1536x1024`、`2048x2048`、`4096x4096`。 |
+| `n` | integer | no | 1 | 1–4 张。 |
+| `quality` | string | no | `"medium"` | `"low"` / `"medium"` / `"high"` / `"auto"`。 |
+| `style` | string | no | `"natural"` | `"natural"` / `"vivid"`。 |
+| `output_format` | string | no | `"png"` | `"png"` / `"webp"` / `"jpeg"`。 |
+| `output_compression` | integer | no | — | 0–100，仅对 `webp` / `jpeg` 生效。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/...",
+      "revised_prompt": "..."
+    }
+  ]
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-image-2", "prompt": "Kettle and mug...", "quality": "high"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="gpt-image-2",
+    prompt="A kettle on the left and a mug on the right, both steaming, on a marble counter",
+    size="1024x1024",
+    quality="high",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "gpt-image-2",
+  prompt: "A kettle on the left and a mug on the right, both steaming, on a marble counter",
+  size: "1024x1024",
+  quality: "high",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- prompt 指定空间关系、数量或构图。
+- brief 把文字描述与显式约束混在一起。
+- 要更高材质 / 打光保真，见 [Nano Banana 2](/zh/api-reference/image/nano-banana-v2) 或 [Nano Banana Pro](/zh/api-reference/image/nano-banana-pro)。
+- OpenAI 官方通道版本，见 [GPT-Image 2 Official](/zh/api-reference/image/gpt-image-2-official)。
+- 美学 / 插画，见 [Seedream V4.5](/zh/api-reference/image/seedream-v4-5)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 4096×4096 |
+| 单次最大张数（`n`） | 4 |
+| 支持 init image（img2img） | 否 |
+| 支持 `quality` 修饰 | 是 |
+| 支持 `style` 修饰 | 是 |
+| 同步？ | 是（典型 ≤30s，高质量更久） |
+| 1024² high 平均延迟 | 12-18s |

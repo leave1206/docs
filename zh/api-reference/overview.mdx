@@ -1,0 +1,73 @@
+---
+title: "API 参考"
+description: "所有端点，一个 base URL，一把 key。"
+---
+
+所有端点共用同一个 base：
+
+```
+https://llm.bytespike.ai
+```
+
+- `https://llm.bytespike.ai/v1/*` —— Anthropic + OpenAI 接口
+- `https://llm.bytespike.ai/v1beta/*` —— Gemini Native 接口
+- `https://llm.bytespike.ai/api/v1/*` —— 管理端点（keys、usage、billing）
+
+鉴权只需要一个请求头（见 [鉴权](/zh/authentication)）。
+失败不计费。每条响应都带 quota + rate-limit 响应头，账目不需要再走旁路。
+
+## 端点家族
+
+<CardGroup cols={2}>
+  <Card title="Text" href="/zh/api-reference/text/claude-messages">
+    Claude Messages、OpenAI Chat Completions、OpenAI Responses、Gemini Native。
+  </Card>
+  <Card title="Image" href="/zh/api-reference/image/seedream-v4">
+    Seedream v4 / 4.5 / v5lite、GPT-Image-2、Nano-Banana 家族。
+  </Card>
+  <Card title="Video" href="/zh/api-reference/video/sora-2">
+    Sora-2 / Pro、Veo-3.1 家族、Seedance 家族。通过 `/v1/tasks/*` 异步调用。
+  </Card>
+  <Card title="Utility" href="/zh/api-reference/utility/balance">
+    `/v1/models`、`/v1/usage`、`/v1/balance`、异步 `/v1/tasks/{submit,query,cancel}`。
+  </Card>
+</CardGroup>
+
+## 实时价格
+
+按 token / 按次的费率来自生产网关，每晚刷新。权威表格在
+[bytespike.ai/pricing](https://bytespike.ai/pricing) —— 直接链接到你需要的
+段落：
+
+- [文本模型 →](https://bytespike.ai/pricing#text)
+- [图像模型 →](https://bytespike.ai/pricing#image)
+- [视频模型 →](https://bytespike.ai/pricing#video)
+- [工具端点 →](https://bytespike.ai/pricing#utility)
+
+## 约定
+
+**异步 vs 同步。** 文本端点是同步的。图像是同步的（单张 ≤30s，大批量
+可走异步 tasks API）。视频是异步的 —— `POST /v1/tasks/submit` 返回
+`task_id`，再 polling `/v1/tasks/query`（免费）或通过 SSE 订阅
+`/v1/tasks/stream/{task_id}`。完整生命周期见
+[`tasks` 参考](/zh/api-reference/utility/tasks-submit)。
+
+**流式。** 传 `"stream": true`（或 Gemini 上的 `?stream=true`）。SSE 流
+按字节兼容各协议的原生流式格式 —— `/v1/messages` 用 Anthropic 的事件名，
+`/v1/chat/completions` 和 `/v1/responses` 用 OpenAI 的事件名，
+`/v1beta` 用 Gemini 的分片 `streamGenerateContent`。
+
+**账目响应头。** 每条响应（**成功和失败都有**）都带网关的 quota envelope：
+
+| Header | 含义 |
+|---|---|
+| `X-RateLimit-Limit` | 最接近触发限制的速率窗口，单位 USD。 |
+| `X-RateLimit-Remaining` | 该窗口剩余预算。 |
+| `X-RateLimit-Reset` | 窗口重置时间，Unix 时间戳。 |
+| `X-Quota-Remaining-Credits` | 该 key 累计剩余 credits（USD；`1 USD = 1M credits`）。 |
+| `X-Org-Quota-Remaining-Credits` | 组织钱包级别的同一数值，仅对组织持有的 key 返回。 |
+
+要查每次请求的实际花费，请求
+[`GET /api/v1/usage`](/zh/api-reference/account/me-usage) —— 它每条请求
+返回一行，含 `prompt_tokens`、`completion_tokens` 和已计费的 `credits`。
+非 2xx 响应不计费，所以 `X-Quota-Remaining-Credits` 在失败时不会变动。

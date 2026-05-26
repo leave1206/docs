@@ -1,0 +1,89 @@
+---
+title: "nano-banana-v2"
+description: "Google 轻量级图像模型的第二代。在保持 nano-banana 成本档位的同时加入图生图编辑。任何需要改造输入图的流水线，默认就选它。"
+---
+
+`nano-banana-v2` 是 Google 的轻量级图像模型，在与 [`nano-banana`](/zh/models/nano-banana) 相同的协议入口和近似的成本档位上，**叠加了图生图编辑**能力。区分点是可选的 `source_image` 字段：当它存在时，模型把它当作参考（风格迁移、mask 编辑、背景替换），而不是纯文生图。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google AI** | Google direct | `aiplatform.googleapis.com` | 按图计费（实时价格见 [/pricing](/zh/pricing)） | ~4s 纯文生图，~6s 图生图 | global edge |
+
+失败不计费。该模型上图生图与文生图按相同的单图费率计费。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (image-to-image)
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana-v2",
+    "prompt": "Same product, change the background to deep blue",
+    "source_image": "https://example.com/source.png",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="nano-banana-v2",
+    prompt="Same product, change the background to deep blue",
+    extra_body={"source_image": "https://example.com/source.png"},
+    n=1,
+    size="1024x1024",
+)
+
+print(resp.data[0].url)
+```
+
+</CodeGroup>
+
+DOSIA 的 `generate_image` 工具会在你于对话中附了图片时，自动透传 `source_image`。
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生图 | ✅ |
+| **图生图（带 `source_image`）** | ✅ |
+| `n` ≥ 2 批量生成 | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## 何时使用
+
+- **DOSIA "编辑这张图"请求** —— 主脑在拿到权限时会带着对话中的图片路由到这里。
+- **背景替换、风格迁移、mask 编辑** —— 不用付 `gpt-image-2` 的价格。
+- **成本敏感的图生图流水线** —— 大规模程序化编辑。
+
+**不**适用的场景：
+
+- 纯文生图、不需要图生图 —— [`nano-banana`](/zh/models/nano-banana) 在同档位提供同等基线。
+- 顶级排版还原或营销主图 —— [`gpt-image-2`](/zh/models/gpt-image-2)。
+
+## 下一步
+
+- [`nano-banana`](/zh/models/nano-banana) —— 纯文生图的同门
+- [`gpt-image-2`](/zh/models/gpt-image-2) —— 支持图生图的 OpenAI 旗舰
+- [多模态端点](/zh/concepts/multimodal) —— 总览

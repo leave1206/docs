@@ -1,0 +1,116 @@
+---
+title: "GLM-5"
+description: "智谱 GLM-5 —— 工具调用与结构化输出都很强的中文开源权重旗舰。"
+---
+
+**厂商：** Zhipu（智谱）
+**Model ID：** `glm-5`
+**能力：** 128K 上下文 · 工具调用 · 流式 · 结构化输出 · CJK 原生
+**计价：** 按 token，中端档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GLM-5 是智谱的上一代旗舰 —— 它把中文开源权重生态的工具调用和结构化输出能力
+拉到了与西方中端机型同一水平。仍是一个可上生产的好模型。新项目推荐从
+[GLM-5-1](/zh/api-reference/text/glm-5-1) 起步。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "glm-5",
+    "messages": [{"role": "user", "content": "把这段技术文档翻译成英文，保留专业术语。"}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `glm-5` |
+| `messages` | array | 是 | — | 原生支持 CJK。 |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：8192。 |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON 模式。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "glm-5",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 412, "completion_tokens": 587, "total_tokens": 999}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "glm-5", "messages": [{"role": "user", "content": "翻译技术文档"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="glm-5",
+    messages=[{"role": "user", "content": "把这段技术文档翻译成英文，保留专业术语。"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "glm-5",
+  messages: [
+    { role: "user", content: "把这段技术文档翻译成英文，保留专业术语。" },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。自动 prompt caching。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 已针对这个版本验证过的中文市场现有项目。
+- 新项目优先选 [GLM-5-1](/zh/api-reference/text/glm-5-1)。
+- 想要更大上下文，见 [Kimi K2.6](/zh/api-reference/text/kimi-k2-6)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 128K tokens |
+| 最大输出 | 8192 tokens |
+| 支持工具调用 | 是 |
+| 支持视觉 | 否 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

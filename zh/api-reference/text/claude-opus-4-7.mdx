@@ -1,0 +1,213 @@
+---
+title: "Claude Opus 4.7"
+description: "当下的生产 Opus —— 1M context，顶配推理，一发即中必须对的场景就用它。"
+---
+
+**厂商：** Anthropic
+**Model ID：** `claude-opus-4-7`
+**能力：** 1M context · tool use · vision · prompt caching · streaming · extended thinking
+**价格：** 按 token，Opus 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Opus 4.7 是当那一发必须对时你伸手抓的模型。它比 Sonnet 慢、比 Sonnet
+贵，并且在 Sonnet 开始偷工减料的地方明显更稳：长上下文推理、每一步
+都依赖上一步的多步计划，以及那种 *第一稿* 就要能编译并匹配既有代码
+库架构约定的代码生成。开 extended thinking 后等待变长，但在难题上的
+答案质量提升超过延迟成本所暗示的幅度。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-7",
+    "max_tokens": 16384,
+    "messages": [
+      {"role": "user", "content": "Implement an LRU cache with O(1) get and put."}
+    ]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `claude-opus-4-7` |
+| `messages` | array | 是 | — | 对话历史。最多 1M token 输入。 |
+| `max_tokens` | integer | 是 | — | 硬上限。本模型最大：32768。 |
+| `system` | string \| array | 否 | — | array 形式支持 `cache_control`。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–1.0。 |
+| `top_p` | number | 否 | 1.0 | Nucleus sampling。 |
+| `tools` | array | 否 | — | 支持，并行调用支持。 |
+| `tool_choice` | object | 否 | `{"type":"auto"}` | `auto` / `any` / `tool`（指定名）。 |
+| `thinking` | object | 否 | — | Extended-thinking。预算越大，长程推理答案越好，延迟越高。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "msg_opus_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-7",
+  "content": [
+    {"type": "thinking", "thinking": "<extended reasoning trace>"},
+    {"type": "text", "text": "Here's the LRU cache..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 32,
+    "output_tokens": 1248,
+    "thinking_tokens": 4032
+  }
+}
+```
+
+`thinking_tokens` 按输入 token 价计费（extended thinking 增加延迟但不
+增加全额输出成本）。当前价格见 [pricing table](https://bytespike.ai/pricing#text)。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-7",
+    "max_tokens": 16384,
+    "messages": [{"role": "user", "content": "Implement an LRU cache with O(1) get and put."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-opus-4-7",
+    max_tokens=16384,
+    messages=[
+        {"role": "user", "content": "Implement an LRU cache with O(1) get and put."}
+    ],
+)
+
+# When extended thinking is on, content[0] is the thinking block; the
+# text block is the last one in the array.
+text_block = next(b for b in message.content if b.type == "text")
+print(text_block.text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-opus-4-7",
+  max_tokens: 16384,
+  messages: [
+    {
+      role: "user",
+      content: "Implement an LRU cache with O(1) get and put.",
+    },
+  ],
+})
+
+const textBlock = message.content.find((b) => b.type === "text")
+console.log(textBlock.text)
+```
+
+</CodeGroup>
+
+## Extended thinking
+
+设置 `thinking` 块来开启：
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "max_tokens": 16384,
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 8192
+  },
+  "messages": [...]
+}
+```
+
+`budget_tokens` 是内部推理 token 的上限。模型可能用得更少；下限是几
+百。推荐预算：
+
+| 任务 | 建议预算 |
+|---|---|
+| 多步编码 | 4K–8K |
+| 长上下文总结 | 8K–16K |
+| 难题数学 / 证明 | 16K–32K |
+
+更高预算在难题上单调提升答案质量 —— 但多数任务在 16K 以上边际收益
+迅速下降。
+
+## Cache control
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "system": [
+    {
+      "type": "text",
+      "text": "<the corpus you keep referring to>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+缓存读取按 [pricing table](https://bytespike.ai/pricing#text) 的折扣价计
+费。在 Opus 4.7 上，cache control 是单项杠杆最高的成本优化 —— 大块
+system prompt 付一次，每个后续轮次按缓存读取价计费。
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 | Body 校验失败 | 否 |
+| 401 | key 缺失 / 已撤销 | 否 |
+| 402 | 钱包用尽（Opus 比 Sonnet 触发得更快） | 否 |
+| 413 | 输入超过 1M token | 否 |
+| 429 | 速率限制 | 否 |
+| 5xx | 上游 provider 问题 | 否（自动重试信封） |
+
+## 何时使用
+
+- 一发即中的质量重要，并且你愿意等一个深思熟虑的答案。
+- 在既有代码库中、约定重要的代码生成。
+- 每一步都依赖上一步的多步计划（Sonnet 开始漏；Opus 4.7 把链条保持紧）。
+- 法律 / 医学 / 技术语料的长上下文（>200K token）推理。
+- 中端成本 / 延迟，见 [Sonnet 4.6](/zh/api-reference/text/claude-sonnet-4-6)。
+- 高吞吐 agent loop，见 [Haiku 4.5](/zh/api-reference/text/claude-haiku-4-5)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| 支持 tool use | 是（并行） |
+| 支持 vision | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 是 |
+| 支持 extended thinking | 是 |

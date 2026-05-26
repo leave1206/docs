@@ -1,0 +1,178 @@
+---
+title: "ByteSpike 上的 Volcengine CodePlan"
+description: "一份 Volcengine 订阅、十多个模型 —— Doubao、GLM、Kimi、MiniMax，再加 DeepSeek-V3.2 —— 按月固定费用在团队内摊销。中文 LLM 覆盖面要广又不想按 token 计费的团队，首选这套 bundle。"
+---
+
+Volcengine CodePlan 是**一份订阅同时解锁十多个模型**：Doubao、GLM、Kimi、MiniMax，外加 DeepSeek-V3.2。计费模型跟按 token 的供应商根本不同 —— 你付一个按月订阅费，团队怎么调都不影响这笔成本。
+
+中文 LLM 用量重、团队又在好几个模型家族之间来回切换的场景，CodePlan 通常是 ByteSpike 上最经济的通道。
+
+## 为什么选 CodePlan
+
+- **一份凭证，多个模型。** 管理员配一个 Volcengine 订阅账号；ByteSpike 通过它路由 Doubao、GLM、Kimi、MiniMax 和 DeepSeek-V3.2 请求。
+- **订阅制而非按 token。** 成本可预测：月度定额，不会因为某个用户聊得多就突然飙升。订阅费率如何流入 ByteSpike credits 账本，见 [channels](/zh/concepts/channels)。
+- **推荐团队使用。** 中文 LLM 的逐用户按 token 计费成本高；CodePlan 是让全团队用得起的批量采购 SKU。
+- **单协议接入。** 所有 CodePlan 模型都讲 OpenAI Chat Completions 结构（`/v1/chat/completions`）。
+
+## 端点覆盖
+
+| 端点 | 路径 | 说明 |
+|---|---|---|
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | CodePlan 模型的主 chat 入口。 |
+| **Anthropic Messages** | `POST https://llm.bytespike.ai/v1/messages` | 部分 CodePlan 模型有 anthropic 兼容的上游别名时可用 —— 按模型在 [/models](/zh/models) 页确认。 |
+
+两个端点都接同一把 ByteSpike key。切端点改路径就行，凭证不变。
+
+### 按协议看上游 base URL
+
+给管理员配置上游 channel 记录用：Volcengine CodePlan 服务对同一份订阅凭证暴露两条 base 路径：
+
+| 协议 | 上游 base URL |
+|---|---|
+| OpenAI 兼容 | `https://ark.cn-beijing.volces.com/api/coding/v3` |
+| Anthropic 兼容 | `https://ark.cn-beijing.volces.com/api/coding` |
+
+客户看不到这些 —— ByteSpike 会按请求落到的网关端点解析出正确的 base URL。
+
+## 鉴权
+
+在 [Console](https://console.bytespike.ai) 创建 ByteSpike key。每个 CodePlan 请求带 `Authorization: Bearer $BYTESPIKE_API_KEY`。CodePlan 订阅凭证挂在管理员侧，对客户端永远不暴露。
+
+## Bundle 中的模型
+
+CodePlan 订阅当前服务以下模型 ID。定价是**订阅制** —— 这些通道上没有逐 token 费率；按月订阅费在组织成员之间摊销。
+
+| 模型 ID | 家族 | 能力 |
+|---|---|---|
+| `doubao-seed-2-0-pro` | 字节跳动 Doubao | chat · vision · tools · long context |
+| `deepseek-v3-2` | DeepSeek | chat · reasoning（旧版 V3 系列） |
+| `glm-5` | 智谱 GLM | chat · vision |
+| `glm-5-1` | 智谱 GLM | chat · 较新的 GLM-5 变体 |
+| `kimi-k2-6` | Moonshot Kimi | chat · long context |
+| `kimi-k2-5` | Moonshot Kimi | chat · long context |
+| `minimax-m2-7` | MiniMax | chat |
+| `minimax-m2-5` | MiniMax | chat |
+
+Volcengine 给 CodePlan 加新模型时这份名单也会变 —— [/models](/zh/models) 上的逐模型文档（稍后上线）是实时的权威信源。
+
+<Note>
+  这里的 DeepSeek V3.2 是 **CodePlan 版**。要走按 token 计费的最新 DeepSeek V4 家族，见 [/providers/deepseek](/zh/providers/deepseek)。
+</Note>
+
+## 快速开始
+
+下面三个示例都调 bundle 里能力最强的 Doubao `doubao-seed-2.0-pro`。把 `model` 换成上面任意一个都行。
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "doubao-seed-2.0-pro",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="doubao-seed-2.0-pro",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```javascript Node (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "doubao-seed-2.0-pro",
+  messages: [
+    { role: "user", content: "Hello, ByteSpike." },
+  ],
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 订阅计费模型
+
+客户侧在 CodePlan 通道上的计费跟按 token 计费不一样：
+
+- Volcengine 订阅是 ByteSpike 付给 Volcengine 的**月度上游承诺**。
+- ByteSpike 对客户账号要么按月固定收费（DOSIA Cloud Enterprise 套餐档），要么按请求级用量从 credits 中摊销（Pro / Max 档）。
+- 各套餐的具体计费流程见 [价格页](https://bytespike.ai/pricing) 和 [credits-and-billing](/zh/concepts/credits-and-billing)。
+
+CodePlan vs 按 token DeepSeek 的经验法则：如果你的团队每月在 bundle 模型上的请求 > 10 万次，CodePlan 更便宜。低于这个阈值，按 token 的供应商（DeepSeek API、Moonshot 直连）更划算。
+
+### 月订阅如何摊销
+
+管理员在 channel 记录上设上游订阅费（例如 `subscription_monthly_fee_cny=299`）。ByteSpike 再把这笔费用按下面三种方式分摊到使用账号上：
+
+- **按团队平摊** —— 绑定到该通道的每个账号付固定份额（典型用于 DOSIA Cloud Enterprise 的逐用户配额模型）。
+- **按用量加权** —— 份额按账号在计费周期内的请求数成比例分配。
+- **组织全额承担** —— 组织在中央付完整订阅费；消费账号在该通道上看到的逐请求费用为零。
+
+具体走哪种模式按账号在管理员控制台上设置。背后那张 `channel_model_pricing` 矩阵是 W5 主导的计费 schema（`PR-W5-CLOUD-SCHEMA`）的一部分。看这页的客户只需要知道一件事：**CodePlan 通道上的请求行项目按 token 计费为零** —— 成本挂在订阅层级。
+
+## 流式、tools、vision
+
+按模型而定 —— 大多数 CodePlan 模型支持流式和 tools；vision 支持参差不齐。[/models](/zh/models) 上的逐模型页（稍后上线）有精确的能力矩阵。汇总如下：
+
+| 能力 | doubao-2.0-pro | deepseek-v3.2 | glm-5 | kimi-k2-6 | minimax-m2-7 |
+|---|---|---|---|---|---|
+| Chat Completions | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 流式（SSE） | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tools / function calling | ✅ | ✅ | ✅ | ✅ | — |
+| JSON mode | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Vision（图像输入） | ✅ | ❌ | ✅ | — | — |
+| 长上下文（≥ 200K） | ✅ | — | — | ✅ | — |
+
+## 错误与速率限制
+
+标准契约 —— 见 [credits 与计费](/zh/concepts/credits-and-billing) 和 [错误处理](/zh/concepts/error-handling)。
+
+| 状态码 | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 500 / 502 / 503 / 504 | 上游 | 否（自动重试 2 次） |
+
+注意：CodePlan 通道上的 429 通常反映的是 Volcengine 在订阅层的 RPM 上限，而非 ByteSpike 账号级速率限制。管理员可以在上游升级订阅档位；ByteSpike 不会再在 CodePlan 流量上叠加限流。
+
+## 什么时候用 CodePlan
+
+- **中文 LLM 用量重的团队**，同时跑混合的 Doubao / GLM / Kimi / MiniMax 工作负载 —— 一份账单、覆盖面广。
+- **月度成本可预测** —— 财务想要一个固定数字而不是用量曲线时。
+- **DeepSeek V3.2 留恋党** —— 提示词针对 V3.2 调过、暂时不想迁到 V4。
+
+什么时候**不**适合用 CodePlan：
+
+- 只调一个模型家族 —— 那个家族的直连 API 按量付费更便宜。
+- 需要 DeepSeek V4 或推理链 —— 走 [/providers/deepseek](/zh/providers/deepseek)。
+- 需要 Claude 或 GPT —— CodePlan 不提供这些。
+
+## 下一步
+
+- [ByteSpike 上的 DeepSeek](/zh/providers/deepseek) —— 按 token 计费的 V4 家族
+- [Channels](/zh/concepts/channels) —— N:M 的模型到通道映射，包括 CodePlan 这种"一通道多模型"的情况
+- [Credits 与计费](/zh/concepts/credits-and-billing) —— 订阅费率如何流入账本

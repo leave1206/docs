@@ -1,0 +1,112 @@
+---
+title: "deepseek-v3-anthropic"
+description: "通过 Anthropic Messages 协议入口提供的 DeepSeek V3.2。同样的 DeepSeek-V3-2 模型，但你可以继续用 Anthropic SDK、tool_use 块、cache_control 标记。"
+---
+
+`deepseek-v3-anthropic` 是 DeepSeek 的 V3.2 模型，通过 **Anthropic Messages 协议**在 `POST /v1/messages` 上访问。模型权重与 [`deepseek-v3-2`](/zh/models/deepseek-v3-2) 完全一致 —— 区别在于线上协议格式。如果你的代码已经在讲 Anthropic Messages（DOSIA Agent 模式、anthropic SDK、任何 tool_use / cache_control / thinking-block 消费者），把它指向这个别名即可；无需改写调用代码就能路由到 DeepSeek。
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Cache read | Latency p50 | Region |
+|---|---|---|---|---|---|---|---|
+| **DeepSeek Anthropic-shim** | DeepSeek direct | `api.deepseek.com` | $0.27 / 1M | $1.08 / 1M | $0.027 / 1M | ~700ms | global edge |
+
+Cache write 是 input 价格的 1.25×。路由细节见 [channels](/zh/concepts/channels)，协议透传细节见 [Anthropic Messages 协议](/zh/concepts/dosia-agent-mode)。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+
+这个别名上**未接入** OpenAI Chat Completions —— 如果你需要 OpenAI 形状的接口，请用 [`deepseek-v3-2`](/zh/models/deepseek-v3-2)。
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v3-anthropic",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Summarize this changelog into three bullets." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK)
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="deepseek-v3-anthropic",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Summarize this changelog into three bullets."}],
+)
+
+for block in resp.content:
+    if block.type == "text":
+        print(block.text)
+```
+
+```typescript TypeScript (anthropic SDK)
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.messages.create({
+  model: "deepseek-v3-anthropic",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Summarize this changelog into three bullets." }],
+})
+
+for (const block of resp.content) {
+  if (block.type === "text") console.log(block.text)
+}
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tool use (function calling) | ✅ 并行 |
+| Prompt caching (`cache_control`) | ✅ |
+| Extended thinking | —（reasoning chain 请用 [`deepseek-r1`](/zh/models/deepseek-r1)） |
+| Vision (image input) | — |
+| JSON / 结构化输出 | ✅ |
+| 上下文窗口 | 128K tokens |
+
+## 何时使用
+
+- **代码已经在讲 Anthropic Messages** —— DOSIA Agent 模式、anthropic SDK、tool-use 密集的循环。换上别名，省下重写。
+- **成本敏感的 Anthropic 形状工作负载** —— DeepSeek V3.2 的 input 价格大约是 `claude-opus-4-7` 的 **1/55**、`claude-sonnet-4-6` 的 1/10，同时保留同一线上格式。
+- **混合 tool-use 批量任务** —— 部分 agent 走 Claude、部分走 DeepSeek，但所有人讲同一种协议。
+
+**不**适用的场景：
+
+- 需要 vision 输入 —— 用 Claude 系列或 [`gpt-4o`](/zh/models/gpt-4o)。
+- 已经在用 OpenAI Chat Completions 接口且不想迁移 —— 留在 [`deepseek-v3-2`](/zh/models/deepseek-v3-2)。
+- 需要显式 reasoning chain —— 试试 [`deepseek-r1`](/zh/models/deepseek-r1)。
+
+## 下一步
+
+- [`deepseek-v3-2`](/zh/models/deepseek-v3-2) —— 同款模型，OpenAI Chat Completions 入口
+- [`claude-sonnet-4-6`](/zh/models/claude-sonnet-4-6) —— Anthropic 协议，更高级别的推理
+- [DOSIA Agent 模式](/zh/concepts/dosia-agent-mode) —— 为什么 Anthropic 形状对 agent 循环很重要

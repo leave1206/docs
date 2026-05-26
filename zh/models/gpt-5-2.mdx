@@ -1,0 +1,113 @@
+---
+title: "gpt-5-2"
+description: "OpenAI 的中档 GPT-5，自带 web search 和 tool-use 链。比 5-4-mini 高一档、比 5-4 低一档 —— 需要浏览或较长工具链但又用不上旗舰推理预算时的首选。"
+---
+
+`gpt-5-2` 夹在 `gpt-5-4-mini` 和 `gpt-5-4` 之间。它是最便宜的**自带 web search** 的 GPT-5 变体，也是 OpenAI 在"答之前先查一下"的短到中长 agent 循环中的偏好选择。
+
+如果用不上浏览，闭卷任务上 `gpt-5-4-mini` 同质量更便宜。如果要旗舰级推理余量，直接上 `gpt-5-4`。
+
+## 通道
+
+| 通道 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $1.25 / 1M | $5.00 / 1M | ~600ms | global edge |
+
+ByteSpike 默认通过 `openai-o2` 通道路由 `gpt-5-2`。`openai-o2-replacement-20260502` 通道配为自动故障切换 —— 主 key 被限流时启用。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL (带 web search)
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-2",
+    "messages": [
+      { "role": "user", "content": "What is the current price of Bitcoin in USD?" }
+    ],
+    "tools": [{ "type": "web_search" }]
+  }'
+```
+
+```python Python (Chat Completions)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-2",
+    messages=[
+        {"role": "user", "content": "Summarise today's top three AI headlines."}
+    ],
+    tools=[{"type": "web_search"}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```typescript TypeScript (Responses API)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.responses.create({
+  model: "gpt-5-2",
+  input: "Find the cheapest non-stop flight LAX→NRT next Friday.",
+  tools: [{ type: "web_search" }],
+  reasoning: { effort: "medium" },
+})
+
+console.log(resp.output_text)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Responses API | ✅ |
+| 流式（SSE） | ✅ |
+| Vision | ✅ |
+| Tool use（function calling） | ✅ 并行 |
+| JSON mode | ✅ |
+| 结构化输出（json_schema） | ✅ |
+| Reasoning effort | ✅（`low` / `medium` / `high`） |
+| Web search（内置工具） | ✅ |
+| 上下文窗口 | 256K tokens |
+
+## 什么时候用
+
+- **一两跳浏览的短 agent 循环** —— 查市场价、查实时数据、给草稿做事实核查。同类活比 `gpt-5-4` 便宜。
+- **Vision + 轻推理** —— 给图配文、OCR、"这张截图里有什么"，不需要旗舰级分析时。
+- **中等量 RAG** —— 检索做重活、LLM 负责摘要 / 综述时。
+
+什么时候**不**用：
+
+- 代码重的任务 —— [`gpt-5-3-codex`](/zh/models/gpt-5-3-codex) 是针对 Codex CLI 的结构化推理循环调优的。
+- 持续要 `reasoning_effort: "high"` 的硬推理 —— 加钱上 [`gpt-5-4`](/zh/models/gpt-5-4) 或 [`gpt-5-5`](/zh/models/gpt-5-5)。
+- 高吞吐分类 / 路由 —— [`gpt-5-4-mini`](/zh/models/gpt-5-4-mini) 才是正确档位。
+
+## 下一步
+
+- [gpt-5-4](/zh/models/gpt-5-4) —— 生产主力，无内置 web search 但推理更强
+- [gpt-5-4-mini](/zh/models/gpt-5-4-mini) —— 更便宜，闭卷
+- [gpt-5-3-codex](/zh/models/gpt-5-3-codex) —— Codex CLI 背后的模型
+- [端点类型](/zh/concepts/endpoints) —— Chat Completions vs Responses

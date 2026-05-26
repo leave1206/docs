@@ -1,0 +1,152 @@
+---
+title: "Veo 3.1"
+description: "Google 的文生视频旗舰 —— 擅长自然世界镜头与符合物理的运动。"
+---
+
+**厂商：** Google
+**Model ID：** `veo-3.1`
+**能力：** 1080p · 最长 8s · 文本 + image init · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，标准级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Veo 3.1 是 Google 的文生视频旗舰。它做得最好的是自然世界镜头 +
+符合物理的运动 —— 水、植被、动物运动、天气。影棚 / 电影感画面 Sora 2 Pro
+往往更优；要「无人机掠过森林」、「潮水涌入」、「野生动物」这类 brief，
+Veo 才是对的。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo-3.1",
+    "prompt": "A drone shot tracking along a river, autumn leaves on the bank, soft afternoon light.",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `veo-3.1` |
+| `prompt` | string | yes | — | 针对英文调优。 |
+| `duration_seconds` | integer | yes | — | 1–8。 |
+| `resolution` | string | no | `1080p` | 支持：`720p`、`1080p`。 |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`。 |
+| `seed` | integer | no | — | 可复现性。 |
+| `image_init` | string | no | — | init image 的 URL。 |
+
+## Submit 响应
+
+```json
+{
+  "task_id": "task_…",
+  "status": "queued",
+  "estimated_credits": 0.55,
+  "submitted_at": "2026-05-08T13:00:00Z"
+}
+```
+
+## Poll 等待完成
+
+推荐节奏：前 60 秒每 2 秒，之后每 5 秒，最长到 180 秒。query 免费。
+
+```json
+{
+  "task_id": "task_…",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/...",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  },
+  "credits": 0.55
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "veo-3.1", "prompt": "Drone shot along river", "duration_seconds": 5, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(
+    f"{API}/tasks/submit",
+    headers=HEADERS,
+    json={"model": "veo-3.1", "prompt": "Drone shot along river", "duration_seconds": 5, "resolution": "1080p"},
+).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"])
+        break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "veo-3.1", prompt: "Drone shot along river", duration_seconds: 5, resolution: "1080p" }),
+}).then((r) => r.json())
+
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 | Body 校验（duration > 8、resolution 不支持） | 不计费 |
+| 401 / 402 / 403 | 鉴权 / 钱包 / scope | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 自然世界镜头（风景、天气、野生动物、水）。
+- 典型的无人机 / 手持尺度下符合物理的运动。
+- 保真度低一点换更快周转，见 [Veo 3.1 Fast](/zh/api-reference/video/veo-3-1-fast)。
+- 影棚 / 电影感 1080p，见 [Sora 2 Pro](/zh/api-reference/video/sora-2-pro)。
+- 更低成本，见 [Seedance 2.0](/zh/api-reference/video/seedance-2-0)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 8s |
+| 最短时长 | 1s |
+| 分辨率 | 720p、1080p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 5s 片段典型延迟 | 60-120s |
+| 通过 tasks API 异步 | 是 |

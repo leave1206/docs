@@ -1,0 +1,168 @@
+---
+title: "GET /me/notifications (+ unread-count / mark-read / mark-all-read)"
+description: "应用内通知 feed。轮询 console 铃铛展示的同一份数据。"
+---
+
+应用内通知 feed。给
+[console.bytespike.ai](https://console.bytespike.ai) 上的铃铛图标供数 ——
+通过 webhooks（[`/me/webhooks`](./me-webhooks)）可订阅的同样 5 个事件，
+也会在这里累积用于应用内展示，除非你把它们静音了。免费。
+
+要 push 式消费，优先用 [webhooks](./me-webhooks) —— 这个端点是轮询
+回退（比如不方便跑 webhook 接收器的 IDE 扩展或状态栏）。
+
+## 端点家族
+
+| Method | Path | 用途 |
+|---|---|---|
+| `GET` | `/api/v1/me/notifications?unread=&type=&page=&page_size=` | 列出通知 |
+| `GET` | `/api/v1/me/notifications/unread-count` | 只取未读数 |
+| `POST` | `/api/v1/me/notifications/:id/mark-read` | 单条标为已读 |
+| `POST` | `/api/v1/me/notifications/mark-all-read` | 把所有未读标为已读 |
+
+都需要登录态 key。标已读操作免费。
+
+## List
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/notifications?unread=true&page=1&page_size=10' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### Query 参数
+
+| Param | Type | Notes |
+|---|---|---|
+| `unread` | bool | `true` 只返回未读行。与 `read` 互斥。 |
+| `read` | bool | `true` 只返回已读行。 |
+| `type` | string | 按事件类型过滤（见 [事件目录](#event-catalog)）。 |
+| `page` | integer | 默认 `1`。 |
+| `page_size` | integer | 默认 `50`，最大 `200`。 |
+
+### Response
+
+```json
+{
+  "items": [
+    {
+      "id": 5001,
+      "type": "system.payment.received",
+      "title": "Payment received · $25.00",
+      "body": "Your top-up has cleared. Available balance is now $31.40.",
+      "link": "/billing",
+      "read_at": null,
+      "created_at": "2026-05-22T08:08:00Z"
+    },
+    {
+      "id": 5006,
+      "type": "system.payment.received",
+      "title": "Payment received · $50.00",
+      "body": "Stripe receipt #ch_3PYj-mock-49. Your balance is now $54.80.",
+      "link": "/billing",
+      "read_at": "2026-05-20T08:00:00Z",
+      "created_at": "2026-05-20T05:08:00Z"
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "page_size": 10
+}
+```
+
+### Response 字段
+
+| Field | Type | Notes |
+|---|---|---|
+| `items[].type` | string | 5 个用户可见事件之一（见 [事件目录](#event-catalog)）。 |
+| `items[].title` | string | 铃铛下拉里的单行摘要。 |
+| `items[].body` | string | 一段描述。 |
+| `items[].link` | string \| null | 点击跳转的 console 相对深链。 |
+| `items[].read_at` | string \| null | 用户打开的 ISO 时间戳。`null` = 未读。 |
+| `total` | integer | 匹配过滤的总数（与 page 无关）。`unread=true` 时也是未读总数。 |
+
+## 未读计数
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/notifications/unread-count \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{"count": 7}
+```
+
+比 list 便宜 —— 用于每分钟左右轮询的红点 badge。
+
+## 标单条为已读
+
+```bash
+curl -X POST https://llm.bytespike.ai/api/v1/me/notifications/5001/mark-read \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{
+  "id": 5001,
+  "type": "system.payment.received",
+  "read_at": "2026-05-22T08:14:32Z"
+}
+```
+
+幂等 —— 对已读行调用是 no-op（`read_at` 不变）。
+
+## 全部标为已读
+
+```bash
+curl -X POST https://llm.bytespike.ai/api/v1/me/notifications/mark-all-read \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{"marked_read": 7}
+```
+
+返回翻转的数量。幂等 —— 再次调用返回 `{"marked_read": 0}`。
+
+## 事件目录
+
+通知 feed 只展示**用户可见**事件 —— 是
+[webhook 事件目录](./me-webhooks#event-catalog) 的精选子集。5 个类型：
+
+| Type | 何时触发 |
+|---|---|
+| `system.payment.received` | 一笔充值进入你的钱包 |
+| `system.balance.notify.dispatched` | 低余额 cron 跨过你的阈值 |
+| `admin.org.member.add` | 有人被加入你的组织（对组织 owner/admin 可见） |
+| `admin.api_key.revoke` | 平台管理员撤销了你的个人 key |
+| `org.api_key.revoke` | 组织管理员撤销了你的某把组织 key |
+
+如果你需要完整集合（每次 admin 写入、每次 org 成员变更等），用
+[webhooks](./me-webhooks) —— 它们收的是更广的目录。
+
+## 错误
+
+| Status | `error.type` | 触发条件 |
+|---|---|---|
+| 400 | `invalid_request_error` | 同时给 `read=true` 和 `unread=true`，或 `type` 未知。 |
+| 401 | `authentication_error` | key 缺失 / 已撤销。 |
+| 404 | `not_found_error` | 通知 `:id` 不属于调用方。 |
+
+## 示例 —— 轮询状态栏
+
+```python
+import time, requests, os
+
+headers = {"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"}
+
+while True:
+    r = requests.get(
+        "https://llm.bytespike.ai/api/v1/me/notifications/unread-count",
+        headers=headers,
+        timeout=5,
+    ).json()
+    print(f"Unread: {r['count']}")
+    time.sleep(60)
+```
+
+有 HTTPS 端点的话切换到 webhook 订阅 —— 推送在新鲜度和负载上都
+胜过轮询。

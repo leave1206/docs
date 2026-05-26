@@ -1,0 +1,115 @@
+---
+title: "Kimi K2.5"
+description: "Moonshot 的 K2.5 —— 长上下文中文旗舰，抽取和文档问答表现强劲。"
+---
+
+**厂商：** Moonshot
+**Model ID：** `kimi-k2-5`
+**能力：** 256K 上下文 · 工具调用 · 流式 · 结构化输出 · CJK 原生
+**计价：** 按 token，中端档（[实时费率](https://bytespike.ai/pricing#text)）
+
+Kimi K2.5 是 Moonshot 的上一代旗舰。原生支持中 / 日 / 韩 prompt 理解，加上 256K
+上下文窗口，使它成了中文市场长文档抽取的默认款。仍可上生产；新项目建议从
+[Kimi K2.6](/zh/api-reference/text/kimi-k2-6) 起步。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "kimi-k2-5",
+    "messages": [{"role": "user", "content": "提取这篇合同里的关键条款。"}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `kimi-k2-5` |
+| `messages` | array | 是 | — | 原生支持 CJK。 |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：8192。 |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON 模式。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "kimi-k2-5",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 84210, "completion_tokens": 312, "total_tokens": 84522}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "kimi-k2-5", "messages": [{"role": "user", "content": "提取关键条款"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="kimi-k2-5",
+    messages=[{"role": "user", "content": "提取这篇合同里的关键条款。"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "kimi-k2-5",
+  messages: [{ role: "user", content: "提取这篇合同里的关键条款。" }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。自动 prompt caching。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 中 / 日 / 韩 的长文档抽取。
+- 已针对这个具体版本验证过的现有代码。
+- 新项目优先选 [Kimi K2.6](/zh/api-reference/text/kimi-k2-6)。
+- 西方市场上下文相近的替代品，见 [Gemini 3.1 Pro](/zh/api-reference/text/gemini-3-1-pro)（1M）。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 256K tokens |
+| 最大输出 | 8192 tokens |
+| 支持工具调用 | 是 |
+| 支持视觉 | 否 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

@@ -1,0 +1,103 @@
+---
+title: "Channels"
+description: "Channel 就是 ByteSpike 实际用来服务某个模型的上游账号。同一个模型经常有多条 channel —— 不同 provider、不同价格、不同速率限制 —— ByteSpike 的路由层按请求挑一条。"
+---
+
+**Channel** 是 ByteSpike 实际用来服务某次请求的上游账号。一条 channel = 一个凭证 + 一个 base URL + 一个上游 provider。同一个模型背后经常有好几条 channel；路由层按请求结合策略挑一条。
+
+读 ByteSpike 价格的时候，这是最需要内化的概念：**价格按 channel 算，不按 model 算**。同一个 `claude-sonnet-4-6` 经一条 channel 是一个价格，经另一条 channel 可能是另一个价格。两个都是真实的、两个都能用；走哪条由路由层决定。
+
+## N:M 的关系
+
+在常见的简单聚合器里，每个模型只由一个 provider 服务。ByteSpike 的结构是 N:M —— N 个模型、M 条 channel —— 它们之间是多对多映射：
+
+- 一个模型可以由多条 channel 服务（`claude-sonnet-4-6` 经 Anthropic API、AWS Bedrock、Google Vertex 都能服务）
+- 一条 channel 可以服务多个模型（一个 Volcengine CodePlan 订阅同时服务 DeepSeek-V3.2、Doubao、GLM、Kimi、MiniMax）
+- 你发的 model 名（`claude-sonnet-4-6`）决定模型；实际运行它的 channel 在请求时决定。
+
+正是这种结构支撑了价格套利、区域路由和优雅故障切换，不需要让客户去写 provider 特定的代码。
+
+## Channel 里有什么
+
+网关里每一条 channel 记录都包含：
+
+| 字段 | 是什么 |
+|---|---|
+| `provider` | 上游平台名（`anthropic`、`bedrock`、`volcengine-codeplan`、`deepseek` 等） |
+| `base_url` | 网关实际拨出去的 HTTP base |
+| `credential` | API key / OAuth token / 云 IAM 主体 —— 对客户从不可见 |
+| `serves[]` | 这条 channel 能服务的 model ID 列表 |
+| `cost_per_million_input` / `cost_per_million_output` | 按 1M token 计的美元价，按该 channel 上的每个模型单独设置 |
+| `priority` | 默认路由权重（越高越优先） |
+| `rate_limit` | Channel 级别的 RPM / TPM 上限 |
+| `region` | 用于延迟感知路由的地理标识 |
+| `enabled` | 布尔 —— 路由层当下是否考虑这条 channel |
+
+同一个模型可能出现在多条 channel 的 `serves[]` 里。出现这种情况时，由路由层做选择。
+
+## 路由如何挑 channel
+
+每个请求进来，网关跑一个短的决策流水线：
+
+1. **过滤**：哪些 channel 声明服务这个模型且当前启用。
+2. **授权**：上一步剩下的 channel 里，哪些属于你 API key 绑定的路由分组（key 上的 `group_id`）。
+3. **排序**：在分组内按管理员配置的优先级排序。
+4. **挑选**：取排序后的第一条。
+5. **故障切换**：如果挑中的 channel 返回 5xx 或速率限制错误，在同一分组里换下一条合格的 channel 重试。
+
+客户侧是不透明的 —— 你发的是 `claude-sonnet-4-6` 的请求，回来的就是 `claude-sonnet-4-6` 的响应。响应头里目前不暴露 channel ID；想 debug "我这次请求被谁服务了"，看 `/v1/usage` 行里的 `upstream_provider` 字段。
+
+## 计费如何映射到 channel
+
+每个完成的请求按 **channel** 在该模型上的费率计费，不是统一的模型费率。
+
+```
+请求：    POST /v1/messages { model: "claude-sonnet-4-6", ... }
+路由到 channel：bedrock-us-east-1
+Channel 费率（cost_per_million_input）：  $3.30
+Channel 费率（cost_per_million_output）： $16.50
+账单：    prompt_tokens * 3.30 / 1e6 + completion_tokens * 16.50 / 1e6
+```
+
+如果是另一条 channel 来服务，费率就可能不同 —— 管理员在每条 channel 记录上单独设价格。客户可以通过 [`/api/v1/me/usage`](/zh/api-reference/account/me-usage) 看到每次请求实际扣的 `credits`。
+
+## 管理员如何引导路由
+
+Channel 的选取在管理员侧配置，不是按请求走。两个主要杠杆：
+
+### API key 上的分组绑定
+
+创建 API key 时挑 `group_id`。这把 key 就被绑到了某个具体的路由分组 —— 分组里的 channel 都有资格服务这把 key 的请求；分组外的不行。
+
+这就是你引导流量去某组上游的方式：创建 key 时绑到对的分组。不同 key 可以绑到不同分组。详见 [鉴权](/zh/authentication#per-key-controls)。
+
+### 分组内的 channel 优先级
+
+在分组内，管理员设置 channel 级优先级。路由层挑最高优先级的合格 channel；如果失败就试下一条。
+
+客户当前 **无法** 按请求覆盖路由 —— 没有 `extra_body.preferred_channel` 之类的旋钮。如果你出于合规 / 成本 / 延迟原因需要指定某条 channel，这属于管理员侧的分组 + 优先级配置，不是请求侧的覆盖。
+
+## 客户为什么要在意
+
+三个理由：
+
+1. **价格可预测** —— 知道你 key 的分组 + 分组里有哪些 channel，就能知道哪些费率适用。每条 channel 的费率都会以 `credits` 形式出现在 `/api/v1/me/usage` 的行里。
+2. **provider 风险** —— 如果 Anthropic 的 API 在某个区域出问题，而你的分组里还有别的 Claude channel，网关自动在下一条 channel 上重试；这段代码你不用写。
+3. **能力触达** —— 不同分组可以包含不同的模型家族。要在同一个客户端里同时触达 DeepSeek + Claude，通常需要两把 key（每个分组一把）。
+
+同一个模型名可以由不同分组里的不同 channel 服务，价格也不同。ByteSpike 把它们抽象成一个逻辑模型，channel + 分组作为路由维度。
+
+## Channel 不是什么
+
+- **不是** 严格意义上的区域。多个区域可以包在一条 channel 记录里（例如带多区域故障切换策略的 Anthropic-API channel）。
+- **不是** 模型变体。`claude-sonnet-4-5` 和 `claude-sonnet-4-6` 是不同的模型，不是不同的 channel。
+- **默认对客户不可见**。打错 channel 的请求依然返回正确的模型输出；channel 身份用于 debug，可通过响应头观察，但不属于请求契约。
+
+关于 channel 上面那一层的概念 —— *platform* 是什么 vs. *channel* 是什么 —— 见 [Platforms vs. channels](/zh/concepts/platforms-vs-channels)。关于客户端在 ByteSpike 上要讲的各协议形状（Messages / Chat Completions / Responses 等），见 [Endpoint 类型](/zh/concepts/endpoints)。
+
+## 下一步
+
+- [Platforms vs. channels](/zh/concepts/platforms-vs-channels) —— 区分两个术语
+- [Endpoint 类型](/zh/concepts/endpoints) —— ByteSpike 接受的八种请求形状
+- [Credits 与账单](/zh/concepts/credits-and-billing) —— 每 channel 的费率怎么进 credit ledger
+- [Models 索引](/zh/models)（即将推出）—— 每个模型一页，列出所有服务它的 channel

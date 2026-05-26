@@ -1,0 +1,191 @@
+---
+title: "Claude Haiku 4.5"
+description: "Anthropic 4 系列里最小、最快的模型。需要串几十次 LLM 调用又不能在延迟上崩盘的生产 agent 的默认选择。"
+---
+
+**厂商：** Anthropic
+**Model ID：** `claude-haiku-4-5`
+**能力：** 200K context · tool use · vision · prompt caching · streaming
+**价格：** 按 token，Haiku 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Haiku 4.5 是当你 *本来就打算* 大量调 LLM 时的选择 —— agent loop、
+工具密集型工作流、子 LLM 判官、需要快速改写一步的 embedding 流水线。
+它不是那种一发即中、必须完美的模型；要那种用 Sonnet 或 Opus。但它的
+延迟底线低到你能在 Sonnet 一次往返的时间里串四五个 Haiku 调用，并且
+在常规分类、抽取、路由任务上质量站得住。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Classify this support ticket: My order is late."}
+    ]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `claude-haiku-4-5` |
+| `messages` | array | 是 | — | 对话历史。 |
+| `max_tokens` | integer | 是 | — | 响应长度硬上限。本模型最大：8192。 |
+| `system` | string \| array | 否 | — | System prompt。array 形式支持 `cache_control`。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–1.0。 |
+| `top_p` | number | 否 | 1.0 | Nucleus sampling。 |
+| `tools` | array | 否 | — | 支持。 |
+| `tool_choice` | object | 否 | `{"type":"auto"}` | `auto` / `any` / `tool`（指定名）。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "msg_haiku_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5",
+  "content": [
+    {"type": "text", "text": "Logistics — delivery delay."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 18,
+    "output_tokens": 6
+  }
+}
+```
+
+### 响应字段
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | ByteSpike 签发的消息 ID。 |
+| `model` | string | 回显请求的 `model`。 |
+| `content` | array | 文本在 `{"type": "text"}`；工具调用在 `{"type": "tool_use"}`。 |
+| `stop_reason` | string | `end_turn` / `max_tokens` / `tool_use` / `stop_sequence`。 |
+| `usage.input_tokens` | integer | 计费的 prompt token 数。 |
+| `usage.output_tokens` | integer | 计费的生成 token 数。 |
+| `usage.cache_read_input_tokens` | integer | `cache_control` 块命中时返回。 |
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Classify this ticket: My order is late."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Classify this ticket: My order is late."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-haiku-4-5",
+  max_tokens: 1024,
+  messages: [
+    { role: "user", content: "Classify this ticket: My order is late." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## 流式
+
+设 `"stream": true`。响应是标准 Anthropic 格式的 SSE。估算 credits 会
+在第一个 SSE 事件之前在 HTTP 响应头里给出，所以你能在为长 completion
+付费之前把它截掉。
+
+## Cache control
+
+`cache_control` 块降低重复 prompt 的成本。命中按 [pricing table](https://bytespike.ai/pricing#text)
+中 "cache read" 一栏的折扣价计费。在 Haiku 上，对于 system prompt 和工
+具定义跨调用稳定的检索密集型 agent loop，cache 是划算的。
+
+```json
+{
+  "model": "claude-haiku-4-5",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 | Body 校验失败 | 否 |
+| 401 | key 缺失 / 已撤销 | 否 |
+| 402 | 钱包用尽 | 否 |
+| 403 | 范围拒绝 / IP 未在白名单 | 否 |
+| 422 | 参数不支持（Haiku 上罕见） | 否 |
+| 429 | 速率限制 | 否 |
+| 5xx | 上游 provider 问题 | 否（自动重试信封） |
+
+完整枚举见 [错误处理](/zh/concepts/error-handling)。
+
+## 何时使用
+
+- 每次用户动作要发 3+ 次 LLM 调用的生产 agent loop。
+- 重模型之前的路由 / 分流 / 分类。
+- 需要快速改写或清理一步的 embedding 流水线。
+- 对一发即中、延迟次要的场景，见 [Sonnet 4.6](/zh/api-reference/text/claude-sonnet-4-6)。
+- 长上下文推理见 [Opus 4.7](/zh/api-reference/text/claude-opus-4-7)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 8192 tokens |
+| 支持 tool use | 是 |
+| 支持 vision | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 是 |

@@ -1,0 +1,114 @@
+---
+title: "Seedance 2.0 Pro Fast"
+description: "Seedance 2.0 Pro 的保真度，一半的等待 —— 时间紧迫的主视觉工作用的延迟调优 Pro 变体。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedance-2.0-pro-fast`
+**能力：** 1080p · 最长 8s · 文本 + image init · CJK prompt · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，pro-fast 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Seedance 2.0 Pro Fast 是延迟调优过的 Pro 变体。在有界 prompt（5–8s
+片段、720p/1080p）上端到端延迟大约是完整 Pro 的一半，输出在大多数
+A/B 测试里能与 Pro 打平。上限 8 秒（vs Pro 的 10）。截止时间不容
+妥协但仍要 Pro 级保真度时就选它。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro-fast",
+    "prompt": "Aerial drone over a coral reef, school of fish swimming below",
+    "duration_seconds": 6,
+    "resolution": "1080p"
+  }'
+```
+
+### Body 参数
+
+形状与 [Seedance 2.0 Pro](/zh/api-reference/video/seedance-2-0-pro) 相同。
+最大 `duration_seconds` 是 8。
+
+## Submit + poll
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.72}
+```
+
+推荐节奏：前 60 秒每 2 秒，之后每 5 秒，最长到 120 秒。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-2.0-pro-fast", "prompt": "Aerial drone coral reef", "duration_seconds": 6, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-2.0-pro-fast",
+    "prompt": "Aerial drone over a coral reef",
+    "duration_seconds": 6,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-2.0-pro-fast", prompt: "Aerial drone coral reef", duration_seconds: 6, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+标准。
+
+## 何时选用
+
+- 时间紧迫的主视觉工作 —— 要求 Pro 保真度但完整 Pro 延迟不可接受。
+- 每步视频都有 SLO 的生产 agent 链路。
+- 完整 Pro 10s 片段，见 [Seedance 2.0 Pro](/zh/api-reference/video/seedance-2-0-pro)。
+- 5s 超快周转，见 [Seedance Fast](/zh/api-reference/video/seedance-fast)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 8s |
+| 分辨率 | 720p、1080p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 6s 片段典型延迟 | 45-75s |
+| 通过 tasks API 异步 | 是 |

@@ -1,0 +1,342 @@
+---
+title: "POST /messages"
+description: "Anthropic 原生 Messages 端点 —— Claude 家族 + 跨厂商模型，统一一套请求形状。"
+---
+
+ByteSpike 的原生协议。逐字讲 Anthropic Messages API，包括 `tool_use`、
+`cache_control`、`thinking` 块。跨厂商模型（GPT、Gemini、DeepSeek、
+Doubao 等）在底下被透明翻译 —— 不管你在 `model` 字段写哪个值，发出的
+请求都是 Anthropic 形状。
+
+## 何时使用
+
+以下情况选这个端点：
+
+- **Anthropic SDK / Claude Code / Claude Desktop** 想接入目录里任意模型
+- **Tool use** 要 schema 最干净的那一套（不像 OpenAI 的 `tool_calls` 那样套 JSON 字符串）
+- **Prompt caching**（`cache_control` 块）用在长且稳定的 system prompt 上
+- **Extended thinking** 用在 Opus / Sonnet 4.x
+
+如果要严格 OpenAI 形状的请求，用 [`/chat/completions`](./openai-chat-completions)。如果要 Google Native，用 [`/v1beta/models/{model}:generateContent`](./gemini-generate-content)。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "system": "You are a helpful assistant.",
+    "messages": [
+      {"role": "user", "content": "Summarize the first chapter of Moby Dick."}
+    ]
+  }'
+```
+
+### 请求头
+
+| Header | 是否必填 | 说明 |
+|---|---|---|
+| `x-api-key` | 是 | 你的 ByteSpike key（`sk-byts-…`）。 |
+| `anthropic-version` | 是 | 固定 `2023-06-01`。 |
+| `content-type` | 是 | `application/json`。 |
+| `anthropic-beta` | 否 | 透传到上游 Anthropic 启用 beta 功能。 |
+
+### Body
+
+| 字段 | 类型 | 是否必填 | 说明 |
+|---|---|---|---|
+| `model` | string | 是 | 模型 slug。目录中任意模型皆可 —— 见下文 [跨模型路由](#cross-model-routing)。 |
+| `messages` | array | 是 | 对话历史（Anthropic 形状）。 |
+| `max_tokens` | integer | 是 | 响应长度硬上限。 |
+| `system` | string \| array | 否 | system prompt（简单场景用 string，需要 `cache_control` 用 array）。 |
+| `tools` | array | 否 | 工具定义（Anthropic `input_schema` 格式）。 |
+| `tool_choice` | object | 否 | `{"type": "auto"}` / `{"type": "any"}` / `{"type": "tool", "name": "…"}`。 |
+| `temperature` | number | 否 | 默认 1.0。 |
+| `top_p` | number | 否 | Nucleus sampling。 |
+| `stop_sequences` | string[] | 否 | 自定义 stop token。 |
+| `stream` | boolean | 否 | server-sent events。见 [流式](#streaming)。 |
+| `metadata` | object | 否 | `{"user_id": "..."}` —— 透传上游，并在我方记录。 |
+
+## 响应
+
+```json
+{
+  "id": "msg_01AbCdEf",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {"type": "text", "text": "Ishmael, the narrator, signs onto a whaling ship..."}
+  ],
+  "model": "claude-sonnet-4-6",
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 23,
+    "output_tokens": 87
+  }
+}
+```
+
+### 响应字段
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | 服务端生成的 id，前缀 `msg_`。 |
+| `type` | string | 非错误响应恒为 `"message"`。 |
+| `role` | string | 恒为 `"assistant"`。 |
+| `content` | array | 内容块：`text`、`tool_use`、`thinking`（Opus / Sonnet 4.x）。 |
+| `stop_reason` | string | `end_turn`、`max_tokens`、`stop_sequence`、`tool_use`。 |
+| `usage.input_tokens` | integer | 输入计费 token 数。 |
+| `usage.output_tokens` | integer | 输出计费 token 数。 |
+| `usage.cache_read_input_tokens` | integer | 来自缓存的 token 数（折扣价）。 |
+| `usage.cache_creation_input_tokens` | integer | 写入缓存的 token 数（全价）。 |
+
+### 计费类请求头
+
+每个响应 —— 不论成功或失败、流式或非流式 —— 都附带网关的配额信封：
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+- `X-RateLimit-Limit` / `Remaining` —— 当前最紧的速率限制桶（5h / 1d / 7d 取最紧那一档）的 USD 预算。
+- `X-RateLimit-Reset` —— 该桶重置的 Unix 时间戳。
+- `X-Quota-Remaining-Credits` —— 该 key 终身剩余 credits（USD；1 USD = 1,000,000 credits）。失败请求不动这个数。
+- `X-Org-Quota-Remaining-Credits` —— 组织钱包剩余，仅对组织持有的 key 返回。
+
+要拿到本次请求的实际成本，查 [`GET /api/v1/usage`](/zh/api-reference/account/me-usage) —— 它返回每次调用的 prompt + completion tokens 以及最终计费 `credits`。
+
+## 流式
+
+设 `"stream": true`。响应是标准 Anthropic 格式的 SSE：
+
+```
+event: message_start
+data: {"type":"message_start","message":{...}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Ishmael"}}
+
+…
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":87}}
+
+event: message_stop
+data: {"type":"message_stop"}
+```
+
+完整 SSE 事件序列 —— `message_start` → 一个或多个（`content_block_start` → `content_block_delta`× → `content_block_stop`）→ `message_delta` → `message_stop` —— 与上游 Anthropic 一致。工具调用通过 `input_json_delta` 以 `tool_use` 内容块分块流式到达。
+
+## Tool use（多轮）
+
+工具调用通过两次请求轮转完成。第一次带上工具 schema；模型回 `tool_use` 块；你在本地执行工具，再把结果 POST 回去作为第二次请求。
+
+### 第一轮 —— 提供工具
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {"type": "string", "description": "Name of the city."}
+        },
+        "required": ["city"]
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "What's the weather in Tokyo?"}
+  ]
+}
+```
+
+响应：
+
+```json
+{
+  "id": "msg_01...",
+  "role": "assistant",
+  "content": [
+    {"type": "text", "text": "Let me check that for you."},
+    {
+      "type": "tool_use",
+      "id": "toolu_01ABC",
+      "name": "get_weather",
+      "input": {"city": "Tokyo"}
+    }
+  ],
+  "stop_reason": "tool_use"
+}
+```
+
+### 第二轮 —— 回传工具结果
+
+本地执行 `get_weather({city: "Tokyo"})`，再用 `tool_result` 块带上原始 `tool_use.id` 回传：
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "tools": [ /* same schema */ ],
+  "messages": [
+    {"role": "user", "content": "What's the weather in Tokyo?"},
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "Let me check that for you."},
+        {
+          "type": "tool_use",
+          "id": "toolu_01ABC",
+          "name": "get_weather",
+          "input": {"city": "Tokyo"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01ABC",
+          "content": "18°C, partly cloudy"
+        }
+      ]
+    }
+  ]
+}
+```
+
+模型现在会返回最终文本答案，`stop_reason: "end_turn"`。
+
+## 图像 / 多模态内容
+
+把图片作为 `image` 内容块发送。`base64` 和 URL 两种 source 都行；网关把字节直接转发给支持视觉的上游模型（Claude Sonnet/Opus 4.x、GPT-5-x、Gemini、Doubao Vision 等）。
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "/9j/4AAQSkZJRg..."
+          }
+        },
+        {"type": "text", "text": "What's in this image?"}
+      ]
+    }
+  ]
+}
+```
+
+URL 输入：
+
+```json
+{
+  "type": "image",
+  "source": {"type": "url", "url": "https://example.com/photo.jpg"}
+}
+```
+
+非视觉模型对图像块返回 400；通过 [`GET /v1/models`](../utility/v1-models) 查看模型的能力标签。
+
+## 跨模型路由
+
+本端点的 `model` 字段接受 **任意** ByteSpike 目录模型 —— 网关在底下透明地把请求翻译成上游协议。按你想要的延迟 / 成本 / 能力组合挑选：
+
+```json
+{"model": "claude-opus-4-7", "messages": [...]}    // → Anthropic
+{"model": "gpt-5-4", "messages": [...]}            // → OpenAI（Anthropic→OpenAI 形状翻译）
+{"model": "gemini-3-1-pro", "messages": [...]}     // → Google（Anthropic→Gemini）
+{"model": "deepseek-v4-pro", "messages": [...]}    // → DeepSeek
+{"model": "doubao-seed-2-0-pro", "messages": [...]}  // → Volcengine
+```
+
+注意：
+
+- 厂商特有、无法翻译的特性（例如 OpenAI 的 `response_format: {"type": "json_schema"}`）需要走对应的协议端点。
+- `stop_reason` 和 `usage` 字段不论上游是什么，都归一化为 Anthropic 形状。
+
+完整模型清单：[`GET /v1/models`](../utility/v1-models)。按模型计价：[bytespike.ai/pricing](https://bytespike.ai/pricing)。
+
+## Cache control
+
+`cache_control` 块的行为与上游 Anthropic 完全一致。命中时按缓存读取折扣价计费；价格见 [pricing table](https://bytespike.ai/pricing#text) 的 "cache read" 一栏。
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+响应中的 `usage.cache_read_input_tokens` 和 `usage.cache_creation_input_tokens` 分别报告命中和写入。
+
+## 速率限制和配额头
+
+| Header | 说明 |
+|---|---|
+| `x-ratelimit-limit-requests` | 你的 tier 的 requests/min 上限。 |
+| `x-ratelimit-remaining-requests` | 当前窗口内剩余。 |
+| `x-ratelimit-reset-requests` | 桶充满还需多少秒。 |
+| `x-ratelimit-limit-tokens` | tokens/min 上限。 |
+| `x-ratelimit-remaining-tokens` | 当前窗口剩余 token 数。 |
+
+遇到 `429` 时，查 `x-ratelimit-reset-*` 头来决定何时重试。
+
+## 错误
+
+所有非 2xx 响应**免费** —— 失败不计费。
+
+| Status | `error.type` | 触发 |
+|---|---|---|
+| 400 | `invalid_request_error` | Body 校验失败（按 Anthropic schema）。message 会指出哪个字段。 |
+| 400 | `unsupported_model` | `model` slug 不在你的范围内或已下线。 |
+| 400 | `unsupported_feature` | 例如向只支持文本的模型发图像块，或向不支持 tool-use 的模型发 `tools`。 |
+| 401 | `authentication_error` | key 缺失 / 已撤销。 |
+| 402 | `insufficient_credits` | 钱包用尽。去 [console.bytespike.ai/billing](https://console.bytespike.ai/billing) 充值。 |
+| 403 | `permission_error` | 范围拒绝、IP 未在白名单、模型受限。 |
+| 404 | `not_found_error` | 路径打错（`/v1/messages` vs `/messages`）或未知 model id。 |
+| 429 | `rate_limit_error` | tier 速率限制。按 `x-ratelimit-reset-*` 退避。 |
+| 5xx | `api_error` / `overloaded_error` | 上游 provider 问题。免费 + 自动重试信封。 |
+
+Body 形状：
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "You have exceeded your requests-per-minute budget."
+  }
+}
+```

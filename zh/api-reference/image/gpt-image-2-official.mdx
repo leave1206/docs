@@ -1,0 +1,112 @@
+---
+title: "GPT-Image 2 Official"
+description: "GPT-Image 2 的 OpenAI 官方通道版本 —— 合规敏感场景下的 provider 直连路由。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-image-2-official`
+**能力：** 1024² – 4096² · 写实 · prompt 遵从 · OpenAI 官方路由
+**价格：** 按张计费，官方级 ([实时费率](https://bytespike.ai/pricing#image))
+
+GPT-Image 2 Official 直接走 OpenAI 官方 endpoint，无中间 provider。
+模型权重和输出与 [GPT-Image 2](/zh/api-reference/image/gpt-image-2) 相同；
+区别在路由路径。合规、数据驻留合同、审计要求需要 provider 直连归属时
+用这个变体。价格等级反映了官方路由的溢价。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-image-2-official",
+    "prompt": "Studio shot of a teacup on a wooden table, soft natural light",
+    "size": "1024x1024",
+    "quality": "high"
+  }'
+```
+
+### Body 参数
+
+与 [GPT-Image 2](/zh/api-reference/image/gpt-image-2) 相同 —— `prompt`、
+`size`、`n`、`quality`、`style`、`output_format`、`output_compression`。
+只有 `model` 值不同。
+
+## Response
+
+shape 与 GPT-Image 2 相同。
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-image-2-official", "prompt": "Studio teacup", "quality": "high"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="gpt-image-2-official",
+    prompt="Studio shot of a teacup on a wooden table, soft natural light",
+    size="1024x1024",
+    quality="high",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "gpt-image-2-official",
+  prompt: "Studio shot of a teacup on a wooden table, soft natural light",
+  size: "1024x1024",
+  quality: "high",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## 错误
+
+与 [GPT-Image 2](/zh/api-reference/image/gpt-image-2) 相同。注意官方路由
+变体对上游限流更敏感；高峰期偶尔会遇到带较长 Retry-After 的 429。
+
+## 何时选用
+
+- 合规 / 数据驻留合同要求 provider 直连路由归属。
+- 审计流程把路由路径写进了规范。
+- 同样模型输出但更低成本，见 [GPT-Image 2](/zh/api-reference/image/gpt-image-2)。
+- 文字渲染边界情况下，[Nano Banana 2](/zh/api-reference/image/nano-banana-v2) 也很强。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 4096×4096 |
+| 单次最大张数（`n`） | 4 |
+| 路由 | OpenAI 官方直连 |
+| 支持 `quality` 修饰 | 是 |
+| 同步？ | 是（典型 ≤30s） |
+| 1024² high 平均延迟 | 14-22s |

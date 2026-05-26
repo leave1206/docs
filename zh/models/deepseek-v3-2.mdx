@@ -1,0 +1,94 @@
+---
+title: "deepseek-v3-2"
+description: "通过 Volcengine CodePlan 订阅提供的 DeepSeek V3.2。属于较老的 V3 系列，但被打包进了多模型 CodePlan 订阅中，与 Doubao、GLM、Kimi、MiniMax 并列 —— 按订阅计费，不按 token 计。"
+---
+
+`deepseek-v3-2` 是 DeepSeek 的**较老 V3** 系列，在 ByteSpike 上仅通过 **Volcengine CodePlan 订阅**提供。权衡很清楚：
+
+- ✅ 订阅式计价 —— 月度成本可预测，按团队分摊，与用量无关。
+- ✅ 与 Doubao、GLM、Kimi、MiniMax 打包在一起 —— 一个凭据，十几个模型。
+- ❌ 是 V3，不是 V4 —— V4 系列更新、更强，并且支持 reasoning chain。
+
+如果你想要最新的推理能力，请使用 [`deepseek-v4-pro`](/zh/models/deepseek-v4-pro)（按 token 计费的 DeepSeek API）。
+如果团队同时跑多种中文 LLM 工作负载，希望一张账单搞定，这条 channel 就是答案。
+
+## Channels
+
+| Channel | Base URL | 计费 | Latency p50 | Region |
+|---|---|---|---|---|
+| **Volcengine CodePlan** | `ark.cn-beijing.volces.com` | 订阅制（按月，管理员分摊） | ~600ms | CN |
+
+这是一条**按订阅计费**的 channel —— 该入口没有按 token 计的费率。ByteSpike 的账户级定价会包住上游订阅；账单曲线见 [pricing](/zh/concepts/credits-and-billing) 以及 [Volcengine CodePlan provider 页面](/zh/providers/volcengine-codeplan)。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+这条 channel **不支持** Anthropic Messages —— Volcengine CodePlan 上游不为 V3.2 暴露 Anthropic 兼容 shim。要用 Anthropic Messages 调 DeepSeek，请走 [`deepseek-v4-pro`](/zh/models/deepseek-v4-pro)。
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v3-2",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v3-2",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Anthropic Messages | —（要 Anthropic 协议请用 deepseek-v4-pro） |
+| Streaming (SSE) | ✅ |
+| Tool use | ✅ |
+| JSON mode | ✅ |
+| Reasoning chain | —（V3 系列；V4 才有 reasoning） |
+| Vision (HTTP API) | ❌ |
+| 上下文窗口 | 64K tokens |
+
+## 何时使用
+
+- **已订阅 CodePlan 的团队** —— 已经在为 bundle 付费，没必要再为 V4 按 token 付一遍。
+- **成本可预测的工作负载** —— 财务希望看到一个固定数字时。
+- **针对 V3 调过的 prompt** —— 已经对 V3 做过 prompt 优化，暂时不想迁移到 V4。
+
+**不**适用的场景：
+
+- 需要最新 DeepSeek 能力 —— 改用 [`deepseek-v4-pro`](/zh/models/deepseek-v4-pro)。
+- 需要 Anthropic Messages —— 同上。
+- 长上下文 —— 这里的天花板是 64K。
+
+## 下一步
+
+- [deepseek-v4-pro](/zh/models/deepseek-v4-pro) —— V4 旗舰，按 token 计费
+- [Volcengine CodePlan provider 页面](/zh/providers/volcengine-codeplan) —— 订阅机制 + 其他打包模型（Doubao、GLM、Kimi、MiniMax）
+- [Channels](/zh/concepts/channels) —— 订阅 vs 按 token 计费两种模式的对比

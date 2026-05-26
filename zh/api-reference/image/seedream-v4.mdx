@@ -1,0 +1,62 @@
+---
+title: "Seedream V4"
+description: "ByteDance 的旗舰美学图像生成器 —— 1024² 文生图，原生 CJK prompt 理解。"
+---
+
+ByteDance 的旗舰美学图像生成器。强项是插画、包装和编辑型静帧，原生
+支持 CJK prompt。同步调用，无需异步 polling。
+
+**Slug：** `seedream-v4` · **能力：** 1024² 文生图 · **价格：** $0.024 / 张
+（[实时费率](https://bytespike.ai/pricing#image)）
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v4",
+    "prompt": "A koi pond at dusk, ink-wash style, soft purple sky",
+    "size": "1024x1024",
+    "n": 1
+  }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | `seedream-v4` |
+| `prompt` | string | yes | 文本 prompt。原生接受 CJK。 |
+| `size` | string | no | `1024x1024`（默认）、`1024x1536`、`1536x1024` |
+| `n` | integer | no | 单次 1–4 张。每张单独计费。 |
+| `seed` | integer | no | 可复现性。 |
+| `negative_prompt` | string | no | 标准 SD 风格的反向 prompt。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/...",
+      "revised_prompt": "..."
+    }
+  ]
+}
+```
+
+图像 URL 是预签名的，24 小时有效。需要长期存储请下载后自行托管。
+
+## 何时选用
+
+下列情况选 Seedream v4：
+- prompt 是中文 / 日文 / 韩文
+- 美学 / 插画风格比写实更重要
+- 想要可预测的 1024² 输出，不折腾长宽比
+
+要 2048² 或更精细的边缘，见 [Seedream V4.5](/zh/api-reference/image/seedream-v4-5)。
+要轻量 / 廉价的迭代，见 [Seedream V5lite](/zh/api-reference/image/seedream-v5lite)。
+要更高代价的写实，见 [Nano-Banana Pro](/zh/api-reference/image/nano-banana-pro)。

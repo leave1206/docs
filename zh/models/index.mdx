@@ -1,0 +1,107 @@
+---
+title: "模型"
+description: "ByteSpike 上的所有模型，按家族组织。每个模型页列出服务该模型的通道、各通道价格与协议，以及可直接跑的快速开始。"
+---
+
+这是 ByteSpike 的**模型优先**索引页。选你想用的模型；模型页会告诉你哪些通道能服务它、每个通道多少钱、讲什么协议、第一通调用怎么发。
+
+如果你对"channel"还没概念，先读 [channels](/zh/concepts/channels) —— 同一个模型背后可能挂多个价格，路由层按请求挑一个。
+
+## Claude 家族
+
+Anthropic 的推理与视觉阵容，同时支持 Anthropic Messages 协议和 OpenAI Chat Completions shim。Cache control、tool use、thinking 块原样透传。
+
+| 模型 | 档位 | 上下文 | 最便宜通道 | 页面 |
+|---|---|---|---|---|
+| `claude-haiku-4-5` | small | 200K | Anthropic API · $0.80/$4 | [→](/zh/models/claude-haiku-4-5) |
+| `claude-sonnet-4-5` | mid | 200K | Anthropic API · $3/$15 | [→](/zh/models/claude-sonnet-4-5)（即将） |
+| `claude-sonnet-4-6` | mid | 200K | Anthropic API · $3/$15 | [→](/zh/models/claude-sonnet-4-6) |
+| `claude-opus-4-5` | large | 200K | Anthropic API · $15/$75 | [→](/zh/models/claude-opus-4-5)（即将） |
+| `claude-opus-4-6` | large | 200K | Anthropic API · $15/$75 | [→](/zh/models/claude-opus-4-6)（即将） |
+| `claude-opus-4-7` | flagship | 1M | Anthropic API · $15/$75 | [→](/zh/models/claude-opus-4-7) |
+
+## GPT 家族
+
+OpenAI 的 GPT 阵容 —— SDK 代码用 Chat Completions，Codex 风格客户端用 Responses。推理、结构化输出、web search、vision 全部透传。
+
+| 模型 | 档位 | 上下文 | 最便宜通道 | 页面 |
+|---|---|---|---|---|
+| `gpt-4o-mini` | small | 128K | OpenAI · $0.15/$0.60 | [→](/zh/models/gpt-4o-mini) |
+| `gpt-4o` | mid | 128K | OpenAI · $2.50/$10 | [→](/zh/models/gpt-4o) |
+| `gpt-5-4-mini` | small-mid | 256K | OpenAI · $0.50/$2 | [→](/zh/models/gpt-5-4-mini) |
+| `gpt-5-4` | mid | 400K | OpenAI · $3/$12 | [→](/zh/models/gpt-5-4) |
+| `gpt-5-3-codex` | code | 256K | OpenAI Responses · $2.50/$10 | [→](/zh/models/gpt-5-3-codex) |
+| `gpt-5-5` | flagship | 1M | OpenAI · $10/$40 | （即将） |
+
+## Gemini 家族
+
+Google 的 Gemini 阵容，通过 OpenAI Chat Completions shim 对外暴露。2.5 Pro 是 ByteSpike 上上下文窗口最长的模型（2M）。
+
+| 模型 | 档位 | 上下文 | 最便宜通道 | 页面 |
+|---|---|---|---|---|
+| `gemini-2-5-flash` | small-mid | 1M | Google AI Studio · $0.30/$1.20 | [→](/zh/models/gemini-2-5-flash) |
+| `gemini-2-5-pro` | flagship | 2M | Google AI Studio · $3.50/$14 | [→](/zh/models/gemini-2-5-pro) |
+
+## DeepSeek 家族（V4 —— 按 token）
+
+DeepSeek 自家 HTTP API 上的最新生产阵容。双协议（Chat Completions + Anthropic Messages）。HTTP API 当前**未**开放 vision。
+
+| 模型 | 档位 | 上下文 | 最便宜通道 | 页面 |
+|---|---|---|---|---|
+| `deepseek-v4-flash` | small-mid | 128K | DeepSeek API · $0.20/$0.80 | [→](/zh/models/deepseek-v4-flash) |
+| `deepseek-v4-pro` | flagship | 128K | DeepSeek API · $0.55/$2.19 | [→](/zh/models/deepseek-v4-pro) |
+
+## Volcengine CodePlan 家族（订阅）
+
+捆绑在 Volcengine CodePlan 订阅里的模型 —— 一份凭证、十多个模型、月度固定费用在团队内摊销。计费模型跟按 token 不同：订阅机制见 [/providers/volcengine-codeplan](/zh/providers/volcengine-codeplan)。
+
+| 模型 | 家族 | 通道 | 页面 |
+|---|---|---|---|
+| `doubao-seed-2.0-pro` | 字节跳动 Doubao | Volcengine CodePlan · 订阅 | [→](/zh/models/doubao-seed-2-0-pro) |
+| `doubao-seed-1.5-pro` | 字节跳动 Doubao | Volcengine CodePlan · 订阅 | （即将） |
+| `doubao-lite` | 字节跳动 Doubao | Volcengine CodePlan · 订阅 | （即将） |
+| `deepseek-v3-2` | DeepSeek（旧版） | Volcengine CodePlan · 订阅 | [→](/zh/models/deepseek-v3-2) |
+| `glm-5` | 智谱 | Volcengine CodePlan · 订阅 | [→](/zh/models/glm-5) |
+| `glm-5-air` | 智谱 | Volcengine CodePlan · 订阅 | （即将） |
+| `kimi-k2-6` | Moonshot | Volcengine CodePlan · 订阅 | [→](/zh/models/kimi-k2-6) |
+| `kimi-k2-5` | Moonshot | Volcengine CodePlan · 订阅 | （即将） |
+| `minimax-m2-7` | MiniMax | Volcengine CodePlan · 订阅 | [→](/zh/models/minimax-m2-7) |
+| `minimax-m2-5` | MiniMax | Volcengine CodePlan · 订阅 | （即将） |
+
+## 图像与视频
+
+图像与视频模型挂在各自的协议入口下（图像走 `/v1/images/generations`，异步视频走 `/v1/tasks/submit`）。带最新按次价的逐模型页当前在 [/api-reference/image](/zh/api-reference/image) 和 [/api-reference/video](/zh/api-reference/video)；后续会迁到 `/models/` 下。
+
+## DOSIA 推荐路径
+
+如果你从 DOSIA 调 ByteSpike，有两个协议入口要关心 —— 每个都有推荐主力模型和更便宜的备选。
+
+| DOSIA 模式 | 协议 | 主力 | 成本优化备选 | 中国大陆首选 |
+|---|---|---|---|---|
+| **Agent**（tool use、thinking、cache_control） | Anthropic Messages | [`claude-sonnet-4-6`](/zh/models/claude-sonnet-4-6) | [`claude-haiku-4-5`](/zh/models/claude-haiku-4-5) | [`deepseek-v4-pro`](/zh/models/deepseek-v4-pro)（anthropic 兼容） |
+| **Chat**（通用问答、起草） | OpenAI Chat Completions | [`gpt-5-4`](/zh/models/gpt-5-4) | [`gpt-5-4-mini`](/zh/models/gpt-5-4-mini) | [`deepseek-v4-flash`](/zh/models/deepseek-v4-flash) 或任意 Volcengine CodePlan 模型 |
+
+给搭权限模板的 DOSIA Cloud Enterprise 管理员：
+
+- **国际版** 预设 → 解锁 `claude-sonnet-4-6`、`claude-opus-4-7`、`gpt-5-4`、`gpt-5-4-mini`、`gpt-4o`、`gemini-2-5-flash`、`gemini-2-5-pro`。Agent 默认 Anthropic，Chat 默认 OpenAI。
+- **国内版** 预设 → 解锁 `deepseek-v4-pro`、`deepseek-v4-flash`，加上 Volcengine CodePlan bundle 内的全部模型（`doubao-seed-2.0-pro`、`glm-5`、`kimi-k2-6`、`minimax-m2-7`、`deepseek-v3-2`）。Agent 默认 `deepseek-v4-pro`（anthropic 兼容），Chat 默认 `doubao-seed-2.0-pro`。
+
+两个预设都由管理员在 [DOSIA Cloud Console](https://console.bytespike.ai) 定义；成员无需挑模型，除非要覆盖默认。
+
+## 怎么读模型页
+
+每页结构一致：
+
+1. **通道** —— 服务这个模型的每个通道，含每通道成本、协议、延迟画像、地区。
+2. **快速开始** —— 通过主协议向该模型发一次可直接跑的请求。
+3. **能力** —— 模型自身支持的特性（vision、tools、reasoning、JSON mode、流式）。
+4. **什么时候用** —— 主观建议。
+5. **下一步** —— 相关模型与解释通道机制的 provider 页链接。
+
+跨家族结构一致，方便并排对比。
+
+## 下一步
+
+- [Channels](/zh/concepts/channels) —— 让逐模型定价成立的 N:M 模型到通道映射
+- [端点类型](/zh/concepts/endpoints) —— ByteSpike 支持的八套请求结构
+- [Providers](/zh/providers/anthropic) —— 管理员侧的逐上游配置文档

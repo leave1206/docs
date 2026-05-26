@@ -1,0 +1,86 @@
+---
+title: "seedream-4"
+description: "ByteDance Seedream 4 旗舰图像模型。中式美学、海报构图、东亚产品摄影都很强。比 OpenAI 单图成本低；图内文字排版比 nano-banana 更优。"
+---
+
+`seedream-4` 是 ByteDance 的旗舰文生图 / 图生图模型。相对于 [`gpt-image-2`](/zh/models/gpt-image-2) 选它的理由：中文图内文字、海报构图、东亚产品摄影美学明显更强，单图成本明显更低。理由不在它这边的情形：西方地中海 / 北欧美学仍然偏向 OpenAI / Google 模型。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedream** | Volcengine | `ark.cn-beijing.volces.com` | 按图计费（实时价格见 [/pricing](/zh/pricing)） | ~5s（1024×1024） | cn-beijing |
+
+失败不计费。价格位于 `nano-banana`（更便宜）与 `gpt-image-2`（更贵）之间。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-4",
+    "prompt": "中国风海报，水墨意境，远山近水，留白构图，标题：春日新品",
+    "n": 1,
+    "size": "1024x1792"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="seedream-4",
+    prompt="中国风海报，水墨意境，远山近水，留白构图，标题：春日新品",
+    n=1,
+    size="1024x1792",
+)
+
+print(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生图 | ✅ |
+| 图生图（带 `source_image`） | ✅ |
+| `n` ≥ 2 批量生成 | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| 中文图内文字排版 | ✅ 强 |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## 何时使用
+
+- **面向中国市场的营销** —— 海报、产品卡、社交卡片，凡是中文排版与东亚美学要紧的地方。
+- **中档成本** + 图生图 —— 难 prompt 上比 `nano-banana-v2` 强，又比 `gpt-image-2` 便宜。
+- **境内区域低延迟** —— 北京机房，国内用户的首字节延迟低于 1s。
+
+**不**适用的场景：
+
+- 你需要最低档 —— 试试 [`seedream-v5lite`](/zh/models/seedream-v5lite)。
+- 你要的是绝对最高保真、不在乎价格 —— [`seedream-4.5`](/zh/models/seedream-4-5) 或 [`gpt-image-2`](/zh/models/gpt-image-2)。
+
+## 下一步
+
+- [`seedream-4.5`](/zh/models/seedream-4-5) —— 精修过的继任版本
+- [`seedream-v5lite`](/zh/models/seedream-v5lite) —— 最便宜的档
+- [`gpt-image-2`](/zh/models/gpt-image-2) —— OpenAI 备选

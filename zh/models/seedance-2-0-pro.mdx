@@ -1,0 +1,94 @@
+---
+title: "seedance-2.0-pro"
+description: "ByteDance Seedance 2.0 Pro —— 当前 Seedance 旗舰视频模型。中式美学强，cn-beijing 服务，国内低延迟。新项目的默认 Seedance 档。"
+---
+
+`seedance-2.0-pro` 是当前 ByteDance Seedance 旗舰 —— 在保真度、prompt 还原度、运动稳定性上全面超越 [`seedance-1.5-pro`](/zh/models/seedance-1-5-pro)。中式美学强，cn-beijing 出口，国内延迟低。新项目的默认 Seedance 档。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance** | Volcengine | `ark.cn-beijing.volces.com` | 按秒计费（实时价格见 [/pricing](/zh/pricing)） | 5s 片段 ~80s wall-clock | cn-beijing |
+
+失败不计费。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro",
+    "prompt": "城市夜晚街景，霓虹倒映在雨后路面，远处一辆车驶过",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# 轮询模式 —— 见 /models/sora2#quickstart
+```
+
+```python Python (openai SDK)
+import os, time
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+task = client.videos.generate(
+    model="seedance-2.0-pro",
+    prompt="城市夜晚街景，霓虹倒映在雨后路面",
+    duration_seconds=5,
+    size="1280x720",
+)
+
+while True:
+    status = client.videos.retrieve(task.task_id)
+    if status.status == "completed":
+        print(status.result_url)
+        break
+    time.sleep(5)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| 中式美学 / cn-beijing 延迟 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **中国市场视频** —— 产品、广告、海报，凡是中式美学和东亚主体质量要紧的地方。
+- **境内延迟** —— 国内用户拿到 cn-beijing 出口的 wall-clock，省去跨太平洋往返。
+- **DOSIA `generate_video`** —— 当用户在境内区域且权限允许时，主脑会选这个。
+
+**不**适用的场景：
+
+- 以 Sora 级物理 / 运动质量为标杆 —— [`sora2`](/zh/models/sora2) 或 [`sora2-pro`](/zh/models/sora2-pro)。
+- 要最快 wall-clock —— 同模型但更快运行时用 [`seedance-2.0-pro-fast`](/zh/models/seedance-2-0-pro-fast)，最便宜的 Seedance 档用 [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast)。
+
+## 下一步
+
+- [`seedance-2.0-pro-fast`](/zh/models/seedance-2-0-pro-fast) —— 同模型，更快运行时
+- [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast) —— 最便宜的 Seedance 档
+- [`sora2`](/zh/models/sora2) —— OpenAI 备选

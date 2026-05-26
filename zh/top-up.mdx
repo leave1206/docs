@@ -1,0 +1,112 @@
+---
+title: "充值 credits"
+description: "通过 Stripe 购买 ByteSpike credits —— 最低 $5，大额充值最高送 +11.2% bonus。"
+---
+
+ByteSpike 用 **credits** 计费，其中 `1 USD = 1,000,000 credits`
+（micro-USD 精度）。在 [Console → 账单](https://console.bytespike.ai/billing)
+购买 credits；credits 进入组织钱包，账号下任意 key 都能从中扣费。
+
+## 充值流程
+
+1. 打开 [console.bytespike.ai/billing](https://console.bytespike.ai/billing)
+2. 点击 **充值**
+3. 选择金额（单笔最低 $5、最高 $1,250）
+4. 通过 Stripe 付款（信用卡 / Apple Pay / Google Pay）
+5. 付款确认后 ~30 秒内 credits 到账 —— 如果页面没自动刷新，手动刷一下
+
+你也可以订阅一个套餐（替代或叠加在临时充值之上） —— 详见下面的
+[订阅套餐](#subscription-tiers)。
+
+## Bonus 阶梯
+
+单笔大额充值附赠 bonus。实时数字见
+[bytespike.ai/pricing](https://bytespike.ai/pricing#top-up)；当前
+阶梯大致是：
+
+| 充值 | Bonus | 实到 credits |
+|---|---|---|
+| $5 – $19.99 | 0% | 实付金额 |
+| $20 – $99.99 | +3% | $20 → $20.60 |
+| $100 – $499.99 | +5% | $100 → $105 |
+| $500 – $999.99 | +8% | $500 → $540 |
+| $1,000 – $1,250 | +11.2% | $1,000 → $1,112 |
+
+Bonus 与本金同时入账 —— 钱包余额一次变动，账单流水里两条记录。
+
+## 订阅套餐
+
+如果你每月在同一使用模式上的消耗超过 ~$80，订阅比临时充值更划算：
+打包额度 + 更高并发 + 优先队列。
+
+| 套餐 | 价格 | 你能拿到什么 |
+|---|---|---|
+| **Free** | $0 | 新账号试用额度。全部 40+ 模型，标准速率限制。 |
+| **Pro** | ¥149/月（~$20） | 每 12 小时窗口 50–500 条消息。优先队列。在上面 bonus 阶梯之上额外 +5% 充值 bonus。 |
+| **Max** | ¥1,499/月（~$200） | 每 12 小时 500–5000 条消息。更高并发。+11.2% 充值 bonus。 |
+| **Enterprise** | 年度定制 | 无限额度 + SLA、自托管选项、SSO/OIDC、审计日志。请联系 [enterprise@bytespike.ai](mailto:enterprise@bytespike.ai)。 |
+
+此外还有一个 **CodePlan Bundle**（¥299/月），在一个订阅里打包 5 家
+厂商（Doubao、DeepSeek V3.2、GLM、Kimi、MiniMax），适合主要使用
+国产模型目录的团队 —— 详见
+[bytespike.ai/pricing#codeplan](https://bytespike.ai/pricing)。
+
+在 [Console → 订阅](https://console.bytespike.ai/subscriptions) 管理订阅。
+
+## 单 key 消费上限
+
+即使组织钱包很充裕，你也可以给单个 key 设置上限，避免某个客户端
+失控时把整个钱包消耗完：
+
+- **`quota`（USD）** —— 累计消费上限。创建 key 时设置，或之后编辑。
+  `0` 表示不限（受钱包余额约束）。
+- **`rate_limit_5h` / `_1d` / `_7d`（USD）** —— 滚动窗口上限。
+  用来防止突发尖峰。
+- **`expires_in_days`** —— 自动过期，用于时段受限的工作。
+
+完整的单 key 控制项列表见 [鉴权](/zh/authentication)，或在
+[Console → API keys](https://console.bytespike.ai/keys) 的编辑弹窗里查看。
+
+## credits 去向
+
+充值后，使用 key 调用任意 API 都会从钱包扣费。你可以看到实时余额：
+
+- 每次响应都带：`X-Quota-Remaining-Credits`（key）/ `X-Org-Quota-Remaining-Credits`（组织钱包）
+- 在 console：[用量](https://console.bytespike.ai/usage)
+- 编程方式：[`/api/v1/me/account`](/zh/api-reference/account/me-account) —— 当前余额 + 组织上下文；[`/api/v1/me/usage`](/zh/api-reference/account/me-usage) —— 每次调用的成本日志
+
+## 退款
+
+ByteSpike **不会**自动退还未用完的 credits。它们永久留在钱包里 ——
+不会每月清零。
+
+如果需要手工退款（关账号、误充值），发邮件给
+[support@bytespike.ai](mailto:support@bytespike.ai)。可能的情况下，
+退款会沿着原始 Stripe 收款路径退回。
+
+## 充值失败
+
+如果 Stripe 已收款但 5 分钟内 credits 还没到账，去查
+[`/api/v1/me/billing/transactions`](/zh/api-reference/account/me-billing-transactions)
+—— 这笔交易状态会是 `status: "pending"`（还在处理中）或
+`status: "failed"`（支付方那边出问题）。失败的交易里，信用卡通常
+只是被预授权而没有实扣 —— 你的账单上会在 24-48h 内看到这笔授权释放。
+
+持续有问题：把该接口返回的 transaction id 发给 support。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="注册账号" icon="user-plus" href="/zh/register">
+    本节之前的一步。
+  </Card>
+  <Card title="配置你的客户端" icon="terminal" href="/zh/configure-client">
+    花掉这些 credits。
+  </Card>
+  <Card title="价格参考" icon="coins" href="/zh/pricing">
+    文档内的逐模型费率。
+  </Card>
+  <Card title="credits 与账单概念" icon="receipt" href="/zh/concepts/credits-and-billing">
+    更深入的心智模型。
+  </Card>
+</CardGroup>

@@ -1,0 +1,131 @@
+---
+title: "Gemini 3.1 Pro"
+description: "Google 旗舰 Gemini —— 1M context、原生多模态、深度推理。输入既长又混合模态时的首选。"
+---
+
+**厂商：** Google
+**Model ID：** `gemini-3-1-pro`
+**能力：** 1M context · vision · audio in · tool use · streaming · structured output · grounding
+**价格：** 按 token，pro 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Gemini 3.1 Pro 是 *输入长度* 和 *模态组合* 都重要时的正确选择。它接受
+最多 1M token 输入 —— 足以容纳一份长 PDF、一段视频转录或一份图文混
+合语料 —— 并在单次调用里对整体推理。纯文本的旗舰工作上 GPT-5.5 和
+Claude Opus 4.7 旗鼓相当；Gemini 3.1 Pro 的优势在多模态 + 长上下文的
+组合。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-3-1-pro",
+    "messages": [{"role": "user", "content": "Summarize the key claims in this 200-page filing."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gemini-3-1-pro` |
+| `messages` | array | 是 | — | OpenAI chat 形状；支持 `image_url` 和 `input_audio` 块。 |
+| `max_tokens` | integer | 否 | model max | 最大：32768。 |
+| `temperature` | number | 否 | 1.0 | — |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `grounding` | object | 否 | — | Google Search grounding 工具 —— 按次计费。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gemini-3-1-pro",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 287430, "completion_tokens": 4218, "total_tokens": 291648}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gemini-3-1-pro", "messages": [{"role": "user", "content": "Summarize this filing."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gemini-3-1-pro",
+    messages=[{"role": "user", "content": "Summarize the key claims in this 200-page filing."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gemini-3-1-pro",
+  messages: [
+    { role: "user", content: "Summarize the key claims in this 200-page filing." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Grounding（Google Search）
+
+传 `"grounding": {}` 给模型一个内置的 Google Search 工具，用于事实
+grounded 任务。按次计费；见 [价格](https://bytespike.ai/pricing#text)。
+当问题需要可能在训练截止之后的最新信息时有用。
+
+## 流式 + 缓存
+
+`"stream": true` 走 SSE。自动 prompt caching —— 1M token prompt 上，
+缓存命中是杠杆最高的成本优化。
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 413 | 输入超过 1M token | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时使用
+
+- 多模态长上下文工作（文本 + 图像 + 转录一起做）。
+- 200K 不够的长文档推理。
+- 纯文本旗舰工作，请比较 [GPT-5.5](/zh/api-reference/text/gpt-5-5) 和 [Claude Opus 4.7](/zh/api-reference/text/claude-opus-4-7)。
+- flash 档分类，见 [Gemini 3 Flash](/zh/api-reference/text/gemini-3-flash)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| 支持 tool use | 是 |
+| 支持 vision | 是 |
+| 支持 audio 输入 | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 自动 |
+| 支持 grounding（Google Search） | 是 |

@@ -1,0 +1,130 @@
+---
+title: "GET /me/usage"
+description: "按天 / 按模型的花费汇总。console usage 图表的数据源。"
+---
+
+用量汇总。把你所有的推理调用聚合到 console 在
+[/usage](https://console.bytespike.ai/usage) 上画出的图表的同一组 bucket 里。
+免费。
+
+## 何时选用
+
+- **在 console 外搭一个自定义花费图表**
+- **检测换 `model` slug 后的成本回归**
+- **把 credits 响应头跟一段更宽的窗口对账**（每次调用 vs 每天汇总）
+
+要看余额变动（充值、退款），见 [`/me/billing/transactions`](./me-billing-transactions)。
+要看每次调用的明细（原始推理日志条目），等 per-call 审计端点 ——
+v1 还没暴露。
+
+## Request
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/usage?since=2026-05-01&until=2026-05-22&group_by=day' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### Query 参数
+
+| Param | Type | Notes |
+|---|---|---|
+| `since` | string | ISO 日期 / 时间戳 —— 从此刻（含）开始 bucket。默认：30 天前。 |
+| `until` | string | ISO 日期 / 时间戳 —— bucket 到此刻（不含）。默认：现在。 |
+| `group_by` | string | `day`（默认）/ `hour` / `model` / `api_key`。逗号组合：`?group_by=day,model`。 |
+| `model` | string | 过滤到单个 model slug。 |
+| `api_key` | string | 过滤到单把 key（服务端按 key id 解析；掩码形式或 `id` 都行）。 |
+
+`since` / `until` 默认窗口的历史上限是 **90 天**。
+
+## Response —— `group_by=day`
+
+```json
+{
+  "buckets": [
+    {
+      "bucket": "2026-05-21",
+      "total_usd": 4.18,
+      "input_tokens": 142000,
+      "output_tokens": 18400,
+      "call_count": 312
+    },
+    {
+      "bucket": "2026-05-20",
+      "total_usd": 3.94,
+      "input_tokens": 134800,
+      "output_tokens": 17220,
+      "call_count": 298
+    }
+    // …
+  ],
+  "totals": {
+    "total_usd": 78.42,
+    "input_tokens": 2580000,
+    "output_tokens": 332000,
+    "call_count": 5824
+  }
+}
+```
+
+## Response —— `group_by=day,model`
+
+```json
+{
+  "buckets": [
+    {
+      "bucket": "2026-05-21",
+      "model": "claude-sonnet-4-6",
+      "total_usd": 2.10,
+      "input_tokens": 88000,
+      "output_tokens": 11200,
+      "call_count": 142
+    },
+    {
+      "bucket": "2026-05-21",
+      "model": "gpt-5-4",
+      "total_usd": 1.74,
+      "input_tokens": 42000,
+      "output_tokens": 5800,
+      "call_count": 96
+    }
+    // …
+  ],
+  "totals": { /* same shape */ }
+}
+```
+
+### Response 字段
+
+| Field | Type | Notes |
+|---|---|---|
+| `buckets[].bucket` | string | ISO 日期（`day`）、截到小时的 ISO 时间戳（`hour`）、或维度值（model id / key id）。 |
+| `buckets[].total_usd` | number | 该 bucket 的扣费金额。 |
+| `buckets[].input_tokens` | integer | input token 累计。 |
+| `buckets[].output_tokens` | integer | output token 累计。 |
+| `buckets[].call_count` | integer | 成功调用次数。失败免费 + 不计入。 |
+| `totals` | object | 同样结构，跨所有返回 bucket 的合计。 |
+
+## 错误
+
+| Status | `error.type` | 触发条件 |
+|---|---|---|
+| 400 | `invalid_request_error` | `since`/`until` 格式错、`group_by` 未知，或窗口 > 90 天。 |
+| 401 | `authentication_error` | key 缺失 / 已撤销。 |
+
+## 示例 —— 本月迄今，按模型
+
+```python
+import requests, os, datetime
+
+today = datetime.date.today()
+since = today.replace(day=1).isoformat()
+r = requests.get(
+    "https://llm.bytespike.ai/api/v1/me/usage",
+    params={"since": since, "group_by": "model"},
+    headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+    timeout=10,
+).json()
+
+for b in sorted(r["buckets"], key=lambda x: -x["total_usd"]):
+    print(f"{b['model']:30s}  ${b['total_usd']:8.2f}  {b['call_count']} calls")
+```

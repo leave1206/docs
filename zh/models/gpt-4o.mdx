@@ -1,0 +1,63 @@
+---
+title: "gpt-4o"
+description: "OpenAI 的 GPT-4o —— 带音频输入支持的多模态中档。需要 vision + audio 输入输出又不想付 GPT-5 家族推理费的默认选项。"
+---
+
+`gpt-4o` 是 OpenAI 的多模态中档 —— vision、音频输入、tools、JSON mode。它跟 GPT-5 家族的唯一差异是**原生音频输入**，因此是无障碍、呼叫中心、语音流水线工作负载的默认选项。
+
+## 通道
+
+| 通道 | 供应商 | Base URL | 输入 | 输出 | 延迟 p50 | 地区 |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI 直连 | `api.openai.com` | $2.50 / 1M | $10.00 / 1M | ~600ms | global edge |
+
+Azure OpenAI 与 OpenAI 兼容的国内代理通道可由管理员配置；价格差异说明见 [/providers/openai](/zh/providers/openai)。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat Completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| **音频输入** | ✅ |
+| Tools / function calling | ✅ 并行 |
+| JSON mode | ✅ |
+| 结构化输出 | ✅ |
+| Reasoning effort | —（仅 GPT-5 家族） |
+| 上下文窗口 | 128K tokens |
+
+## 什么时候用
+
+- **音频输入流水线** —— 通话摘要、语音助手、无障碍。`gpt-4o` 是当前唯一直接吃音频的 GPT。
+- **多模态中档** —— 需要 vision 又不需要推理时。
+- **既有 `gpt-4o` pin 死的代码 drop-in** —— SDK 调用保持原样；ByteSpike 负责路由。
+
+什么时候**不**用：
+
+- 推理重的任务 —— 上 [gpt-5-4](/zh/models/gpt-5-4) 或更高。
+- 高吞吐成本敏感 —— [gpt-4o-mini](/zh/models/gpt-4o-mini) 是它的十六分之一。
+
+## 下一步
+
+- [gpt-4o-mini](/zh/models/gpt-4o-mini) —— 小 + 便宜
+- [gpt-5-4](/zh/models/gpt-5-4) —— GPT-5 生产主力
+- [OpenAI provider 页](/zh/providers/openai)

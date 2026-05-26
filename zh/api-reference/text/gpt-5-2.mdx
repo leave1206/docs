@@ -1,0 +1,116 @@
+---
+title: "GPT-5.2"
+description: "中档 5 系列 —— 首轮 5.x 打磨期里的标准模型，留给基准已验证的路径。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-2`
+**能力：** 200K 上下文 · 工具调用 · 视觉 · 流式 · 结构化输出
+**计价：** 按 token，标准档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.2 是在最初版 GPT-5 上的第一个打磨步骤 —— 同样的结构，更稳定的结构化输出。
+对已经针对这个版本做完基准验证的团队来说，它仍是个称职的生产模型。新项目优先
+选 [GPT-5.4](/zh/api-reference/text/gpt-5-4) 或 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-2",
+    "messages": [{"role": "user", "content": "Summarize this earnings transcript section."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-2` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：16384。 |
+| `temperature` | number | 否 | 1.0 | — |
+| `tools` | array | 否 | — | 支持 function calling（并行）。 |
+| `response_format` | object | 否 | — | JSON 模式 + 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-2",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 1024, "completion_tokens": 218, "total_tokens": 1242}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-2", "messages": [{"role": "user", "content": "..."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-2",
+    messages=[{"role": "user", "content": "Summarize this earnings transcript section."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-2",
+  messages: [{ role: "user", content: "Summarize this earnings transcript section." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。稳定前缀自动 prompt caching，按
+[价格表](https://bytespike.ai/pricing#text) 中的折扣价计费。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游问题 | 否（自动重试） |
+
+## 何时选用
+
+- 已针对这个具体版本验证过的现有代码。
+- 新项目优先选 [GPT-5.4](/zh/api-reference/text/gpt-5-4) 或 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+- 想要更低成本，见 [GPT-5-mini](/zh/api-reference/text/gpt-5-mini)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 200K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

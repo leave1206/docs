@@ -1,0 +1,121 @@
+---
+title: "Cursor IDE"
+description: "在 Cursor 里把 ByteSpike 作为 OpenAI 兼容的 provider —— 适用于编辑器的 chat、agent 和 tab 补全。"
+---
+
+Cursor 的模型 provider 在底层用 OpenAI 结构的客户端。接入 ByteSpike
+之后，整套模型目录（Claude、GPT-5、Gemini、DeepSeek 等等）在编辑器
+的 chat 面板、行内编辑、agent 里都能用。
+
+## 前置条件
+
+- 一个 ByteSpike 账号 + 一把 key。根据你想在 Cursor 里用的模型挑
+  分组 —— Claude 用 `claude-default`、DeepSeek 系列用
+  `volcengine-default`，等等。详见 [Channels](/zh/concepts/channels)。
+- Cursor `0.42+`（更老的版本没有自定义 provider UI）。
+
+## 配置
+
+1. 打开 **Cursor → Settings → Models**（`Cmd/Ctrl + ,`）
+2. 滚到 **OpenAI API Key** 区
+3. 点 **Override OpenAI Base URL**，粘贴：
+   ```
+   https://llm.bytespike.ai/v1
+   ```
+4. 把 **OpenAI API Key** 设为你的 ByteSpike key（`sk-byts-...`）
+5. 点 **Verify** —— Cursor 会打一次 `/v1/chat/completions` 确认
+
+整个配置就这么多。下次请求开始，Cursor 的 chat 面板 + agent + 行内
+编辑全部走 ByteSpike。
+
+## 启用具体模型
+
+Cursor 允许你选择哪些 model id 出现在 picker 里：
+
+1. 在同一个 **Models** 设置页
+2. 滚到 **Models** 列表
+3. 对每个你想暴露的 ByteSpike id 点 **Add model**：
+   - `claude-sonnet-4-6`
+   - `claude-opus-4-7`
+   - `claude-haiku-4-5`
+   - `gpt-5-5`
+   - `gpt-5-3-codex`
+   - `gemini-2-5-pro`
+   - `deepseek-v4-pro`
+   - …以及 [Models](/zh/models) 里其他任何 id
+
+每个 Cursor 入口（chat、edit、agent）的下拉里都会出现新 id。按任务挑。
+
+<Warning>
+Cursor 内建的 `gpt-4`、`claude-3.5-sonnet` 等 picker 项**仍然**会直
+接打 OpenAI / Anthropic，**除非**你关掉了 "Use my own API key"。配
+好 ByteSpike + 打开该开关后，所有模型 —— 不论内建还是自定义 ——
+都走 ByteSpike。
+</Warning>
+
+## Cursor Agent + ByteSpike
+
+Cursor 的 **Agent** 功能跑的是多轮工具调用循环。ByteSpike 网关跨
+协议保留工具定义，所以 Agent 在翻译路径（Claude 经 OpenAI 结构、
+Gemini 经 OpenAI 结构）和原生路径上工作方式一致。
+
+如果你看到 "tool calls returning malformed json"，通常是上游
+provider 的工具格式映射到 OpenAI 严格 schema 时出问题。把 Agent
+切到 OpenAI 原生 id（`gpt-5-5`、`gpt-5-4`） —— 这些 schema 还原度
+最高。
+
+## 流式、图像输入、视觉
+
+三者都通过 ByteSpike 工作 —— 网关把流式事件 1:1 转发，把图像输入
+（data URL 或 http URL）原样代理过去不再编码。Cursor 对
+`claude-sonnet-4-6` 或 `gemini-2-5-pro` 的视觉特性与直连完全一致。
+
+## Tab 补全
+
+Cursor 的 tab 补全是另一种更轻量的请求结构，通常用一个更小 / 更快
+的模型。给这个槽位钉一个低延迟模型（`claude-haiku-4-5`、
+`gpt-5-4-mini`、`gemini-2-5-flash`） —— chat 面板可以继续用更大
+的模型。
+
+## 排错
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| Verify 返回 401 | key 错了 | 从 console 重新拷一份 |
+| Verify 返回 402 | key 没 budget | 充值 |
+| 模型下拉空白 | Cursor 版本不支持自定义 provider | 升级到 0.42+ |
+| 行内编辑返回 "model unavailable" | Cursor 用了一个内建 model 名，不在你的分组里 | 在 Models 列表里加一个能用的 ByteSpike id 并显式选中 |
+| 首个 token 慢 | 跨协议翻译路径的 cold start | 先用一个小请求预热；或者把热路径功能钉到原生 id |
+
+## 其他编辑器集成
+
+同样的 `https://llm.bytespike.ai/v1` + `sk-byts-...` 配方适用于任意
+OpenAI 兼容的编辑器：
+
+| 编辑器 / IDE | 配置路径 |
+|---|---|
+| Continue.dev（VS Code） | `~/.continue/config.json` → `"apiBase": "https://llm.bytespike.ai/v1"` |
+| Cline（VS Code） | Settings → API Provider → OpenAI Compatible → Base URL |
+| Aider（CLI） | `aider --openai-api-base https://llm.bytespike.ai/v1 --openai-api-key sk-byts-...` |
+| Zed | Settings → AI → custom OpenAI endpoint |
+| JetBrains AI Assistant | Settings → Tools → AI Assistant → custom endpoint |
+
+不管哪个编辑器，核心都一样：一个 OpenAI 兼容的 `base_url` + 你的
+ByteSpike key。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Claude Code CLI" icon="terminal" href="/zh/claude-code-cli">
+    终端那边的对等方案。
+  </Card>
+  <Card title="Codex CLI" icon="terminal" href="/zh/codex-cli">
+    OpenAI 的 CLI —— 同一把 key 即可使用。
+  </Card>
+  <Card title="/chat/completions 参考" icon="code" href="/zh/api-reference/text/openai-chat-completions">
+    Cursor 讲的协议。
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/zh/models">
+    Cursor 可选的目录。
+  </Card>
+</CardGroup>

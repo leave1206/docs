@@ -1,0 +1,281 @@
+---
+title: "ByteSpike 上的 Anthropic"
+description: "全部 Claude 模型 —— Haiku 4.5、Sonnet 4.5 / 4.6、Opus 4.5 / 4.6 / 4.7 —— 共用一把 ByteSpike key。原生 Anthropic Messages 协议，附带一层透明的 OpenAI Chat Completions shim。完整支持 cache_control、tool_use、thinking 和 web_search。"
+---
+
+ByteSpike 用一把 ByteSpike API key 提供整个 Claude 家族 —— Haiku 4.5、Sonnet 4.5 / 4.6、Opus 4.5 / 4.6 / 4.7。原生的 Anthropic Messages 请求结构（包括 `cache_control`、`tool_use`、`thinking` 块）端到端保留。还未迁移的存量代码可以通过 OpenAI Chat Completions shim 接入。
+
+## 两个端点，一把 key
+
+ByteSpike 上的 Anthropic 模型同时支持两套主流 chat 协议。选你客户端已经在用的那种。
+
+| 端点 | 路径 | 使用场景 |
+|---|---|---|
+| **Anthropic Messages** | `POST https://llm.bytespike.ai/v1/messages` | 你想用原生的 `tool_use`、`cache_control`、`thinking` 和 `web_search` 块。写 agent 必须用这个。 |
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | 你已经有 OpenAI SDK 代码。改 `base_url`、换 `model`，其它保持不变。 |
+
+任一端点都接受相同的 ByteSpike key。切换协议改路径就行，不用换凭证。
+
+## 鉴权
+
+在 Console 创建一把 key，然后在每个请求里带上。
+
+1. 登录 [console.bytespike.ai](https://console.bytespike.ai)
+2. 打开 **API keys** → **创建 key**
+3. 展示时复制（只显示一次）
+4. OpenAI 端点带 `Authorization: Bearer $BYTESPIKE_API_KEY`；Anthropic 端点带 `x-api-key: $BYTESPIKE_API_KEY`
+
+同一把 key 可访问网关上的所有模型。Console 支持逐 key 吊销；轮换不会影响账号下其他 key。
+
+## 模型
+
+网关上的所有 Claude 模型。除特别注明外，价格按每百万 token 计；权威实时价目表见 [bytespike.ai/pricing](https://bytespike.ai/pricing)（每晚刷新）。
+
+| 模型 ID | 档位 | 上下文 | 输入 | 输出 | 缓存读取 | 能力 |
+|---|---|---|---|---|---|---|
+| `claude-haiku-4-5` | Haiku 4.5 | 200K | $0.80 | $4.00 | $0.08 | chat · vision · tools · cache |
+| `claude-sonnet-4-5` | Sonnet 4.5 | 200K | $3.00 | $15.00 | $0.30 | chat · vision · tools · cache · web_search |
+| `claude-sonnet-4-6` | Sonnet 4.6 | 200K | $3.00 | $15.00 | $0.30 | chat · vision · tools · cache · web_search · thinking |
+| `claude-opus-4-5` | Opus 4.5 | 200K | $15.00 | $75.00 | $1.50 | chat · vision · tools · cache · thinking |
+| `claude-opus-4-6` | Opus 4.6 | 200K | $15.00 | $75.00 | $1.50 | chat · vision · tools · cache · thinking · web_search |
+| `claude-opus-4-7` | Opus 4.7 | 1M | $15.00 | $75.00 | $1.50 | chat · vision · tools · cache · thinking · web_search · 1M context |
+
+<Note>
+  按 Anthropic 官方价目表，缓存写入费率为输入的 1.25×。首次填充某个 cache 块的请求按写入档计费；之后命中该块的读取按上表的 cache-read 档计费。
+</Note>
+
+## 快速开始
+
+用你顺手的栈发出第一个请求。下面四个示例都向 `claude-sonnet-4-6` 发出同样的请求。
+
+<CodeGroup>
+
+```bash cURL (Anthropic Messages)
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (OpenAI SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="claude-sonnet-4-6",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```javascript Node (OpenAI SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "claude-sonnet-4-6",
+  messages: [
+    { role: "user", content: "Hello, ByteSpike." },
+  ],
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+```python Python (Anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.content[0].text)
+```
+
+</CodeGroup>
+
+## Anthropic 专属能力
+
+Anthropic 给直连客户提供的每个特性都原样通过 ByteSpike。块结构、响应头语义、SDK 类型收窄都跟上游契约一致。
+
+### 用 `cache_control` 做 prompt 缓存
+
+把前缀标成可缓存，让它的成本在多次请求间摊销。
+
+```python
+client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": LARGE_SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ],
+    messages=[{"role": "user", "content": "Question 1"}],
+)
+```
+
+首次请求按缓存写入档计费（输入的 1.25×）。之后复用相同前缀的请求按缓存读取档计费（约为输入的 10%）。缓存默认 TTL 5 分钟，每次命中都会续期。
+
+### Tool use
+
+`tool_use` 块原样透传，包含并行工具调用。
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Return the current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "properties": { "city": { "type": "string" } },
+        "required": ["city"]
+      }
+    }
+  ],
+  "messages": [{ "role": "user", "content": "Weather in SF?" }]
+}
+```
+
+响应里的 `content` 数组会包含一个 `tool_use` 块；下一轮用 `tool_result` 块回填以继续。
+
+### Extended thinking
+
+Sonnet 4.6 和 Opus 4.5+ 通过 `thinking` 块开放穿插的推理过程。在请求里加 `thinking: { type: "enabled", budget_tokens: N }` 即可启用。
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "max_tokens": 2048,
+  "thinking": { "type": "enabled", "budget_tokens": 1024 },
+  "messages": [{ "role": "user", "content": "Untangle this contract." }]
+}
+```
+
+Thinking token 计入输出计费。`thinking` 块出现在 `content` 中，位于最终 `text` 块之前。
+
+### Web search
+
+Opus 4.6 / 4.7 和 Sonnet 4.6 支持 Anthropic 的 web search 工具。把工具加进请求，模型就会透明地编排检索。
+
+```json
+{
+  "tools": [{ "type": "web_search_20250305", "name": "web_search" }]
+}
+```
+
+每次 web search 调用算作一次独立 tool use；结果按上游公布的费率单独计费。
+
+### 流式
+
+任一端点设 `stream: true` 即返回 SSE。
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "stream": true,
+    "messages": [{"role": "user", "content": "Stream this."}]
+  }'
+```
+
+流中途出错会用 `error` 事件关闭 SSE 通道，整个请求计费为 0 credits —— 即便 token 已经渲染过也一样。策略详见 [失败不计费](/zh/concepts/credits-and-billing)。
+
+## 能力矩阵
+
+下面是 ByteSpike 上每个 Claude 模型当前支持的能力。
+
+| 能力 | Haiku 4.5 | Sonnet 4.5 | Sonnet 4.6 | Opus 4.5 | Opus 4.6 | Opus 4.7 |
+|---|---|---|---|---|---|---|
+| Chat completions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 流式（SSE） | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Vision（图像输入） | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tool use（function calling） | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 并行 tool use | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| JSON / 结构化输出 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Prompt 缓存 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Extended thinking | — | — | ✅ | ✅ | ✅ | ✅ |
+| Web search | — | ✅ | ✅ | — | ✅ | ✅ |
+| 1M 上下文窗口 | — | — | — | — | — | ✅ |
+| OpenAI shim 端点 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Anthropic Messages 端点 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+## 错误
+
+只要上游错误的结构本身有信息量，ByteSpike 就原样透传；对那些上游会用 200 OK + `error` 字段返回的少数情况，ByteSpike 会改写状态。
+
+| 状态码 | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 | 请求格式错（JSON 不合法、字段未知、模型 ID 错） | 否 |
+| 401 | `Authorization` / `x-api-key` 缺失或错误 | 否 |
+| 402 | credits 不足 | 否 |
+| 422 | 校验错（如超出上下文窗口） | 否 |
+| 429 | 速率限制（账号或上游） | 否 |
+| 500 | 网关内部错 | 否（自动重试 2 次） |
+| 502 / 503 / 504 | 上游不可用 | 否（自动重试 2 次） |
+
+非 2xx 状态码一律计费为 0 credits。SSE 200 响应中途出现 `error` 事件也计 0，即便 token 已渲染。
+
+## 速率限制
+
+账号级限制覆盖所有模型；网关在 60 秒突发窗口内缓冲尖峰流量。
+
+| 套餐 | 每分钟请求数 | 每分钟 token 数 |
+|---|---|---|
+| Free | 60 | 50K |
+| Pro | 600 | 500K |
+| Max | 6,000 | 5M |
+| Enterprise | 自定义 | 自定义 |
+
+触发限制返回 429 并带 `retry-after` 头。给每个请求带上 [Idempotency-Key](/zh/concepts/error-handling#idempotency) 以便去重重试。
+
+## 各 Claude 该选谁
+
+- **Haiku 4.5** —— 大规模分类、路由、结构化抽取。便宜又快；用 `cache_control` 缓存系统提示。
+- **Sonnet 4.5** —— 速度比深度重要的草稿和摘要。需要新鲜事实就开 web search。
+- **Sonnet 4.6** —— 默认的生产主力。Vision、tools、thinking、web search、prompt cache 全到位，价格还是 Sonnet 档。
+- **Opus 4.5** —— 不需要新鲜网页上下文的长文推理。比 4.6 / 4.7 便宜，但没 web search。
+- **Opus 4.6** —— 带 web search 的 Opus。研究、汇报、任何需要当下信源的工作都用它。
+- **Opus 4.7** —— 1M 上下文旗舰。代码库级别重构、整篇文档审阅，任何 200K 装不下的活。
+
+## 下一步
+
+- [ByteSpike 上的 OpenAI](/zh/providers/openai) —— GPT 与 DALL-E
+- [Concepts: credits 与计费](/zh/concepts/credits-and-billing) —— "失败不计费" 策略
+- [Concepts: 错误处理](/zh/concepts/error-handling) —— 重试与幂等
+- [API 参考：claude-messages](/zh/api-reference/text/claude-messages) —— 完整的 Anthropic Messages 规格

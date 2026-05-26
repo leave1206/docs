@@ -1,0 +1,65 @@
+---
+title: "seedream-v5lite"
+description: "ByteDance Seedream 的轻量档。整套图像系列里单图成本最低，代价是难 prompt 上生成质量更松。面向高并发程序化图像工作 —— 够用即可，便宜优先。"
+---
+
+`seedream-v5lite` 是 ByteSpike 图像家族里单图成本最低的一档。相对于 [`seedream-4`](/zh/models/seedream-4) 和 [`nano-banana`](/zh/models/nano-banana) 的取舍：单图明显更便宜，难 prompt（复杂构图、密集图内文字、精准产品图）下的质量更松。当单图成本在月账单上的影响比单图质量在产出物上的影响更明显时，就选它。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedream** | Volcengine | `ark.cn-beijing.volces.com` | 按图计费（[/pricing](/zh/pricing) —— 图像费率卡里最低档） | ~3s（1024×1024） | cn-beijing |
+
+失败不计费。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v5lite",
+    "prompt": "Simple illustration of a coffee cup on a wooden desk, top-down",
+    "n": 8,
+    "size": "1024x1024"
+  }'
+```
+
+`n=8` 批量生成是这个模型的典型用法之一 —— 程序化内容流水线靠它出缩略图、A/B 变体和占位资产。
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生图 | ✅ |
+| 图生图（带 `source_image`） | ✅ 基础 |
+| `n` ≥ 2 批量生成 | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## 何时使用
+
+- **程序化批量** —— 缩略图生成、素材库、A/B 变体、demo 占位。
+- **内部创意** —— 设计评审用的 mockup，质量"差不多到位"就行。
+- **预算受限的 DOSIA 用户** —— 当 capability bucket 包含它，且你把成本偏好调到便宜方向时，主脑会选它。
+
+**不**适用的场景：
+
+- 面向用户的营销创意 —— [`seedream-4`](/zh/models/seedream-4) 或 [`gpt-image-2`](/zh/models/gpt-image-2)。
+- 需要高保真图生图 —— [`nano-banana-v2`](/zh/models/nano-banana-v2) 或 [`seedream-4-5`](/zh/models/seedream-4-5)。
+
+## 下一步
+
+- [`seedream-4`](/zh/models/seedream-4) —— 旗舰档
+- [`nano-banana`](/zh/models/nano-banana) —— Google 的轻量备选
+- [多模态端点](/zh/concepts/multimodal) —— 协议总览

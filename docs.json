@@ -295,8 +295,237 @@
                   "zh/introduction",
                   "zh/quickstart",
                   "zh/register",
+                  "zh/top-up",
                   "zh/configure-client",
-                  "zh/authentication"
+                  "zh/authentication",
+                  "zh/pricing",
+                  "zh/troubleshooting"
+                ]
+              },
+              {
+                "group": "客户端配置",
+                "pages": [
+                  "zh/claude-code-cli",
+                  "zh/codex-cli",
+                  "zh/gemini-cli",
+                  "zh/cursor"
+                ]
+              },
+              {
+                "group": "从其他平台迁移",
+                "pages": [
+                  "zh/migrate-from-openai",
+                  "zh/migrate-from-anthropic"
+                ]
+              },
+              {
+                "group": "核心概念",
+                "pages": [
+                  "zh/concepts/endpoints",
+                  "zh/concepts/channels",
+                  "zh/concepts/platforms-vs-channels",
+                  "zh/concepts/legacy-compat-names",
+                  "zh/concepts/provider-comparison",
+                  "zh/concepts/vendor-compat-multi-endpoint",
+                  "zh/concepts/dosia-agent-mode",
+                  "zh/concepts/mcp-integration",
+                  "zh/concepts/credits-and-billing",
+                  "zh/concepts/multimodal",
+                  "zh/concepts/streaming",
+                  "zh/concepts/rate-limits",
+                  "zh/concepts/error-handling",
+                  "zh/concepts/errors-reference"
+                ]
+              },
+              {
+                "group": "模型",
+                "pages": [
+                  "zh/models/index",
+                  "zh/models/claude-haiku-4-5",
+                  "zh/models/claude-sonnet-4-6",
+                  "zh/models/claude-opus-4-7",
+                  "zh/models/gpt-4o-mini",
+                  "zh/models/gpt-4o",
+                  "zh/models/gpt-4v",
+                  "zh/models/gpt-5-2",
+                  "zh/models/gpt-5-3-codex",
+                  "zh/models/gpt-5-4-mini",
+                  "zh/models/gpt-5-4",
+                  "zh/models/gpt-5-5",
+                  "zh/models/gemini-2-5-flash",
+                  "zh/models/gemini-2-5-pro",
+                  "zh/models/gemini-3-1-pro",
+                  "zh/models/deepseek-v3-2",
+                  "zh/models/deepseek-v3-anthropic",
+                  "zh/models/deepseek-v4-flash",
+                  "zh/models/deepseek-v4-pro",
+                  "zh/models/deepseek-r1",
+                  "zh/models/doubao-seed-2-0-pro",
+                  "zh/models/glm-5",
+                  "zh/models/kimi-k2-6",
+                  "zh/models/minimax-m2-7",
+                  "zh/models/nano-banana",
+                  "zh/models/nano-banana-v2",
+                  "zh/models/gpt-image-2",
+                  "zh/models/seedream-4",
+                  "zh/models/seedream-4-5",
+                  "zh/models/seedream-v5lite",
+                  "zh/models/sora2",
+                  "zh/models/sora2-pro",
+                  "zh/models/veo3-1",
+                  "zh/models/veo3-1-fast",
+                  "zh/models/seedance-1-5-pro",
+                  "zh/models/seedance-2-0-pro",
+                  "zh/models/seedance-2-0-pro-fast",
+                  "zh/models/seedance-2-0-fast"
+                ]
+              },
+              {
+                "group": "上游平台",
+                "pages": [
+                  "zh/providers/anthropic",
+                  "zh/providers/openai",
+                  "zh/providers/gemini",
+                  "zh/providers/deepseek",
+                  "zh/providers/volcengine-codeplan"
+                ]
+              },
+              {
+                "group": "内部文档（DOSIA 关联）",
+                "pages": [
+                  "zh/employee-onboarding",
+                  "zh/admin-operations"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API 参考",
+            "groups": [
+              {
+                "group": "总览",
+                "pages": [
+                  "zh/api-reference/overview"
+                ]
+              },
+              {
+                "group": "协议端点",
+                "pages": [
+                  "zh/api-reference/text/claude-messages",
+                  "zh/api-reference/text/openai-chat-completions",
+                  "zh/api-reference/text/openai-responses",
+                  "zh/api-reference/text/gemini-generate-content"
+                ]
+              },
+              {
+                "group": "OpenAI",
+                "pages": [
+                  "zh/api-reference/text/gpt-4o-mini",
+                  "zh/api-reference/text/gpt-4o",
+                  "zh/api-reference/text/gpt-5-nano",
+                  "zh/api-reference/text/gpt-5-mini",
+                  "zh/api-reference/text/gpt-5-2",
+                  "zh/api-reference/text/gpt-5-4-nano",
+                  "zh/api-reference/text/gpt-5-4-mini",
+                  "zh/api-reference/text/gpt-5-4",
+                  "zh/api-reference/text/gpt-5-4-pro",
+                  "zh/api-reference/text/gpt-5-5-instant",
+                  "zh/api-reference/text/gpt-5-5"
+                ]
+              },
+              {
+                "group": "Anthropic",
+                "pages": [
+                  "zh/api-reference/text/claude-haiku-4-5",
+                  "zh/api-reference/text/claude-sonnet-4-5",
+                  "zh/api-reference/text/claude-sonnet-4-6",
+                  "zh/api-reference/text/claude-opus-4-5",
+                  "zh/api-reference/text/claude-opus-4-6",
+                  "zh/api-reference/text/claude-opus-4-7"
+                ]
+              },
+              {
+                "group": "Google",
+                "pages": [
+                  "zh/api-reference/text/gemini-3-flash",
+                  "zh/api-reference/text/gemini-3-1-pro"
+                ]
+              },
+              {
+                "group": "DeepSeek",
+                "pages": [
+                  "zh/api-reference/text/deepseek-v3-2",
+                  "zh/api-reference/text/deepseek-v4-flash",
+                  "zh/api-reference/text/deepseek-v4-pro"
+                ]
+              },
+              {
+                "group": "Moonshot",
+                "pages": [
+                  "zh/api-reference/text/kimi-k2-5",
+                  "zh/api-reference/text/kimi-k2-6"
+                ]
+              },
+              {
+                "group": "智谱",
+                "pages": [
+                  "zh/api-reference/text/glm-5",
+                  "zh/api-reference/text/glm-5-1"
+                ]
+              },
+              {
+                "group": "MiniMax",
+                "pages": [
+                  "zh/api-reference/text/minimax-m2-5",
+                  "zh/api-reference/text/minimax-m2-7"
+                ]
+              },
+              {
+                "group": "图像",
+                "pages": [
+                  "zh/api-reference/image/seedream-v4",
+                  "zh/api-reference/image/seedream-v4-5",
+                  "zh/api-reference/image/seedream-v5lite",
+                  "zh/api-reference/image/nano-banana",
+                  "zh/api-reference/image/nano-banana-pro",
+                  "zh/api-reference/image/nano-banana-v2",
+                  "zh/api-reference/image/gpt-image-2",
+                  "zh/api-reference/image/gpt-image-2-official",
+                  "zh/api-reference/image/gpt-4o-image"
+                ]
+              },
+              {
+                "group": "视频",
+                "pages": [
+                  "zh/api-reference/video/sora-2",
+                  "zh/api-reference/video/sora-2-pro",
+                  "zh/api-reference/video/veo-3-1",
+                  "zh/api-reference/video/veo-3-1-fast",
+                  "zh/api-reference/video/seedance-1-5-pro",
+                  "zh/api-reference/video/seedance-2-0",
+                  "zh/api-reference/video/seedance-2-0-pro",
+                  "zh/api-reference/video/seedance-2-0-pro-fast",
+                  "zh/api-reference/video/seedance-fast"
+                ]
+              },
+              {
+                "group": "账户与账单",
+                "pages": [
+                  "zh/api-reference/account/me-account",
+                  "zh/api-reference/account/me-billing-transactions",
+                  "zh/api-reference/account/me-usage",
+                  "zh/api-reference/account/me-webhooks",
+                  "zh/api-reference/account/me-notifications"
+                ]
+              },
+              {
+                "group": "工具接口",
+                "pages": [
+                  "zh/api-reference/utility/v1-models",
+                  "zh/api-reference/utility/balance",
+                  "zh/api-reference/utility/tasks-submit",
+                  "zh/api-reference/utility/tasks-query",
+                  "zh/api-reference/utility/tasks-cancel"
                 ]
               }
             ]

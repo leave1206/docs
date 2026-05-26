@@ -1,0 +1,76 @@
+---
+title: "查看你的余额"
+description: "如何检查剩余 credits、速率限制预算、每次调用花费 —— 没有独立的 /v1/balance 端点；数据已经在每个响应和 /api/v1/me/* 里。"
+---
+
+ByteSpike 没有专门的 `GET /v1/balance` 端点。同样的信息已经在
+**每条**响应的响应头里，更细的明细在管理 API 里。本页记录三条权威
+路径。
+
+## 1. 内联在每条响应上（最便宜）
+
+每条网关响应（**成功和失败都有**）都带 quota envelope：
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+X-Org-Quota-Remaining-Credits: 8420.65
+```
+
+| Header | 含义 |
+|---|---|
+| `X-RateLimit-Limit` / `Remaining` / `Reset` | 最接近触发限制的速率窗口（USD；reset 是 Unix）。 |
+| `X-Quota-Remaining-Credits` | 该 key 累计剩余（USD）。 |
+| `X-Org-Quota-Remaining-Credits` | 组织钱包余额（仅对组织持有的 key）。 |
+
+失败请求不会让 `X-Quota-Remaining-Credits` 变动。纯为查余额而轮询很浪费 ——
+读真实流量上的这些响应头就够了。
+
+## 2. 仅看我的账号：`GET /api/v1/me/account`
+
+一个免费的只读管理调用，返回你当前的用户 / 组织上下文，包括当前余额。
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/account \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+完整响应结构见 [`/api/v1/me/account`](/zh/api-reference/account/me-account)。
+
+## 3. 每次调用花费：`GET /api/v1/me/usage`
+
+如果你要精确的每次请求 `credits` 扣费，查询用量日志：
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/usage?limit=20' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+每行带 `prompt_tokens`、`completion_tokens`、`credits`、服务方
+`upstream_provider` 和时间戳。过滤 + 分页见
+[`/api/v1/me/usage`](/zh/api-reference/account/me-usage)。
+
+## 4. 账单历史：`GET /api/v1/me/billing/transactions`
+
+充值、退款、调整 —— 每一笔不是 API 请求引起的钱包变动。见
+[`/api/v1/me/billing/transactions`](/zh/api-reference/account/me-billing-transactions)。
+
+## 用哪个
+
+| 需求 | 用 |
+|---|---|
+| 「我这次调用还有预算吗？」 | 最近一次响应里的 `X-Quota-Remaining-Credits` 响应头 —— 已经免费，无需额外请求。 |
+| 「在我的 dashboard 上显示组织余额」 | `/api/v1/me/account` —— 一次调用，含组织上下文。 |
+| 「对账某个 request id 的扣费」 | `/api/v1/me/usage?request_id=...` —— 每次调用的精确 `credits`。 |
+| 「这个月发生了哪些充值？」 | `/api/v1/me/billing/transactions`。 |
+
+## 为什么没有 `/v1/balance`？
+
+两个原因：
+1. 每条响应已经带了你想塞进 balance 端点的数据。专门的端点只会对同一个后端做重复读。
+2. 管理 API（`/api/v1/me/*`）走 cookie-or-key 鉴权，给的图比原始余额数字更全 —— 组织上下文、按 key 的花费、账单历史。
+
+如果你的客户端框架就是必须有个端点去查余额数字，请求 `/api/v1/me/account`
+然后读响应里的 `.balance`。

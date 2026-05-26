@@ -7,13 +7,13 @@ description: "两分钟内发出你的第一个请求。"
 
 1. 登录 [console.bytespike.ai](https://console.bytespike.ai) —— 注册大约 30 秒（邮箱 + 密码，或 Google 登录）。
 2. 在 [账单](https://console.bytespike.ai/billing) 充值几块钱，最低充值金额为 **$5**。
-3. 进入 [API keys](https://console.bytespike.ai/keys)，点击 **创建 key**。选一个路由分组（Claude 模型用 `claude-default`，DeepSeek/Doubao 用 `volcengine-default`，Gemini 用 `gemini-default` —— 详见 [Channels](/concepts/channels)）。
+3. 进入 [API keys](https://console.bytespike.ai/keys)，点击 **创建 key**。选一个路由分组（Claude 模型用 `claude-default`，DeepSeek/Doubao 用 `volcengine-default`，Gemini 用 `gemini-default` —— 详见 [Channels](/zh/concepts/channels)）。
 
 复制创建后展示的密文。它形如 `sk-byts-...`，**只显示一次** —— 找个安全的地方存好。
 
 <Warning>
 明文密钥只在创建时展示一次。如果丢失，可以在 [Console → API keys](https://console.bytespike.ai/keys)
-重新揭示，或者轮换 key 拿到新的密文。详见 [鉴权](/authentication)。
+重新揭示，或者轮换 key 拿到新的密文。详见 [鉴权](/zh/authentication)。
 </Warning>
 
 ## 2. 选一个协议
@@ -71,7 +71,7 @@ X-Quota-Remaining-Credits: 192.40
 - `X-Quota-Remaining-Credits` —— 该 key 剩余的累计 credits（USD；`1 USD = 1,000,000 credits`）。`0.00` 意味着达到 key 上设置的 `quota` 上限；在 console 充值或提高上限即可。
 - `X-Org-Quota-Remaining-Credits` —— 在组织钱包级别的同一数值，仅对组织持有的 key 返回。
 
-要查实际每次调用花费，请求 [`GET /v1/usage`](/api-reference/account/me-usage)
+要查实际每次调用花费，请求 [`GET /v1/usage`](/zh/api-reference/account/me-usage)
 或者比较两次请求之间 `X-Quota-Remaining-Credits` 的差值。失败的请求不计费 —— 非
 2xx 响应不会让 `X-Quota-Remaining-Credits` 动。
 
@@ -99,16 +99,16 @@ X-Quota-Remaining-Credits: 192.40
 [Test](https://console.bytespike.ai/dosia/models) 按钮可以在你接入客户端之前
 先验证 key + 分组 + 模型三者匹配。
 
-图像 / 视频 / 工具端点的用法见 [API 参考](/api-reference/overview) —— 每个家族
+图像 / 视频 / 工具端点的用法见 [API 参考](/zh/api-reference/overview) —— 每个家族
 的请求结构都按端点单独写有文档。
 
 ## 下一步
 
 <CardGroup cols={2}>
-  <Card title="鉴权" icon="key" href="/authentication">
+  <Card title="鉴权" icon="key" href="/zh/authentication">
     子 key、scope、IP 白名单。
   </Card>
-  <Card title="Credits 与账单" icon="coins" href="/concepts/credits-and-billing">
+  <Card title="Credits 与账单" icon="coins" href="/zh/concepts/credits-and-billing">
     credits 如何换算成美元，失败为什么不计费（真的不计费），以及如何读响应头。
   </Card>
 </CardGroup>

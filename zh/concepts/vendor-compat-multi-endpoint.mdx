@@ -1,0 +1,120 @@
+---
+title: "Vendor compat · 多 endpoint 架构"
+description: "ByteSpike 如何用一个上游凭证服务多个协议表面（OpenAI Chat Completions、Anthropic Messages）。包括 base_url + base_url_anthropic 的管理员配置 UX、路由逻辑，以及对接下一个 vendor 的 SOP。"
+---
+
+有些上游 vendor 悄悄从 **同一把 API key 上暴露多个协议表面**。DeepSeek 是这样；Moonshot、Zhipu、Volcengine CodePlan bundle 也是。一个凭证 → 两个 base URL → 两份协议契约（一个路径上 OpenAI Chat Completions、另一个路径上 Anthropic Messages）。
+
+ByteSpike 把这个模式整合成 **一个账号**、多个 endpoint 字段。客户看到的是一把 ByteSpike key；管理员填一份凭证；路由层按请求路径分派。本页是这个模式的架构参考 —— 适合配置新 vendor 的 ByteSpike 管理员，也适合想搞清楚"同一个模型名怎么经两个协议形状路由出去"的好奇开发者。
+
+客户侧体验见 [DeepSeek 双协议博客](/zh/blog/one-key-two-protocols-deepseek)。协议契约本身见 [Endpoint 类型](/zh/concepts/endpoints)。
+
+## Vendor 那边的真相
+
+像 DeepSeek 这种上游，**从一个凭证上服务两个 HTTP base URL**：
+
+| 表面 | 路径 | 契约 |
+|---|---|---|
+| OpenAI Chat Completions | `https://api.deepseek.com/v1/chat/completions` | OpenAI 形状 |
+| Anthropic Messages | `https://api.deepseek.com/anthropic/v1/messages` | Anthropic 形状 |
+
+两条路由接受同一把 `sk-...` key。两边共享 **同一个配额和同一个计费** —— 在消费端把它们拆开毫无意义，上游已经把它们当成同一个身份。
+
+Moonshot、Zhipu、Volcengine CodePlan 走同样的模式。Base URL 路径不同；原则一致。
+
+## ByteSpike 的模型：一个账号、多个 base URL
+
+Vendor-compat 账号记录在同一个 `credentials` 对象里保存两个 endpoint：
+
+```jsonc
+{
+  "name": "deepseek-01",
+  "platform": "deepseek",
+  "type": "apikey",
+  "credentials": {
+    "api_key": "sk-deepseek-...",
+    "base_url":           "https://api.deepseek.com",
+    "base_url_anthropic": "https://api.deepseek.com/anthropic"
+  },
+  "group_ids": [11]
+}
+```
+
+`base_url` 必填（即 OpenAI-compatible endpoint，最小公分母）。`base_url_anthropic` **可选** —— 仅当 vendor 暴露平行的 anthropic-compat 表面时才存在。如果某 vendor 从未发布 anthropic 别名，这个字段就留空，网关只把 OpenAI 形状的请求路由到这个账号。
+
+未来的 `base_url_gemini` 槽预留给将来获得 Gemini-compatible endpoint 的 vendor；schema 纯加性。
+
+## 请求如何解析
+
+请求经网关的五个步骤：
+
+1. **Endpoint 匹配** —— `POST /v1/messages` 匹配 Anthropic Messages handler；`POST /v1/chat/completions` 匹配 OpenAI Chat handler。
+2. **分组查询** —— 客户的 ByteSpike key 解析到一个分组；分组的 platform 决定是否走 vendor-compat 分派。
+3. **账号选择** —— 对 vendor-compat 分组，scheduler 挑一个账号，按 `(api_key, sessionHash)` 应用 sticky-session 逻辑 —— 两个协议用同一个 sticky key，因为上游身份就是一个。
+4. **Base URL 选择** —— dispatcher 读请求路径决定用哪个 `base_url`：
+   - `/v1/chat/completions` → `account.base_url`
+   - `/v1/messages` → `account.base_url_anthropic`（旧账号回退到 `account.base_url + "/anthropic"`）
+5. **转发** —— 请求带着对应 base URL 和同一个 `api_key` 发往上游。响应回来，必要处做翻译，落到客户手里。
+
+客户看不到这一切。从 API 角度，这把 key 同时对 `/v1/chat/completions` 和 `/v1/messages` 有效 —— 不同的只是他们自己写的请求体形状。
+
+## 管理员 UX
+
+在 ByteSpike 管理 Console 里，vendor-compat platform（DeepSeek、Moonshot、Zhipu、Volcengine CodePlan）的账号表单暴露两个字段：
+
+| 字段 | 标签 | 必填 | 示例 |
+|---|---|---|---|
+| `api_key` | 上游 API key | ✅ | `sk-deepseek-...` |
+| `base_url` | Base URL（OpenAI-compatible） | ✅ | `https://api.deepseek.com` |
+| `base_url_anthropic` | Anthropic Base URL（可选） | — | `https://api.deepseek.com/anthropic` |
+
+管理员只填一次 api_key。如果 vendor 也暴露 anthropic-compat endpoint 且管理员想启用该协议，就把 `base_url_anthropic` 填上替代路径。留空就是 "本 channel 不暴露 Anthropic Messages" —— 账号继续正常处理 OpenAI Chat Completions。
+
+不需要第二个账号，也不需要第二个凭证。
+
+## 为什么不"每个协议一个账号"？
+
+ByteSpike 早先的实现确实那样做 —— 把 DeepSeek 拆成两条账号记录（`#4` 用 `base_url=api.deepseek.com`、`#5` 用 `base_url=api.deepseek.com/anthropic`）。能用，但违反了两条 sub2api 不变量：
+
+- **一个账号 = 一个上游身份**（1 个凭证、1 个配额池）。两个账号共享 key 打破了这一点。
+- **同分组内的账号在协议上可互换。** scheduler 允许在分组内迁移 sticky session；按协议拆分的账号让这种迁移引发跨协议污染（5 月 13 日深夜 e2e 测试出现 HTTP 504 + 404）。
+
+当前的多 endpoint 设计修复了两点。Scheduler 把 `deepseek-01` 当作一个账号；sticky session 绑死在它上面；选哪个协议是请求路径的属性，而不是账号选择的属性。
+
+## 对接下一个 vendor —— SOP
+
+当新 vendor 在同一个凭证上暴露 OpenAI-compat 和 Anthropic-compat 两端时，步骤是：
+
+1. **把 platform 名字加进** sub2api platform 注册表（今天已有 `deepseek`、`moonshot`、`zhipu`、`volcengine_codeplan` 这四个）。
+2. 在 platform 元数据上 **标 `IsVendorOpenAICompat() == true`**。
+3. **在管理后台建一个账号**，两个 base URL 字段都填好。
+4. **绑定一个分组**到账号；分组的 `platform` 字段携带 platform 名。
+5. **加一条 channel**，把 platform 的 model ID 映射到分组。两个协议立刻可用；不需要单独的 channel 记录。
+
+就这些。不需要 schema 迁移、不需要每协议的路由布线。四个 sub2api 代码触点（dispatcher 读 `base_url_anthropic`、sticky lookup 不变）每次都复用。
+
+## 当前覆盖
+
+| Vendor | OpenAI endpoint | Anthropic endpoint | 状态 |
+|---|---|---|---|
+| DeepSeek | `api.deepseek.com` | `api.deepseek.com/anthropic` | ✅ 已上线 |
+| Moonshot（Kimi anthropic-compat 别名） | `api.moonshot.cn` | `api.moonshot.cn/anthropic` | ⏳ 已规划 |
+| Zhipu（GLM anthropic-compat 别名） | `open.bigmodel.cn/api/paas/v4` |（待定） | ⏳ 已规划 |
+| Volcengine CodePlan | `ark.cn-beijing.volces.com/api/coding/v3` | `ark.cn-beijing.volces.com/api/coding` | ⏳ 已规划（W2 路由修复进行中） |
+
+随着更多 vendor 暴露第二协议表面，这个矩阵会填满。客户代码不变 —— 同一把 ByteSpike key 一旦管理员侧 channel 记录更新，就立刻获得对新 endpoint 的访问。
+
+## 设计接受的权衡
+
+- **没有按协议的配额隔离。** 上游本身不把 `/v1/chat/completions` 和 `/v1/messages` 的配额分开 —— 它们共享一个速率限制。ByteSpike 不会凭空合成上游不强制的配额隔离。
+- **没有按协议的健康门控。** 如果 vendor 的 OpenAI endpoint 健康但 Anthropic endpoint 502，ByteSpike 会重试；持续失败以 channel 级告警出现，不是按协议禁用。这能接受，因为上游从不在两个协议中只挂一个 —— 它们都在同一服务里。
+- **没有按协议的定价档位。** Channel 记录只有一份 `cost_per_million_input` / `cost_per_million_output` —— 上游本身也不会给两条路径定不同价。
+
+这些都是上游"共享配额"现实的后果，不是凭空造的限制。如果未来某 vendor 真的强制按协议区分，channel 记录的 schema 届时再加 `protocol → cost` 映射。
+
+## 下一步
+
+- [DeepSeek provider 页](/zh/providers/deepseek) —— 双协议模型的客户端表现
+- [Channels](/zh/concepts/channels) —— N:M 模型到 channel 路由模型
+- [Endpoint 类型](/zh/concepts/endpoints) —— 完整协议目录
+- [博客："一把 key、两种协议"](/zh/blog/one-key-two-protocols-deepseek) —— 客户视角版本

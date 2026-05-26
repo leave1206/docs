@@ -1,0 +1,97 @@
+---
+title: "claude-haiku-4-5"
+description: "Anthropic 的小型廉价模型 —— 大规模分类、路由、结构化抽取。仍包含 vision 和 tool use；给系统提示挂上 prompt cache，单请求成本可以压到最低。"
+---
+
+`claude-haiku-4-5` 是小 / 快 / 便宜的 Claude。当 prompt 短、响应短、你宁愿每小时调一万次 API 而不是三百次时，**任何大规模运行的活**都应该默认选它。Vision 和 tool use 仍然在；让出去的是大模型在硬问题上的推理深度。
+
+## 通道
+
+| 通道分组 | 输入 | 输出 | 缓存读取 |
+|---|---|---|---|
+| **claude-default**（Anthropic 上游） | $1.00 / 1M | $5.00 / 1M | $0.10 / 1M |
+
+定价按 [channels](/zh/concepts/channels)，路由层从你 key 的分组里挑一个。缓存写入档为输入的 1.25×。
+
+## 协议
+
+| 协议 | 路径 |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions（shim） | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## 快速开始
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 256,
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK with cache_control)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=256,
+    system=[
+        {
+            "type": "text",
+            "text": LARGE_CLASSIFICATION_RUBRIC,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ],
+    messages=[{"role": "user", "content": "My invoice charged twice."}],
+)
+
+print(resp.content[0].text)
+```
+
+</CodeGroup>
+
+## 能力
+
+| 能力 | 是否支持 |
+|---|---|
+| Chat completions | ✅ |
+| 流式（SSE） | ✅ |
+| Vision（图像输入） | ✅ |
+| Tool use（function calling） | ✅ 并行 |
+| Prompt 缓存（cache_control） | ✅ |
+| Extended thinking | — |
+| Web search | — |
+| JSON / 结构化输出 | ✅ |
+| 上下文窗口 | 200K tokens |
+
+## 什么时候用
+
+- **分类、路由、分诊。** 工单 → 类别。邮件 → 优先级。来电 → 下一步动作。
+- **大规模结构化抽取。** PII 脱敏、实体抽取、按 schema 解析的高吞吐流。
+- **缓存摊销的 agent。** 大系统提示 + 多轮短用户回合；给系统提示打 cache_control，第一轮之后每轮成本便宜约 10×。
+- **便宜模型上的 Vision OCR。** Haiku 的 vision 已足够处理小票、发票、截图 —— 价格是 Sonnet 的四分之一。
+
+什么时候**不**用：
+
+- 硬核推理 —— Haiku 没有 extended thinking；上 Sonnet 或 Opus。
+- 长文写作 —— Haiku 的散文档次在 Sonnet 之下。
+
+## 下一步
+
+- [claude-sonnet-4-6](/zh/models/claude-sonnet-4-6) —— 生产中档
+- [claude-opus-4-7](/zh/models/claude-opus-4-7) —— 1M 上下文旗舰
+- [Anthropic provider 页](/zh/providers/anthropic) —— 家族总览

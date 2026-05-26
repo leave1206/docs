@@ -1,0 +1,114 @@
+---
+title: "GPT-5.4 nano"
+description: "5.4 档的 nano —— 亚秒级路由 + 5.4 的结构化输出提升。5.4 系列最快的模型。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-4-nano`
+**能力：** 128K 上下文 · 工具调用 · 视觉 · 流式
+**计价：** 按 token，nano 档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.4-nano 是 5.4 这波模型的速度底线。与 [GPT-5-nano](/zh/api-reference/text/gpt-5-nano)
+同样的 nano 档价位，但带 5.4 的更紧输出。在路由、分类和 pipeline 头部分流场景里
+是合适的选择 —— 这些场景下每一毫秒都会被大量调用放大。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-nano",
+    "messages": [{"role": "user", "content": "Is this email spam? yes / no. Email: ..."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-4-nano` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：8192。 |
+| `tools` | array | 否 | — | 支持 function calling。 |
+| `response_format` | object | 否 | — | JSON 模式 + 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-4-nano",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "yes"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 142, "completion_tokens": 1, "total_tokens": 143}
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-4-nano", "messages": [{"role": "user", "content": "Is this email spam?"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-4-nano",
+    messages=[{"role": "user", "content": "Is this email spam? yes / no."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4-nano",
+  messages: [{ role: "user", content: "Is this email spam? yes / no." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。自动 prompt caching。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | 标准 | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- agent pipeline 头部的路由 / 分类。
+- 上一代 5 系列 nano，见 [GPT-5-nano](/zh/api-reference/text/gpt-5-nano)。
+- 想要更高能力，见 [GPT-5.4-mini](/zh/api-reference/text/gpt-5-4-mini)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 128K tokens |
+| 最大输出 | 8192 tokens |
+| 支持工具调用 | 是 |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |

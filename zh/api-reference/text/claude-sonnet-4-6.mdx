@@ -1,0 +1,175 @@
+---
+title: "Claude Sonnet 4.6"
+description: "当下的生产 Sonnet —— 与 4.5 同样的 context，工具调用和代码生成有可测量的提升。Anthropic 中端默认。"
+---
+
+**厂商：** Anthropic
+**Model ID：** `claude-sonnet-4-6`
+**能力：** 200K context · tool use · vision · prompt caching · streaming
+**价格：** 按 token，Sonnet 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Sonnet 4.6 是你在 4 系列里应该最先伸手的那个。它保留 4.5 的 200K
+context 和工具调用形状，同时在结构化输出和工具调用参数的紧致度上有
+可测量的提升。新项目就默认这里。已经在 4.5 上的项目，迁移只是一个
+字符串改动 —— 多数生产代码会看到质量提升而延迟和成本无明显差异。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 4096,
+    "messages": [
+      {"role": "user", "content": "Extract the dates from this paragraph as JSON."}
+    ]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `claude-sonnet-4-6` |
+| `messages` | array | 是 | — | 对话历史。 |
+| `max_tokens` | integer | 是 | — | 硬上限。本模型最大：16384。 |
+| `system` | string \| array | 否 | — | array 形式支持 `cache_control`。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–1.0。 |
+| `top_p` | number | 否 | 1.0 | Nucleus sampling。 |
+| `tools` | array | 否 | — | 支持，包括并行工具调用。 |
+| `tool_choice` | object | 否 | `{"type":"auto"}` | `auto` / `any` / `tool`（指定名）。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "msg_sonnet_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-6",
+  "content": [
+    {"type": "text", "text": "[\"2024-08-12\", \"2024-09-01\"]"}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 87,
+    "output_tokens": 24
+  }
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 4096,
+    "messages": [{"role": "user", "content": "Extract the dates from this paragraph as JSON."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=4096,
+    messages=[
+        {"role": "user", "content": "Extract the dates from this paragraph as JSON."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-sonnet-4-6",
+  max_tokens: 4096,
+  messages: [
+    { role: "user", content: "Extract the dates from this paragraph as JSON." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## 流式
+
+设 `"stream": true` 走标准 Anthropic 格式 SSE。估算 credits 在第一个事件
+之前的 HTTP 头里给出。
+
+## Cache control
+
+`cache_control` 块降低重复 prompt 的成本。命中按 [pricing table](https://bytespike.ai/pricing#text)
+中的折扣价计费。Sonnet 4.6 工具参数生成更紧致，检索增强型 agent loop
+最容易吃到缓存红利（system prompt + 工具 schema 保持稳定，只变 user 这一轮）。
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 | Body 校验失败 | 否 |
+| 401 | key 缺失 / 已撤销 | 否 |
+| 402 | 钱包用尽 | 否 |
+| 403 | 范围拒绝 / IP 未在白名单 | 否 |
+| 429 | 速率限制 | 否 |
+| 5xx | 上游 provider 问题 | 否（自动重试信封） |
+
+## 何时使用
+
+- Anthropic 中端默认 —— 从这里开始，再去和 Opus / Haiku 做基准比较。
+- Haiku 不够精确的代码生成 / 重构 / 结构化抽取。
+- 并行工具调用、工具参数 JSON 紧致度有要求的工具密集 agent。
+- 同样形状的上一版，见 [Sonnet 4.5](/zh/api-reference/text/claude-sonnet-4-5)。
+- 要更高吞吐、可降质量的，见 [Haiku 4.5](/zh/api-reference/text/claude-haiku-4-5)。
+- 长上下文深度推理，见 [Opus 4.7](/zh/api-reference/text/claude-opus-4-7)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 16384 tokens |
+| 支持 tool use | 是（并行） |
+| 支持 vision | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 是 |

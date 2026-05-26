@@ -1,0 +1,113 @@
+---
+title: "Seedance Fast"
+description: "Seedance 家族的速度底线 —— 5s 片段亚 30s 周转，用于 prompt 迭代和时间紧迫的 UX。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedance-fast`
+**能力：** 720p · 最长 5s · 文本 + image init · CJK prompt · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，fast 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Seedance Fast 是 ByteDance 视频家族的速度底线。和 2.0 一样强的角色
+运动被压到 720p / 5s，典型周转在 30 秒以内。用于 prompt 迭代、draft
+阶段，以及用户点了「生成」之后盯着秒表的 UX。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-fast",
+    "prompt": "一只猫从沙发上跳下来，慢动作",
+    "duration_seconds": 4,
+    "resolution": "720p"
+  }'
+```
+
+### Body 参数
+
+形状与 [Seedance 2.0](/zh/api-reference/video/seedance-2-0) 相同。最大
+`duration_seconds` 是 5；只支持 `720p` 分辨率。
+
+## Submit + poll
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.12}
+```
+
+推荐节奏：前 30 秒每 1 秒，之后每 2 秒，最长到 60 秒。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-fast", "prompt": "猫从沙发上跳下来", "duration_seconds": 4, "resolution": "720p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-fast",
+    "prompt": "一只猫从沙发上跳下来",
+    "duration_seconds": 4,
+    "resolution": "720p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(1)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-fast", prompt: "猫从沙发上跳下来", duration_seconds: 4, resolution: "720p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 1000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+标准。
+
+## 何时选用
+
+- 延迟敏感的 UX —— 用户在盯着秒表。
+- 定稿 Seedance 2.0 / 2.0 Pro 之前的 prompt 迭代。
+- 1080p 输出，见 [Seedance 2.0](/zh/api-reference/video/seedance-2-0)。
+- Google 系 fast 变体，见 [Veo 3.1 Fast](/zh/api-reference/video/veo-3-1-fast)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 5s |
+| 分辨率 | 仅 720p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 4s 片段典型延迟 | 15-25s |
+| 通过 tasks API 异步 | 是 |

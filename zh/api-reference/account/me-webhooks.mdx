@@ -1,0 +1,211 @@
+---
+title: "POST /me/webhooks (+ list / update / delete / deliveries)"
+description: "把一个 HTTPS 端点订阅到你的账号事件。一次性介绍这个家族的 5 个端点。"
+---
+
+webhook 订阅家族。把一个 HTTPS URL 订阅到一组事件类型，事件触发时
+ByteSpike 会向你 POST 签名 payload。Payload 用创建时返回的 secret
+做 HMAC-SHA256 签名（覆盖 body）。
+
+该家族的 console UI 在
+[console.bytespike.ai/webhooks](https://console.bytespike.ai/webhooks)。
+组织作用域订阅（owner / admin 事件）用平行的 `/orgs/:id/webhooks`
+家族 —— 见 [Tier 3 组织文档](#)（上线后）。
+
+## 端点家族
+
+| Method | Path | 用途 |
+|---|---|---|
+| `GET` | `/api/v1/me/webhooks` | 列出你的订阅 |
+| `POST` | `/api/v1/me/webhooks` | 创建订阅 |
+| `PUT` | `/api/v1/me/webhooks/:id` | 更新 URL / event_types / status |
+| `DELETE` | `/api/v1/me/webhooks/:id` | 删除订阅 |
+| `GET` | `/api/v1/me/webhooks/:id/deliveries?page=&page_size=` | 查看投递尝试 |
+
+都需要登录态 key（`Authorization: Bearer …` 或 `x-api-key`）。所有
+非修改端点免费；create/update/delete 也免费 —— webhook 不消耗 credits。
+
+## Create
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/webhooks \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "url": "https://hooks.example.com/bytespike",
+    "event_types": [
+      "system.balance.notify.dispatched",
+      "system.payment.received"
+    ]
+  }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `url` | string | yes | 生产环境必须 HTTPS。每次事件我们都向这里 POST JSON。 |
+| `event_types` | string[] | yes | 来自 [事件目录](#event-catalog) 的至少一个事件。 |
+| `secret` | string | no | 自带 HMAC secret。省略让网关生成 32 位 hex（推荐）。 |
+
+### Response —— create
+
+**唯一**会带原始 `secret` 的响应。**立即保存** —— 之后的 list/update
+响应都会省略它。
+
+```json
+{
+  "id": 7001,
+  "owner_user_id": 88,
+  "url": "https://hooks.example.com/bytespike",
+  "event_types": [
+    "system.balance.notify.dispatched",
+    "system.payment.received"
+  ],
+  "status": "active",
+  "fail_count": 0,
+  "created_at": "2026-05-22T08:30:00Z",
+  "updated_at": "2026-05-22T08:30:00Z",
+  "secret": "f2c8b41a9d5e..."
+}
+```
+
+## List
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/webhooks \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+返回 `{ items: [...], total }`。每行 `secret` 都被省略。
+
+## Update
+
+```bash
+curl -X PUT https://llm.bytespike.ai/api/v1/me/webhooks/7001 \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"status": "disabled"}'
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `url` | string | 更新目的地。我们保留 secret。 |
+| `event_types` | string[] | 替换整个订阅集合。 |
+| `status` | string | `active` / `disabled`。disabled 行不再投递，但为投递历史保留。 |
+
+secret 不能通过 PUT 轮换 —— 要新 secret 请删除后重建。
+
+## Delete
+
+```bash
+curl -X DELETE https://llm.bytespike.ai/api/v1/me/webhooks/7001 \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+返回 `204 No Content`。该 webhook 的投递历史在删除后保留 30 天，然后清理。
+
+## Deliveries
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/webhooks/7001/deliveries?page=1&page_size=50' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{
+  "items": [
+    {
+      "id": 91003,
+      "webhook_id": 7001,
+      "event_type": "system.balance.notify.dispatched",
+      "attempt": 1,
+      "response_status": 502,
+      "delivered_at": "2026-05-21T22:00:00Z",
+      "duration_ms": 8420,
+      "payload": "{\"event\":\"system.balance.notify.dispatched\",\"balance_usd\":7.80}"
+    },
+    {
+      "id": 91004,
+      "webhook_id": 7001,
+      "event_type": "system.balance.notify.dispatched",
+      "attempt": 2,
+      "response_status": 200,
+      "delivered_at": "2026-05-21T22:00:30Z",
+      "duration_ms": 118,
+      "payload": "{\"event\":\"system.balance.notify.dispatched\",\"balance_usd\":7.80}"
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "page_size": 50
+}
+```
+
+每次投递**尝试**一行。重试以 `attempt: 2` / `3` 落在同一 `event_type` 下。
+`response_status: 0` 表示网络 / 超时失败（没收到 HTTP 响应）。
+
+## 事件目录
+
+把任意子集传给 `event_types`。按来源分组：
+
+### user.\* —— 你账户的自配置写入
+
+- `user.webhook.create` / `user.webhook.update` / `user.webhook.delete`
+
+### system.\* —— 网关侧
+
+- `system.balance.notify.dispatched` —— 低余额定时任务通知你时触发
+- `system.payment.received` —— 充值到账时触发
+
+### org.\* —— 仅当你是组织 owner/admin 时
+
+- `org.settings.update`
+- `org.member.concurrency`
+- `org.member.allowed_models` / `org.member.allowed_models.bulk`
+- `org.api_key.create` / `org.api_key.revoke`
+- `org.webhook.create` / `org.webhook.update` / `org.webhook.delete`
+
+### admin.\* —— 仅当你有平台管理员角色时
+
+- `admin.org.create` / `admin.org.update` / `admin.org.delete`
+- `admin.org.member.add` / `admin.org.member.role` / `admin.org.member.remove`
+- `admin.org.member.allowed_models` / `admin.org.member.allotment`
+- `admin.org.allowed_models`
+- `admin.user.create` / `admin.user.update` / `admin.user.delete`
+- `admin.group.create` / `admin.group.update` / `admin.group.delete`
+- `admin.balance.adjust`
+
+订阅没有权限的事件返回 403。
+
+## Payload 签名
+
+外发的 POST body 由网关签名。信任前先验证：
+
+```python
+import hmac, hashlib
+
+def verify(body_bytes: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(secret.encode(), body_bytes, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+```
+
+签名出现在 `X-ByteSpike-Signature` 请求头。签名校验不过的 payload 一律
+拒绝 —— 我们把这条当契约。
+
+## 重试与失败模型
+
+- **重试**：5xx / 网络失败时最多 3 次尝试。退避：30s，然后 5min。
+- **fail_count**：自上次成功投递以来的累计。下次 2xx 时清零。
+- **自动禁用**：`fail_count` 达到 `50` 时，网关把 `status` 翻为 `disabled` 并停止派发。webhook 行被保留，便于你查看 deliveries 和通过 PUT 重新启用。
+- **无绕过**：4xx 响应算一次投递（你的端点拒了 payload）；4xx 不触发重试。
+
+## 错误
+
+| Status | `error.type` | 触发条件 |
+|---|---|---|
+| 400 | `invalid_request_error` | URL 不是 HTTPS、`event_types` 空 / 事件未知、body 格式错。 |
+| 401 | `authentication_error` | key 缺失 / 已撤销。 |
+| 403 | `permission_error` | 没有所需角色就订阅了 `admin.*` / `org.*` 事件。 |
+| 404 | `not_found_error` | webhook `:id` 不属于调用方。 |
+| 409 | `conflict_error` | 同一 URL 已订阅（每个用户一个 URL，请在已有行上改 events）。 |

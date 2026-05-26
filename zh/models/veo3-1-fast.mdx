@@ -1,0 +1,66 @@
+---
+title: "veo3.1-fast"
+description: "Google Veo 3.1 Fast —— Veo 系列的低价档。牺牲一些保真度和音频选项，换来明显更便宜的 per-second 价格。Google 系视频流水线上批量场景的默认。"
+---
+
+`veo3.1-fast` 是 [`veo3.1`](/zh/models/veo3-1) 的 Fast 档。取舍：去掉原生音频选项、难运动的保真度略松、per-second 成本明显更低。适合不要求 Sora 级质量的程序化 / 批量视频工作。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google Veo Fast** | Google direct | `aiplatform.googleapis.com` | 按秒计费（[/pricing](/zh/pricing) —— 比 `veo3.1` 便宜） | 5s 片段 ~60s wall-clock | global edge |
+
+失败不计费。
+
+## Protocols
+
+| Protocol | 路径 | 用途 |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | 入队；返回 `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | 就绪时返回 `status` 和 `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo3.1-fast",
+    "prompt": "A coffee cup steaming on a kitchen counter, morning light",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# 轮询模式 —— 见 /models/sora2#quickstart
+```
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生视频 | ✅ |
+| 图生视频（带 `source_image`） | ✅ |
+| 音频生成 | —（要音频请用 [`veo3.1`](/zh/models/veo3-1)） |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## 何时使用
+
+- **批量 / 程序化视频** —— 短社交卡片片段、A/B 变体、demo 占位。
+- **不需要音频** —— 后期会配音或单独配乐的解说类片段。
+- **内部创意** —— 设计评审用的快速可视化。
+
+**不**适用的场景：
+
+- 成品对音频有要求 —— 改用 [`veo3.1`](/zh/models/veo3-1)。
+- hero / 最终营销创意 —— [`sora2`](/zh/models/sora2) 或 [`sora2-pro`](/zh/models/sora2-pro)。
+
+## 下一步
+
+- [`veo3.1`](/zh/models/veo3-1) —— 带音频的完整档
+- [`seedance-2.0-fast`](/zh/models/seedance-2-0-fast) —— ByteDance 的 fast 档
+- [多模态端点](/zh/concepts/multimodal) —— 总览

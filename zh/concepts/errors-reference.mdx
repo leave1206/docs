@@ -1,0 +1,224 @@
+---
+title: "Errors 参考"
+description: "你能从 ByteSpike 看到的每一个 HTTP 状态、错误码、信封形状。按状态的重试策略。任意非 2xx 都不扣费。"
+---
+
+ByteSpike 以你调用的协议信封形状返回错误 —— `/v1/messages` 上 Anthropic 形状，`/v1/chat/completions` + `/v1/responses` + `/v1/tasks/*` + `/v1/images/*` 上 OpenAI 形状，`/v1beta/...` 上 Google 形状。
+
+**失败永不计费。** 这是硬契约 —— 非 2xx 时 `X-Quota-Remaining-Credits` 不动，`/api/v1/me/usage` 不出新条目，`/api/v1/me/billing/transactions` 不出新行。
+
+## 信封形状
+
+<Tabs>
+  <Tab title="Anthropic">
+    ```json
+    {
+      "type": "error",
+      "error": {
+        "type": "authentication_error",
+        "message": "invalid x-api-key"
+      }
+    }
+    ```
+
+    `error.type` 取值：`invalid_request_error`、`authentication_error`、
+    `permission_error`、`not_found_error`、`request_too_large`、
+    `rate_limit_error`、`api_error`、`overloaded_error`。
+  </Tab>
+  <Tab title="OpenAI">
+    ```json
+    {
+      "error": {
+        "type": "invalid_request_error",
+        "code": "invalid_api_key",
+        "message": "invalid x-api-key"
+      }
+    }
+    ```
+
+    `error.type` 取值：`invalid_request_error`、`authentication_error`、
+    `permission_error`、`rate_limit_exceeded`、`api_error`。
+
+    `error.code` 是更细的机器可读 tag —— 用于客户端逻辑分支。
+  </Tab>
+  <Tab title="Google（Gemini Native）">
+    ```json
+    {
+      "error": {
+        "code": 401,
+        "message": "API key not valid. Please pass a valid API key.",
+        "status": "UNAUTHENTICATED"
+      }
+    }
+    ```
+
+    `error.status` 取值：`INVALID_ARGUMENT`、`UNAUTHENTICATED`、
+    `PERMISSION_DENIED`、`NOT_FOUND`、`RESOURCE_EXHAUSTED`、
+    `INTERNAL`、`UNAVAILABLE`。
+  </Tab>
+</Tabs>
+
+## 状态码矩阵
+
+### 400 Bad Request
+
+输入不对。**永不** 重试 —— 同样请求体会同样失败。
+
+| OpenAI `code` | Anthropic `type` | 含义 |
+|---|---|---|
+| `invalid_param` | `invalid_request_error` | 缺必填字段、类型错、JSON 不合法 |
+| `model_not_found` | `not_found_error` | 目录里没这个 model id |
+| `context_length_exceeded` | `invalid_request_error` | prompt + max_tokens > 模型上下文窗口 |
+| `duplicate_out_task_id` | n/a | 用相同 `out_task_id` 但不同 `params` 重发（仅 tasks API） |
+
+### 401 Unauthorized
+
+鉴权问题。**永不** 重试 —— 先修凭证。
+
+| Code | 原因 |
+|---|---|
+| `invalid_api_key` | 缺 / 写错 / 撤销 / 过期 |
+| `authentication_error`（Anthropic） | 同上 |
+
+### 402 Payment Required
+
+钱用完或触达 quota。**条件性重试** —— 只有充值或抬上限之后。
+
+| Code | 原因 |
+|---|---|
+| `insufficient_balance` | 组织钱包空了 |
+| `quota_exceeded` | Key 的 `quota`（终身）上限到了 |
+
+### 403 Forbidden
+
+鉴权过了但不被允许。**永不** 重试 —— 调整 key、分组或 IP。
+
+| Code | 原因 |
+|---|---|
+| `permission_denied` | IP 不在 `ip_whitelist` / 命中 `ip_blacklist` |
+| `model_not_in_group` | 这个 key 的 `group_id` 触达不到该模型 —— 换 key 或换模型 |
+
+### 404 Not Found
+
+端点或资源不存在。**永不** 重试。
+
+| Code | 原因 |
+|---|---|
+| `not_found` | 路由错 —— 核对 URL |
+| `task_not_found` | `/v1/tasks/query` 或 `/cancel` 用了不对的 task_id / out_task_id |
+
+### 413 Request Entity Too Large
+
+请求体超过该路由的上限。**永不** 用同样请求体重试。
+
+| 上限 | 触发场景 |
+|---|---|
+| `/v1/tasks/*` 上 1 MiB | `params` 里内联 base64 —— 改成上传到 URL |
+| `/v1/messages` 等更大 | 多半是深嵌套的工具 schema；缩 schema |
+
+### 429 Too Many Requests
+
+速率限制。**重试** —— 用 `X-RateLimit-Reset` 决定退避。
+
+| OpenAI `code` | 原因 |
+|---|---|
+| `rate_limit_exceeded` | 5h / 1d / 7d 三条花费桶中有一条耗尽 |
+| `concurrency_limit` | 你账号 in-flight 的请求太多 |
+
+退避策略见 [速率限制](/zh/concepts/rate-limits)。
+
+### 500 Internal Server Error
+
+网关侧故障。**重试**，指数退避（1s、2s、4s、8s，4 次后放弃）。
+
+| Code | 原因 |
+|---|---|
+| `internal_error` | ByteSpike 内部炸了 —— 应当罕见；会出现在我们自己的日志里 |
+
+### 502 / 503 / 504 —— 上游错误
+
+上游 provider 失败。**重试**，带退避；ByteSpike 在透出之前已经做过内部重试。
+
+| 状态 | 原因 |
+|---|---|
+| 502 `api_error` | 上游返回了畸形响应 |
+| 503 `api_error` / `no available accounts` | Key 分组里没有 channel 当下能服务这个模型（全部重试过、全部失败） |
+| 504 `timeout` | 上游超时（文本 >30s，图像 >5min） |
+
+对 503 特别地，在 [Console → Models](https://console.bytespike.ai/dosia/models) 里模型旁点 **Test** —— 它跑一次 dial-test，能告诉你 key + 分组 + 模型组合是否本身可行，与上游健康分开。
+
+## 重试决策矩阵
+
+| HTTP | 重试？ | 退避 |
+|---|---|---|
+| 400 / 401 / 403 / 404 / 413 | 否 | 不适用 |
+| 402 | 否（先充值） | 不适用 |
+| 429（速率限制） | 是 | 用 `X-RateLimit-Reset` |
+| 429（并发） | 是 | 短抖动 1-3s |
+| 500 | 是 | 指数，4 次后放弃 |
+| 502 / 503 / 504 | 是 | 指数，4 次后放弃 |
+| 流中 `event: error` | 否（请求已结算，不计费） | 不适用 |
+
+## 重试的幂等性
+
+文本端点（`/v1/messages`、`/chat/completions`、`/responses`）不幂等 —— 200 之后重试会让模型跑两次。除非拿到错误，否则别重试。
+
+任务 API 通过 `out_task_id` **幂等**。重试时发同样的 `out_task_id`，dispatcher 会返回已有的任务，而不是开新的。
+
+## Anthropic 特有：SSE 里的 `error` 事件
+
+流中失败时，你会看到一个终结的 `event: error`，而不是 `event: message_stop`：
+
+```
+event: error
+data: {"type":"error","error":{"type":"overloaded_error","message":"upstream overloaded"}}
+```
+
+已经流出的部分输出归你。不计费。从头重发请求 —— 没有 resume 语义。
+
+## OpenAI 特有：最终帧里的 `error` 字段
+
+```
+data: {"id":"chatcmpl-...","choices":[],"error":{"type":"api_error","message":"upstream error"}}
+
+data: [DONE]
+```
+
+同样语义 —— 不计费、不能 resume。
+
+## 用代码读错误
+
+```python
+import requests
+
+r = requests.post(URL, json=payload, headers=HEADERS)
+if r.ok:
+    return r.json()
+
+err = r.json().get("error", {})
+
+# 按协议形状分支
+if "code" in err:        # OpenAI 形状
+    code = err["code"]
+elif "type" in err:      # Anthropic 形状或 OpenAI 的 "type" 形式
+    code = err["type"]
+else:                    # Google 形状
+    code = err.get("status", "")
+
+if r.status_code == 429:
+    sleep_until = int(r.headers.get("X-RateLimit-Reset", time.time() + 60))
+    time.sleep(max(1, sleep_until - int(time.time())))
+    # retry
+elif r.status_code in (500, 502, 503, 504):
+    # 指数退避 + 重试
+    pass
+else:
+    raise APIError(r.status_code, code, err.get("message"))
+```
+
+## 相关
+
+- [速率限制](/zh/concepts/rate-limits) —— 完整的 429 处理
+- [鉴权](/zh/authentication) —— 401/403 含义及修法
+- [Credits 与账单](/zh/concepts/credits-and-billing) —— 402 + "不计费" 保证
+- [异步任务](/zh/concepts/multimodal) —— 任务中错误的处理（通过 `/tasks/query`）

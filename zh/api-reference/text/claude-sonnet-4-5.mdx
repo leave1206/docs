@@ -1,0 +1,174 @@
+---
+title: "Claude Sonnet 4.5"
+description: "顶替 3.5 的中端 Sonnet —— 工具调用和结构化输出强，没有 Opus 的延迟。"
+---
+
+**厂商：** Anthropic
+**Model ID：** `claude-sonnet-4-5`
+**能力：** 200K context · tool use · vision · prompt caching · streaming
+**价格：** 按 token，Sonnet 档（[实时价格](https://bytespike.ai/pricing#text)）
+
+Sonnet 4.5 是 4 系列的主力。如果你的 prompt 能塞进 200K token、想要原
+生工具调用、宁愿把钱花在多发几次而不是等一次 Opus 往返，这就是默认。
+对多数生产 agent 流，把 Opus 4.7 换成 Sonnet 4.5 是约 3 倍的成本下降，
+质量降幅比价格差小得多 —— 在认定要 Opus 之前先两个都跑一跑测一测。
+
+## 请求
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 4096,
+    "messages": [
+      {"role": "user", "content": "Refactor this Python function for readability."}
+    ]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `claude-sonnet-4-5` |
+| `messages` | array | 是 | — | 对话历史。 |
+| `max_tokens` | integer | 是 | — | 硬上限。本模型最大：16384。 |
+| `system` | string \| array | 否 | — | array 形式支持 `cache_control`。 |
+| `temperature` | number | 否 | 1.0 | 范围 0.0–1.0。 |
+| `top_p` | number | 否 | 1.0 | Nucleus sampling。 |
+| `tools` | array | 否 | — | 支持，包括并行工具调用。 |
+| `tool_choice` | object | 否 | `{"type":"auto"}` | `auto` / `any` / `tool`（指定名）。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+## 响应
+
+```json
+{
+  "id": "msg_sonnet_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-5",
+  "content": [
+    {"type": "text", "text": "Here's the refactor..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 142,
+    "output_tokens": 318
+  }
+}
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 4096,
+    "messages": [{"role": "user", "content": "Refactor this Python function for readability."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=4096,
+    messages=[
+        {"role": "user", "content": "Refactor this Python function for readability."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-sonnet-4-5",
+  max_tokens: 4096,
+  messages: [
+    { role: "user", content: "Refactor this Python function for readability." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## 流式
+
+设 `"stream": true` 走标准 Anthropic 格式 SSE。估算 credits 在第一个事件
+之前的 HTTP 头里给出。
+
+## Cache control
+
+`cache_control` 块在 Sonnet 上大约 3 次重复调用同一个 system prompt 就
+能回本。命中按 [pricing table](https://bytespike.ai/pricing#text) 中的折
+扣价计费。
+
+```json
+{
+  "model": "claude-sonnet-4-5",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## 错误
+
+| Code | 触发 | 是否计费 |
+|---|---|---|
+| 400 | Body 校验失败 | 否 |
+| 401 | key 缺失 / 已撤销 | 否 |
+| 402 | 钱包用尽 | 否 |
+| 403 | 范围拒绝 / IP 未在白名单 | 否 |
+| 429 | 速率限制 | 否 |
+| 5xx | 上游 provider 问题 | 否（自动重试信封） |
+
+## 何时使用
+
+- 一发即中的质量重要、能等 1–2 秒的生产 agent loop。
+- Haiku 开始漏步骤的代码评审 / 重构 / 结构化输出。
+- 要更高吞吐、可降质量的，见 [Haiku 4.5](/zh/api-reference/text/claude-haiku-4-5)。
+- 长上下文深度推理，见 [Opus 4.7](/zh/api-reference/text/claude-opus-4-7)。
+- 较新的 [Sonnet 4.6](/zh/api-reference/text/claude-sonnet-4-6) 是现在推荐的 Sonnet —— 只在已经针对 4.5 跑过基准、确认旧版更适合时才留着 4.5。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 16384 tokens |
+| 支持 tool use | 是（并行） |
+| 支持 vision | 是 |
+| 支持 streaming | 是 |
+| 支持 prompt caching | 是 |

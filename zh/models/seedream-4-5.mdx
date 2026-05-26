@@ -1,0 +1,66 @@
+---
+title: "seedream-4.5"
+description: "ByteDance Seedream 的 4.5 精修版 —— prompt 还原更紧、边缘细节更干净，单图成本比 seedream-4 略高。如果 seedream-4 已经能满足你的需求，这是默认升级目标。"
+---
+
+`seedream-4.5` 是 [`seedream-4`](/zh/models/seedream-4) 的精修版。提升集中在 prompt 还原度、边缘细节（手绘元素少被"AI 清理"）、中文图内文字一致性。单图成本比 `seedream-4` 略高。当 `seedream-4` 已经在用、你想要这一档增量时选它 —— 而不是第一次在多档之间挑选时选它。
+
+## Channels
+
+| Channel | Provider | Base URL | 定价 | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedream** | Volcengine | `ark.cn-beijing.volces.com` | 按图计费（实时价格见 [/pricing](/zh/pricing)） | ~5s（1024×1024） | cn-beijing |
+
+失败不计费。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-4.5",
+    "prompt": "国潮风插画，敦煌色彩，飞天主角居中，背景为佛窟纹样",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+Python 与 TypeScript 调用方式与 [`seedream-4`](/zh/models/seedream-4#quickstart) 一致 —— 只需替换 `model` 字段。
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| 文生图 | ✅ |
+| 图生图（带 `source_image`） | ✅ |
+| `n` ≥ 2 批量生成 | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| 中文图内文字排版 | ✅ 比 4 更强 |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## 何时使用
+
+- **已经在用 `seedream-4`** —— 想拿下一代精修带来的提升。
+- **prompt 还原要求严格** —— 不允许构图细节漂移的 campaign 类工作。
+- **中文图内文字** —— 单图质量上的增量在文字密集的海报上最明显。
+
+**不**适用的场景：
+
+- 你从零开始、还没决定档位 —— 先选 [`seedream-4`](/zh/models/seedream-4)，遇到真正瓶颈再升级。
+- 成本敏感的批量 —— 降到 [`seedream-v5lite`](/zh/models/seedream-v5lite)。
+
+## 下一步
+
+- [`seedream-4`](/zh/models/seedream-4) —— 前一代
+- [`seedream-v5lite`](/zh/models/seedream-v5lite) —— 最便宜的 Seedream 档
+- [`gpt-image-2`](/zh/models/gpt-image-2) —— OpenAI 备选

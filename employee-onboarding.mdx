@@ -1,168 +1,168 @@
 ---
-title: "员工 onboarding · DOSIA × ByteSpike"
-description: "全员能在 5 分钟内跑通 DOSIA → ByteSpike 链路：装机、切企业模式、企业 SSO、自动拿到允许的模型、开始对话 / 看图 / 出图。"
+title: "Employee onboarding · DOSIA × ByteSpike"
+description: "Get every team member through the DOSIA → ByteSpike loop in 5 minutes: install, switch to enterprise mode, enterprise SSO, auto-pick up allowed models, start chatting / vision / image generation."
 ---
 
 <Note>
-**适用场景**：你的组织已经购置 ByteSpike，admin 已建好你的 lark 账号 + 充值过余额。你拿到这份文档，~5 分钟内能用上所有 admin 允许的 Claude / GPT / Gemini / DeepSeek / 豆包等模型。
+**When this applies**: your organization already bought ByteSpike, your admin already created your lark account + topped up balance. You got this doc and in ~5 minutes you'll be calling every Claude / GPT / Gemini / DeepSeek / Doubao model the admin has allowed.
 </Note>
 
-## 1. 装 DOSIA
+## 1. Install DOSIA
 
 <Tabs>
-  <Tab title="内网员工">
-    NAS 共享盘里取最新版：
+  <Tab title="On the internal network">
+    Grab the latest build from the NAS shared drive:
 
     ```bash
     /Volumes/cloud/apps/mac/DOSIA-0.2.23-arm64.dmg   # Apple Silicon (M1/M2/M3/M4)
     /Volumes/cloud/apps/mac/DOSIA-0.2.23.dmg         # Intel Mac
     ```
   </Tab>
-  <Tab title="公网下载">
+  <Tab title="Public download">
     [github.com/leave1206/dosia-releases/releases/latest](https://github.com/leave1206/dosia-releases/releases/latest)
   </Tab>
 </Tabs>
 
 <Warning>
-首次启动若报 **"文件已损坏"** 或 **"无法打开，因为来自身份不明的开发者"**，在 Terminal 跑：
+If the first launch reports **"file is damaged"** or **"cannot be opened because it is from an unidentified developer"**, run this in Terminal:
 
 ```bash
 xattr -cr /Applications/DOSIA.app
 ```
 
-然后重新启动 DOSIA。这是 macOS Gatekeeper 对未公证 dmg 的默认拦截，不是 app 本身有问题。
+Then relaunch DOSIA. That's macOS Gatekeeper's default block on un-notarized dmgs — nothing wrong with the app itself.
 </Warning>
 
-## 2. 切到企业模式
+## 2. Switch to enterprise mode
 
 <Steps>
-  <Step title="打开 Settings">
-    DOSIA 启动后顶部菜单：**DOSIA → Settings**（快捷键 `⌘,`）
+  <Step title="Open Settings">
+    After DOSIA launches, top menu: **DOSIA → Settings** (shortcut `⌘,`).
   </Step>
-  <Step title="切 Deploy Mode">
-    左侧导航点 **Deploy Mode**，把模式从「个人版」切到 **「企业版」**
+  <Step title="Switch Deploy Mode">
+    In the left nav click **Deploy Mode**, switch the mode from "Personal" to **"Enterprise"**.
   </Step>
-  <Step title="填企业服务地址">
-    粘贴 admin 给你的地址 — 默认是：
+  <Step title="Fill in the enterprise service URL">
+    Paste the URL your admin gave you — the default is:
 
     ```
     http://122.51.0.230:3012
     ```
 
-    （admin 如果给了内网地址或自建域名，按 admin 的为准。）
+    (If your admin provided an internal-network address or a self-hosted domain, use what the admin said.)
   </Step>
-  <Step title="点保存配置">
-    页面下方蓝色「保存配置」按钮。DOSIA 会提示重启生效，跟着重启即可。
-  </Step>
-</Steps>
-
-<Note>
-该地址是 DOSIA **企业 web backend**（apps/web 部署，Tencent Cloud），**独立于** ByteSpike LLM Gateway (`https://llm.bytespike.ai`) — 两个服务不同机器、不同端口。Backend 负责 ByteSpike 配置同步、lark OAuth 代理、企业 workspace 管理；LLM Gateway 负责真实的模型调用。员工不需关心区别 — admin 给地址你填上即可。
-
-如服务地址变更，admin 重新发新地址，员工 **Settings → Deploy Mode** 改字段 → 保存即可，**不用重装 DOSIA**。
-</Note>
-
-## 3. 企业 SSO 登录
-
-<Steps>
-  <Step title="确认 admin 已 grant">
-    联系 admin 把你的 **lark 工号 / 邮箱**加入 ByteSpike 允许列表。Admin 在 [console.bytespike.ai](https://console.bytespike.ai) 或 lark 组管理后台操作 — 你不用动。
-  </Step>
-  <Step title="DOSIA 自动触发 lark OAuth">
-    重启后 DOSIA 检测到企业模式，会自动弹 lark 授权页。第一次会跳出浏览器，授权完回 DOSIA。
-  </Step>
-  <Step title="登录成功">
-    DOSIA 顶部右上角应显示你的 lark 头像 + 邮箱。
+  <Step title="Click Save">
+    The blue "Save config" button at the bottom of the page. DOSIA will prompt you to restart — go ahead and restart.
   </Step>
 </Steps>
 
 <Note>
-没弹 lark 授权页 / 卡在「初始化」？跳到 [第 6 节常见问题](#6-常见问题) 检查。
+That URL is the DOSIA **enterprise web backend** (apps/web deployment on Tencent Cloud), **separate from** the ByteSpike LLM Gateway (`https://llm.bytespike.ai`) — two services, different hosts, different ports. The backend handles ByteSpike config sync, lark OAuth proxy, and enterprise workspace management; the LLM Gateway handles the actual model calls. Employees don't need to care about the distinction — admin gives you the URL, you fill it in.
+
+If the service URL changes and admin sends a new one, employees just update **Settings → Deploy Mode** → save. **No reinstall needed.**
 </Note>
 
-## 4. 自动获取允许的模型
-
-登录后 DOSIA 会自动调 ByteSpike 拿你的可用模型列表 — 不用手动配 API key。
+## 3. Enterprise SSO login
 
 <Steps>
-  <Step title="进 AI 模型 tab">
-    **Settings → AI 模型**（左侧导航）。
+  <Step title="Confirm admin has granted access">
+    Ask the admin to add your **lark employee ID / email** to the ByteSpike allowlist. The admin does this in [console.bytespike.ai](https://console.bytespike.ai) or in the lark group admin backend — you don't have to do anything.
   </Step>
-  <Step title="确认看到「ByteSpike 共享」provider">
-    AI 模型列表里应有一个名为 **「ByteSpike 共享」** 的 provider（admin 在企业模式下预配置的）。
+  <Step title="DOSIA triggers lark OAuth automatically">
+    After restart, DOSIA detects enterprise mode and pops the lark authorization page automatically. The first time it opens the browser; once authorized you come back to DOSIA.
   </Step>
-  <Step title="确认模型列表">
-    展开「ByteSpike 共享」，应看到 admin 给你 grant 的全部模型：
-
-    - **Claude** 系列：Sonnet 4.6 / Opus 4.7 / Haiku 4.5
-    - **OpenAI** 系列：GPT-5-4 / GPT-5-4-mini / GPT-5-2 等
-    - **Gemini** 系列：Gemini 3.1 Pro / Gemini 3 Flash
-    - **DeepSeek**：DeepSeek v4 Pro / v4 Flash / v3.2
-    - **Volcengine / 豆包**：Doubao Seed 2.0 Pro 等
-    - **图像 / 视频**：Nano Banana、Seedream 4、Sora 2、Veo 3.1 等（如 admin 已开通多模态权限）
-
-    具体列表取决于你的组的权限配置 — 不一致请联系 admin。
+  <Step title="Logged in">
+    The top-right corner of DOSIA should now show your lark avatar + email.
   </Step>
 </Steps>
 
-## 5. 开始使用
+<Note>
+No lark authorization page appeared / stuck on "initializing"? Jump to [Section 6 FAQ](#6-faq) to investigate.
+</Note>
+
+## 4. Auto-pick up the allowed models
+
+Once logged in, DOSIA calls ByteSpike automatically to fetch your allowed model list — no manual API key config needed.
+
+<Steps>
+  <Step title="Open the AI Models tab">
+    **Settings → AI Models** (left nav).
+  </Step>
+  <Step title="Confirm the 'ByteSpike Shared' provider shows up">
+    The AI Models list should contain a provider called **"ByteSpike Shared"** (pre-configured by admin under enterprise mode).
+  </Step>
+  <Step title="Confirm the model list">
+    Expand "ByteSpike Shared" — you should see every model the admin has granted you:
+
+    - **Claude** family: Sonnet 4.6 / Opus 4.7 / Haiku 4.5
+    - **OpenAI** family: GPT-5-4 / GPT-5-4-mini / GPT-5-2, etc.
+    - **Gemini** family: Gemini 3.1 Pro / Gemini 3 Flash
+    - **DeepSeek**: DeepSeek v4 Pro / v4 Flash / v3.2
+    - **Volcengine / Doubao**: Doubao Seed 2.0 Pro, etc.
+    - **Image / video**: Nano Banana, Seedream 4, Sora 2, Veo 3.1, etc. (if admin has granted multimodal capability)
+
+    The exact list depends on your group's permission config — if it doesn't match, talk to admin.
+  </Step>
+</Steps>
+
+## 5. Start using it
 
 <CardGroup cols={2}>
-  <Card title="发文本消息" icon="message">
-    主对话框顶部选模型 → 输入消息 → 回车发送。跨厂商模型用同一交互，ByteSpike 网关自动路由。
+  <Card title="Send a text message" icon="message">
+    Pick a model at the top of the main chat box → type message → hit enter. Same interaction across vendors — the ByteSpike gateway routes automatically.
   </Card>
-  <Card title="看图（vision）" icon="image">
-    拖图进对话框（或粘贴），DOSIA 会自动调用 image-tools MCP 的 `analyze_image` 工具调用 vision 模型识图。
+  <Card title="Vision (image input)" icon="image">
+    Drag an image into the chat box (or paste it). DOSIA calls the image-tools MCP's `analyze_image` tool, which invokes a vision model to recognize the image.
   </Card>
-  <Card title="出图（image generation）" icon="palette">
-    在对话框里要求生图（"画一只赛博朋克猫"），agent 会自动调 `generate_image` MCP 工具，走 Nano Banana / Seedream / GPT-Image 等。
+  <Card title="Image generation" icon="palette">
+    Ask for an image in the chat ("draw a cyberpunk cat") — the agent calls the `generate_image` MCP tool, routing through Nano Banana / Seedream / GPT-Image, etc.
   </Card>
-  <Card title="出视频（video generation）" icon="video">
-    类似图像 — 要求 "生成一段视频"，agent 调 `generate_video` MCP，走 Sora 2 / Veo 3.1 / Seedance 等。
+  <Card title="Video generation" icon="video">
+    Same idea as images — ask for "generate a video", the agent calls `generate_video` MCP, routing through Sora 2 / Veo 3.1 / Seedance, etc.
   </Card>
 </CardGroup>
 
 <Note>
-**计费透明**：每次模型调用的 USD 成本会显示在对话框下方的「credits」提示里。失败的调用（5xx / 网络错误）**不计费**。
+**Billing is transparent**: each model call's USD cost shows in the "credits" hint below the chat box. Failed calls (5xx / network errors) **don't bill**.
 </Note>
 
-## 6. 常见问题
+## 6. FAQ
 
 <AccordionGroup>
-  <Accordion title='"ByteSpike 共享" provider 不出现'>
-    可能原因：
-    1. 企业服务地址填错 → 回 **Settings → Deploy Mode** 核对地址 + 重新保存
-    2. lark grant 没生效 → 联系 admin 确认你的工号已加入 ByteSpike 允许列表
-    3. SSO 授权过期 → DOSIA **设置 → 账户**点退出再重新登录
+  <Accordion title='"ByteSpike Shared" provider does not appear'>
+    Likely causes:
+    1. Enterprise service URL is wrong → go back to **Settings → Deploy Mode**, double-check the URL, save again
+    2. Lark grant hasn't taken effect → ask admin to confirm your employee ID is on the ByteSpike allowlist
+    3. SSO authorization expired → DOSIA **Settings → My Account**, click sign out then sign in again
   </Accordion>
 
-  <Accordion title='对话框报"余额不足"'>
-    组织钱包余额耗尽。截图 + 联系 admin，admin 在 [console.bytespike.ai/billing](https://console.bytespike.ai/billing) 充值后立即恢复。
+  <Accordion title='Chat box says "insufficient balance"'>
+    The org wallet ran out. Screenshot + ask admin — once admin tops up at [console.bytespike.ai/billing](https://console.bytespike.ai/billing), it recovers immediately.
   </Accordion>
 
-  <Accordion title='某模型报"无权限" / "model not allowed"'>
-    Admin 没给你的组开通该模型权限。联系 admin 在 [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → Users → 你的账户 → Allowed Models 勾上对应渠道组。
+  <Accordion title='A specific model returns "permission denied" / "model not allowed"'>
+    Admin hasn't granted your group access to that model. Ask admin to go to [llm.bytespike.ai/admin](https://llm.bytespike.ai/admin) → Users → your account → Allowed Models, and tick the matching channel group.
   </Accordion>
 
-  <Accordion title='图像 / 视频生成 tab 看不到'>
-    多模态权限是单独 grant 的（独立于文本模型）。Admin 在 console 给你的组加上 `image` / `video` capability 后，DOSIA 重启即可看到对应工具。
+  <Accordion title='Image / video generation tab is missing'>
+    Multimodal capability is granted separately (independent of text models). Once admin adds `image` / `video` capability to your group in console, DOSIA picks up the tool after a restart.
   </Accordion>
 
-  <Accordion title='lark 授权后 DOSIA 卡死 / 反复登录'>
-    清掉 DOSIA local state：
+  <Accordion title='After lark authorization DOSIA freezes / loops on login'>
+    Clear DOSIA's local state:
 
     ```bash
     rm -rf ~/Library/Application\ Support/DOSIA/auth
     ```
 
-    然后重新启动 DOSIA。如果还不行，截图 + lark 私聊 admin。
+    Then relaunch DOSIA. If still broken, screenshot + DM the admin on lark.
   </Accordion>
 </AccordionGroup>
 
-## 接下来
+## What's next
 
-- 想自己用 ByteSpike key 调 API（不通过 DOSIA）？看 [Configure client](./configure-client) — 各 SDK 的 base URL + key 配置。
-- 想了解每个 endpoint 怎么调？看 [API Reference](./api-reference/text/claude-messages) — 协议 / shape / 4xx 错误码。
-- 想看模型完整目录 + 定价？看 [bytespike.ai/pricing](https://bytespike.ai/pricing)。
+- Want to call the ByteSpike API directly with your own key (not via DOSIA)? See [Configure client](./configure-client) — base URL + key config per SDK.
+- Want to know how to call each endpoint? See [API Reference](./api-reference/text/claude-messages) — protocol / shape / 4xx error codes.
+- Want the full model catalog + pricing? See [bytespike.ai/pricing](https://bytespike.ai/pricing).
 
-有问题随时找 admin 或在 lark 群 @ByteSpike Ops。
+Any questions, find your admin or @ByteSpike Ops in the lark group.

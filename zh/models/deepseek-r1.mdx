@@ -1,0 +1,69 @@
+---
+title: "deepseek-r1"
+description: "DeepSeek R1 推理模型。显式输出思维链，结构化以便下游消费者处理。最好搭配 `reasoning_effort` 来控制深度与延迟的平衡。"
+---
+
+`deepseek-r1` 是 DeepSeek 的 R1 系列推理模型 —— 显式输出思维链，并以结构化的方式呈现，下游可以独立展示、隐藏或汇总推理轨迹与最终答案。最适合数学、多步演绎、代码分析等任何需要*推理过程*可审计而非隐式存在的场景。
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **DeepSeek** | DeepSeek direct | `api.deepseek.com` | 见 [/pricing](/zh/pricing) | 见 [/pricing](/zh/pricing) | ~1200ms | global edge |
+
+失败不计费。R1 推理在标准 DeepSeek chat 之上有小幅溢价 —— 完整价格见 [/pricing](/zh/pricing)。
+
+## Protocols
+
+| Protocol | 路径 |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-r1",
+    "messages": [
+      { "role": "user", "content": "If a train leaves Beijing at 8:00 traveling 200 km/h, and another leaves Shanghai at 9:00 at 250 km/h on the same track, when do they meet? Beijing-Shanghai = 1200 km." }
+    ],
+    "reasoning_effort": "high"
+  }'
+```
+
+响应同时包含思维链和最终答案；客户端可以分别渲染，或把推理过程折叠到可展开的 UI 中。
+
+## Capabilities
+
+| 能力 | 支持 |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| **显式 reasoning chain** | ✅ |
+| `reasoning_effort` low / medium / high | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | — |
+| 上下文窗口 | 128K tokens |
+| Modality | chat |
+| Capability bucket | `external_chat` |
+
+## 何时使用
+
+- **数学 / 多步演绎** —— 思维链对验证结果很重要的场景。
+- **代码分析** —— bug-trace 类问题，中间推理过程能帮助用户（或另一个 agent）审计结论。
+- **DOSIA `chat_with`** —— 当用户提出"逐步推理"或"step by step"类 prompt 时，主脑会调用此模型。
+
+**不**适用的场景：
+
+- 普通对话或摘要 —— [`deepseek-v3-2`](/zh/models/deepseek-v3-2) 更快更便宜，没有推理溢价。
+- Vision 任务 —— 用 [`gpt-4o`](/zh/models/gpt-4o) 或 [`gemini-3-1-pro`](/zh/models/gemini-3-1-pro)。
+
+## 下一步
+
+- [`deepseek-v3-2`](/zh/models/deepseek-v3-2) —— 标准 DeepSeek chat
+- [`deepseek-v3-anthropic`](/zh/models/deepseek-v3-anthropic) —— 同一个 V3 走 Anthropic 协议
+- [`gpt-5-5`](/zh/models/gpt-5-5) —— 备选推理模型

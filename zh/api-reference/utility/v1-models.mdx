@@ -1,0 +1,143 @@
+---
+title: "GET /models"
+description: "列出你这把 key 能调的模型，附带能力标签和实时价格指针。"
+---
+
+目录端点。返回当前 API key 作用域内的模型 —— 也就是
+[`/v1/messages`](../text/claude-messages)、
+[`/v1/chat/completions`](../text/openai-chat-completions)、
+[`/v1beta/models/{model}:generateContent`](../text/gemini-generate-content)
+的 `model` 字段能接受的同一组。调用免费，永不扣 credits。
+
+## 何时选用
+
+- **启动时验证 key 有效性** —— 这里返回 200 就证明 key 活着且在作用域内
+- **发送 image / video / audio 块前发现能力标签**
+- **在你自己的 UI 上做 model picker** —— 不用把目录硬编码进去
+- **检测下线的 slug** —— 不在列表里的 model 在 `/messages` / `/chat/completions` 上会被 400 `unsupported_model` 拦截
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/models \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+`x-api-key: $BYTESPIKE_API_KEY` 也行。无 body。
+
+### Query 参数
+
+| Param | Type | Notes |
+|---|---|---|
+| `capability` | string | 按能力标签过滤，例如 `?capability=vision` 或 `?capability=tool_use`。多个 OK：`?capability=vision&capability=streaming`。 |
+| `family` | string | 按厂商家族过滤：`anthropic` / `openai` / `google` / `deepseek` / `moonshot` / `zhipu` / `minimax` / `volcengine`。 |
+
+## Response
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "claude-sonnet-4-6",
+      "object": "model",
+      "owned_by": "anthropic",
+      "family": "claude",
+      "capabilities": ["text", "vision", "tool_use", "streaming", "cache_control", "thinking"],
+      "context_window": 200000,
+      "max_output_tokens": 8192,
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "pricing_url": "https://bytespike.ai/pricing#claude-sonnet-4-6",
+      "created": 1714003200
+    },
+    {
+      "id": "gpt-5-4",
+      "object": "model",
+      "owned_by": "openai",
+      "family": "gpt",
+      "capabilities": ["text", "vision", "tool_use", "streaming", "json_schema", "logprobs"],
+      "context_window": 256000,
+      "max_output_tokens": 16384,
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "pricing_url": "https://bytespike.ai/pricing#gpt-5-4",
+      "created": 1716393600
+    }
+    // …
+  ]
+}
+```
+
+### Response 字段
+
+| Field | Type | Notes |
+|---|---|---|
+| `data[].id` | string | Model slug。推理端点上当 `model` 值用。 |
+| `data[].owned_by` | string | 上游厂商（`anthropic`、`openai`、`google` 等）。 |
+| `data[].family` | string | 给 UI 用的更粗分组（`claude`、`gpt`、`gemini`、`deepseek`、`kimi`、`glm`、`minimax`、`doubao`）。 |
+| `data[].capabilities` | string[] | 特性标签（见 [能力标签](#capability-tags)）。 |
+| `data[].context_window` | integer | 最大输入上下文，单位 token。 |
+| `data[].max_output_tokens` | integer | 单次生成的硬上限。 |
+| `data[].input_modalities` | string[] | `text`、`image`、`audio`、`video`。 |
+| `data[].output_modalities` | string[] | 同一集合；纯文本模型返回 `["text"]`。 |
+| `data[].pricing_url` | string | 深链到该模型的价格行。 |
+| `data[].created` | integer | 模型进入目录的 Unix 时间戳。 |
+
+### 实时价格
+
+`pricing_url` 深链到 [bytespike.ai/pricing](https://bytespike.ai/pricing) 上的对应行。这个响应里有意不带每 token 费率 —— 费率表每晚从网关刷新，文档页面反映网关实际会扣的金额，所以从客户端读保持权威。
+
+## 能力标签
+
+| 标签 | 含义 |
+|---|---|
+| `text` | 接受文本输入 + 输出文本。所有模型都有。 |
+| `vision` | 接受图像内容块（`/messages` 的 `image`、`/chat/completions` 的 `image_url`、Gemini 的 `inlineData`）。 |
+| `audio` | 接受音频输入 part。 |
+| `video` | 接受视频输入 part。 |
+| `tool_use` | 支持 `tools` / `tool_choice`。 |
+| `streaming` | 支持 `stream: true` SSE。 |
+| `cache_control` | 支持 Anthropic 风格的 prompt 缓存。 |
+| `thinking` | 输出 `thinking` 内容块（Opus / Sonnet 4.x）。 |
+| `json_schema` | 支持 OpenAI `response_format: {"type": "json_schema"}`。 |
+| `logprobs` | 支持 OpenAI `logprobs: true`。 |
+| `image_gen` | 图像生成端点（`/v1/images/generations`）。 |
+| `video_gen` | 视频生成端点（`/v1/videos/generations`）。 |
+
+## 错误
+
+| Status | `error.type` | 触发条件 |
+|---|---|---|
+| 401 | `authentication_error` | key 缺失 / 已撤销。 |
+| 403 | `permission_error` | key 有效但没授权任何模型（罕见 —— 通常意味着 key 是在被暂停的组织下创建的）。 |
+
+`GET /v1/models` 免费；无 `402` 路径。速率限制存在但很宽 —— 唯一现实的
+429 是 key-rotation 风暴。
+
+## 示例 —— 启动时验证
+
+```python
+import os
+import requests
+
+r = requests.get(
+    "https://llm.bytespike.ai/v1/models",
+    headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+    timeout=10,
+)
+if r.status_code == 401:
+    raise SystemExit("BYTESPIKE_API_KEY missing or revoked")
+catalog = {m["id"]: m for m in r.json()["data"]}
+assert "vision" in catalog["claude-sonnet-4-6"]["capabilities"]
+```
+
+## 示例 —— 能力过滤
+
+```bash
+curl 'https://llm.bytespike.ai/v1/models?capability=vision&capability=tool_use' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+只返回同时接受图像 AND 能调工具的模型 —— 给一个要先 OCR 截图、然后基于
+内容动作的 agent 接线时很有用。

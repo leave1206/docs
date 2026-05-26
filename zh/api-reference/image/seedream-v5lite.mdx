@@ -1,0 +1,122 @@
+---
+title: "Seedream V5 lite"
+description: "轻量版 Seedream —— 1024² 廉价迭代，prompt 设计和粗略探索的首选。"
+---
+
+**厂商：** ByteDance
+**Model ID：** `seedream-v5lite`
+**能力：** 1024² · CJK prompt · 低延迟
+**价格：** 按张计费，lite 级 ([实时费率](https://bytespike.ai/pricing#image))
+
+Seedream V5 lite 用分辨率和精修换速度和成本。你还在改 prompt、想跑十张
+廉价 draft 再决定哪张拿去用 Seedream V4 / V4.5 出终稿时，就用它。
+美学是熟悉的 Seedream —— 同样的插画功底、同样的 CJK prompt 处理 ——
+价格压到能让你穷举式尝试 prompt 设计。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v5lite",
+    "prompt": "An ink-wash mountain at dawn, soft mist",
+    "size": "1024x1024",
+    "n": 4
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `seedream-v5lite` |
+| `prompt` | string | yes | — | 原生接受 CJK。 |
+| `size` | string | no | `1024x1024` | 支持：`1024x1024`、`1024x1536`、`1536x1024`。 |
+| `n` | integer | no | 1 | 1–4。每张单独计费。 |
+| `seed` | integer | no | — | 支持可复现性。 |
+| `negative_prompt` | string | no | — | 标准 SD 风格的反向 prompt。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedream-v5lite", "prompt": "An ink-wash mountain at dawn", "n": 4}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="seedream-v5lite",
+    prompt="An ink-wash mountain at dawn, soft mist",
+    size="1024x1024",
+    n=4,
+)
+for img in resp.data:
+    print(img.url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "seedream-v5lite",
+  prompt: "An ink-wash mountain at dawn, soft mist",
+  size: "1024x1024",
+  n: 4,
+})
+resp.data.forEach((img) => console.log(img.url))
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 413 | prompt 过长 | 不计费 |
+| 429 | 限流 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- prompt 迭代 / 设计探索 —— 还没决定要用 Seedream V4 或 V4.5 出终稿前。
+- 大批量构思 —— 试十种变体的代价值得在意时。
+- 美学 1024² 终稿，见 [Seedream V4](/zh/api-reference/image/seedream-v4)。
+- 2048² + 文字边缘保真，见 [Seedream V4.5](/zh/api-reference/image/seedream-v4-5)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 1536×1536 |
+| 单次最大张数（`n`） | 4 |
+| 支持 init image（img2img） | 否 |
+| 支持反向 prompt | 是 |
+| 支持 seed 可复现 | 是 |
+| 同步？ | 是（典型 ≤15s） |
+| 1024² 平均延迟 | 4-6s |

@@ -1,0 +1,129 @@
+---
+title: "Codex CLI"
+description: "把 OpenAI 的 Codex CLI 指向 ByteSpike。覆盖 GPT-5 系列、o 系列，以及所有可经 Responses-API 翻译到达的 Claude / Gemini 模型。"
+---
+
+OpenAI 的 Codex CLI 原生讲 Responses API。把它的 base URL 重定向到
+ByteSpike 之后，CLI 直接能用 GPT-5 / o-系列目录，再加上网关翻译成
+Responses 结构的所有其他模型（Claude 系列、Gemini 系列）。
+
+## 前置条件
+
+- 一个 ByteSpike 账号 + 一把 key。GPT-5 / o-系列只要 key 落在任意
+  能服务它们的分组里（通常是 OpenAI / `default` 分组）。要经
+  Responses 翻译触达 Claude 或 Gemini，key 的分组必须包含这些模型。
+- 装好 Codex CLI：
+  ```bash
+  npm install -g @openai/codex-cli
+  ```
+
+## 配置
+
+Codex CLI 读 `OPENAI_API_KEY` + `OPENAI_BASE_URL`。两个都设：
+
+```bash
+export OPENAI_BASE_URL="https://llm.bytespike.ai/v1"
+export OPENAI_API_KEY="sk-byts-..."
+```
+
+<Tip>
+如果你这个版本的 Codex CLI 用了一个 Responses-only 的 base URL 覆盖
+flag（部分预发布版用 `--responses-base-url`），显式把
+`https://llm.bytespike.ai/v1` 传进去：
+```bash
+codex --responses-base-url https://llm.bytespike.ai/v1 "..."
+```
+</Tip>
+
+## 验证
+
+```bash
+codex "list files in this directory"
+```
+
+Codex 会对网关跑一次小的 Responses-API 调用。你应该看到正常的工具
+调用输出（文件列表）。出错的话基本都是配置问题：`401` = key 错了、
+`402` = 钱包空了、`400 model_not_allowed` = 默认模型不在 key 的
+分组里。
+
+## 切换模型
+
+大多数版本的 Codex 接受 `--model`：
+
+```bash
+codex --model gpt-5-5         "refactor this function"
+codex --model gpt-5-3-codex   "explain this commit"
+codex --model claude-opus-4-7 "review my PR description"
+```
+
+上面三个都能跑 —— `gpt-5-*` 走 OpenAI 原生路径；Claude id 在 ByteSpike
+背后会触发 Responses→Messages 翻译。CLI 完全感知不到这个差别。
+
+## 常见配置
+
+<AccordionGroup>
+  <Accordion title="一把 key、多模型 session">
+    选一把分组包含你需要切换的全部模型的 key（如果你的账号开了
+    **all-protocols** 分组通常就用它）。然后 CLI 就能在单个 session
+    里用 `--model` 在 OpenAI 原生和 Claude/Gemini 翻译之间切。
+  </Accordion>
+  <Accordion title="推理模式（o-系列 + GPT-5）">
+    透传 Codex 的推理控制项：
+    ```bash
+    codex --model gpt-5-5 --reasoning-effort high "..."
+    ```
+    网关原样转发 `reasoning.effort` 字段。价格反映更高的推理 token
+    输出 —— 详见 [价格](/zh/pricing)。
+  </Accordion>
+  <Accordion title="结构化输出（JSON Schema）">
+    Codex 的 `--response-format json_schema=...` flag 会作为
+    `response_format` 转发到网关，再按上游正确路由（OpenAI 原生直接
+    支持 JSON Schema 模式；Claude 路径退化为 text + 解析）。
+  </Accordion>
+  <Accordion title="工具定义">
+    Codex 的工具定义（`--tools=...`）作为 Responses-API 的 `tools`
+    数组转发。在 OpenAI 路径上它是原生的；Claude/Gemini 路径上网关
+    会翻译成上游原生格式（Anthropic 用 `input_schema`，Gemini 用
+    `functionDeclarations`）。
+  </Accordion>
+</AccordionGroup>
+
+## Codex vs Claude Code —— 什么时候用哪个
+
+| 强项 | Claude Code | Codex CLI |
+|---|---|---|
+| **天然契合的模型** | Claude 系列（Anthropic Messages 原生） | GPT-5 + o-系列（OpenAI Responses 原生） |
+| **工具调用结构** | 更干净 —— Anthropic 直接用 JSON Schema | 噪声更多 —— OpenAI 把 tool_calls 包成字符串 |
+| **推理控制** | Opus / Sonnet 4.x 上的 `thinking` 块 | GPT-5 上的 `reasoning.effort: low/medium/high` |
+| **缓存控制** | `cache_control` 块（Anthropic 原生） | n/a |
+| **JSON 模式** | 两边都通过 response_format 支持 | 两边都支持；OpenAI 更成熟 |
+
+不少团队 **两个都装**，按任务挑。用一个 ByteSpike 账号，每个 CLI
+单独发一把 key 绑到对应的分组。
+
+## 排错
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| `401 invalid x-api-key` | key 错了 | 从 console 重新复制 |
+| `402 insufficient_balance` | 钱包空了 | 充值 |
+| `400 model_not_allowed` | 模型不在 key 的分组里 | 换分组或换模型 |
+| 工具调用返回乱码 | 模型路径不支持该工具结构（翻译的 Claude 路径上很少见） | 换到 GPT-5 原生模型，或简化工具结构 |
+| 流式中途卡住 | 代理缓冲 | 把 `llm.bytespike.ai` 加到 `NO_PROXY` |
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Claude Code CLI" icon="terminal" href="/zh/claude-code-cli">
+    Anthropic 的编码 CLI，同样的配置思路。
+  </Card>
+  <Card title="/responses 参考" icon="code" href="/zh/api-reference/text/openai-responses">
+    Codex 讲的协议。
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/zh/models">
+    GPT-5 / o-系列目录。
+  </Card>
+  <Card title="Cursor IDE" icon="code-branch" href="/zh/cursor">
+    编辑器层集成。
+  </Card>
+</CardGroup>

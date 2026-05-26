@@ -1,0 +1,182 @@
+---
+title: "Sora 2 Pro"
+description: "更高保真、更长时长、完整 1080p 的 Sora 2 —— 视频本身就是交付物时的模型。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `sora-2-pro`
+**能力：** 1080p · 最长 20s · 文本 + image init · 通过 tasks API 异步
+**价格：** 按秒 + submit 费，pro 级 ([实时费率](https://bytespike.ai/pricing#video))
+
+Sora 2 Pro 是视频本身就是交付物时用的。比 Sora 2 更高的基础保真度、
+更长的最大时长（20s vs 10s）、更完整的 1080p 细节。代价是延迟 ——
+5s 片段的端到端典型耗时 90–180 秒。迭代 / draft 阶段先用 Sora 2；
+把 Pro 预算花在最终成品上。
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora-2-pro",
+    "prompt": "A cinematic dolly shot through a misty pine forest at dawn, golden light filtering through.",
+    "duration_seconds": 8,
+    "resolution": "1080p"
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `sora-2-pro` |
+| `prompt` | string | yes | — | 针对英文调优。 |
+| `duration_seconds` | integer | yes | — | 1–20。 |
+| `resolution` | string | no | `1080p` | 支持：`720p`、`1080p`。 |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`。 |
+| `seed` | integer | no | — | 可复现性。 |
+| `image_init` | string | no | — | init image 的 URL，用于图生视频。 |
+| `style_preset` | string | no | — | 可选：`cinematic`、`anime`、`documentary`、`none`。 |
+
+## Submit 响应
+
+```json
+{
+  "task_id": "task_…",
+  "status": "queued",
+  "estimated_credits": 1.85,
+  "submitted_at": "2026-05-08T13:00:00Z"
+}
+```
+
+在 `queued` 期间取消可以免费撤销。进入 `running` 之后，会按已渲染的
+部分秒数计费。
+
+## Poll 等待完成
+
+```bash
+curl "https://llm.bytespike.ai/v1/tasks/query?task_id=task_…" \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+推荐节奏：前 90 秒每 2 秒，之后每 5 秒，最长到 240 秒。
+
+```json
+{
+  "task_id": "task_…",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/...",
+    "duration_seconds": 8,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9"
+  },
+  "credits": 1.85,
+  "completed_at": "2026-05-08T13:02:14Z"
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+# Submit
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "sora-2-pro", "prompt": "Dolly shot through pine forest at dawn", "duration_seconds": 8, "resolution": "1080p"}'
+
+# Poll
+curl "https://llm.bytespike.ai/v1/tasks/query?task_id=task_…" \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(
+    f"{API}/tasks/submit",
+    headers=HEADERS,
+    json={
+        "model": "sora-2-pro",
+        "prompt": "A cinematic dolly shot through a misty pine forest at dawn",
+        "duration_seconds": 8,
+        "resolution": "1080p",
+    },
+).json()
+
+task_id = submit["task_id"]
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"])
+        break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+
+const submit = await fetch(`${API}/tasks/submit`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    model: "sora-2-pro",
+    prompt: "A cinematic dolly shot through a misty pine forest at dawn",
+    duration_seconds: 8,
+    resolution: "1080p",
+  }),
+}).then((r) => r.json())
+
+const { task_id } = submit
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 | Body 校验（duration > 20、resolution 不支持） | 不计费 |
+| 401 / 402 / 403 | 鉴权 / 钱包 / scope | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+取消 `running` 中的任务会按已渲染秒数部分计费。
+
+## 何时选用
+
+- 主视觉 / 终稿级片段 —— 1080p 和时长要紧。
+- 从写实 init 帧出发的图生视频。
+- draft / 迭代阶段，先用 [Sora 2](/zh/api-reference/video/sora-2)。
+- 30s 周转的快速变体，见 [Veo 3.1 Fast](/zh/api-reference/video/veo-3-1-fast)。
+- 更低成本，见 [Seedance 2.0 Pro](/zh/api-reference/video/seedance-2-0-pro)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最长时长 | 20s |
+| 最短时长 | 1s |
+| 分辨率 | 720p、1080p |
+| 长宽比 | 16:9、9:16、1:1 |
+| 支持 image init | 是 |
+| 8s 片段典型延迟 | 120-180s |
+| 通过 tasks API 异步 | 是 |

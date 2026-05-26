@@ -1,0 +1,122 @@
+---
+title: "Nano Banana Pro"
+description: "在 Nano Banana 之上加一道精修与材质打磨 —— 主视觉级的写实旗舰。"
+---
+
+**厂商：** Google
+**Model ID：** `nano-banana-pro`
+**能力：** 2048² · 写实 · 延展精修 · 材质准确性
+**价格：** 按张计费，pro 写实级 ([实时费率](https://bytespike.ai/pricing#image))
+
+Nano Banana Pro 在基础版 Nano Banana 渲染之上加了一道延展精修和材质打磨。
+结果是更锐利的纹理、玻璃和金属上更干净的高光、主视觉尺度下更好的皮肤 /
+织物渲染。延迟代价是实打实的（约 2× 基础 Nano Banana）；图本身就是
+交付物的时候才选 Pro，迭代阶段别用。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana-pro",
+    "prompt": "Hero product shot of a luxury watch on dark velvet, dramatic side lighting",
+    "size": "2048x2048",
+    "n": 1
+  }'
+```
+
+### Body 参数
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `nano-banana-pro` |
+| `prompt` | string | yes | — | 针对英文调优。 |
+| `size` | string | no | `2048x2048` | 支持：`1024x1024`、`2048x2048`、`2048x1536`、`1536x2048`。 |
+| `n` | integer | no | 1 | 1–2 张。 |
+| `seed` | integer | no | — | 支持可复现性。 |
+| `aspect_ratio` | string | no | — | `1:1` / `9:16` / `16:9` / `4:3` / `3:4`。 |
+| `quality` | string | no | `"standard"` | `"standard"` / `"hd"` —— `"hd"` 额外加一道精修。 |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URL 预签名，24h 有效。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "nano-banana-pro", "prompt": "Hero product shot...", "size": "2048x2048", "quality": "hd"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="nano-banana-pro",
+    prompt="Hero product shot of a luxury watch on dark velvet, dramatic side lighting",
+    size="2048x2048",
+    quality="hd",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "nano-banana-pro",
+  prompt: "Hero product shot of a luxury watch on dark velvet, dramatic side lighting",
+  size: "2048x2048",
+  quality: "hd",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## 错误
+
+| Code | 触发条件 | 计费？ |
+|---|---|---|
+| 400 / 401 / 402 / 403 | 标准 | 不计费 |
+| 451 | prompt 被上游安全过滤拦截 | 不计费 |
+| 5xx | 上游问题 | 不计费（自动重试） |
+
+## 何时选用
+
+- 主视觉 / 投放级图像 —— 印刷尺度的细节要紧。
+- 产品摄影 —— brief 就是材质渲染。
+- 迭代 / 低保真场景，见 [Nano Banana](/zh/api-reference/image/nano-banana)。
+- 图内文字渲染更好的版本，见 [Nano Banana 2](/zh/api-reference/image/nano-banana-v2)。
+- 2048² 美学 / 插画，见 [Seedream V4.5](/zh/api-reference/image/seedream-v4-5)。
+
+## 限制
+
+| 限制 | 值 |
+|---|---|
+| 最大输出分辨率 | 2048×2048 |
+| 单次最大张数（`n`） | 2 |
+| 支持 init image（img2img） | 否 |
+| 支持 `quality` 修饰 | 是（`standard` / `hd`） |
+| 支持 seed 可复现 | 是 |
+| 同步？ | 是（`hd` ≤45s） |
+| 2048² standard 平均延迟 | 12-18s |
+| 2048² hd 平均延迟 | 25-40s |

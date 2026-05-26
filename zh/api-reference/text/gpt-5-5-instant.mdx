@@ -1,0 +1,124 @@
+---
+title: "GPT-5.5 instant"
+description: "GPT-5.5 的延迟优化变体 —— 在较短 prompt 上保留旗舰质量，省掉推理链延迟。"
+---
+
+**厂商：** OpenAI
+**Model ID：** `gpt-5-5-instant`
+**能力：** 200K 上下文 · 工具调用 · 视觉 · 流式 · 结构化输出
+**计价：** 按 token，旗舰档（[实时费率](https://bytespike.ai/pricing#text)）
+
+GPT-5.5-instant 是把推理链省掉的 GPT-5.5 —— 模型直接从 prompt 跳到答案。在短
+prompt 和不需要推理的任务上（抽取、结构化输出、短篇改写），它就是合适的选择：
+在受控输入上拿到旗舰质量，亚秒级 TTFB。
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5-instant",
+    "messages": [{"role": "user", "content": "Rewrite this support response in a friendlier tone."}]
+  }'
+```
+
+### Body 参数
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `model` | string | 是 | — | `gpt-5-5-instant` |
+| `messages` | array | 是 | — | — |
+| `max_tokens` | integer | 否 | 模型上限 | 最大值：16384。 |
+| `tools` | array | 否 | — | 并行 function calling。 |
+| `response_format` | object | 否 | — | JSON / 结构化输出。 |
+| `stream` | boolean | 否 | false | SSE 流式。 |
+
+本变体 **不接受** `reasoning_effort` —— 传入会返回 422。
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-5-instant",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 87, "completion_tokens": 142, "total_tokens": 229}
+}
+```
+
+没有 `reasoning_tokens` 字段 —— 没有推理链。
+
+## 代码示例
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-5-instant", "messages": [{"role": "user", "content": "Rewrite this in a friendlier tone."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-5-instant",
+    messages=[{"role": "user", "content": "Rewrite this support response in a friendlier tone."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-5-instant",
+  messages: [
+    { role: "user", content: "Rewrite this support response in a friendlier tone." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## 流式与缓存
+
+`"stream": true` 走 SSE。多数 prompt 都能拿到亚秒级 TTFB —— 因为推理链被省掉了。
+稳定前缀自动 prompt caching。
+
+## Errors
+
+| Code | 触发条件 | 是否计费 |
+|---|---|---|
+| 400 / 401 / 402 / 429 | 标准 | 否 |
+| 422 | 带了 `reasoning_effort`（需要推理请用 [GPT-5.5](/zh/api-reference/text/gpt-5-5)） | 否 |
+| 5xx | 上游 | 否（自动重试） |
+
+## 何时选用
+
+- 推理是过度配置的延迟敏感界面。
+- 在受控输入上做短篇改写、抽取、结构化输出。
+- 需要更深的多步推理，请用带 `reasoning_effort` 的 [GPT-5.5](/zh/api-reference/text/gpt-5-5)。
+- 延迟敏感、想要 mini 档成本，见 [GPT-5.4-mini](/zh/api-reference/text/gpt-5-4-mini)。
+
+## 限制
+
+| 项 | 值 |
+|---|---|
+| 上下文窗口 | 200K tokens |
+| 最大输出 | 16384 tokens |
+| 支持工具调用 | 是（并行） |
+| 支持视觉 | 是 |
+| 支持流式 | 是 |
+| 支持 prompt caching | 自动 |
+| 支持 reasoning_effort | 否 |

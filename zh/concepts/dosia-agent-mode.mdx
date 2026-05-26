@@ -1,0 +1,117 @@
+---
+title: "DOSIA Agent 模式"
+description: "DOSIA Agent 如何把 ByteSpike 当作上游 —— 讲哪个协议、能调哪些模型、它会期待 cache_control 和 tool_use block 怎么透传，以及 DOSIA 用户应该知道的每家 provider 的注意事项。"
+---
+
+DOSIA Agent 模式跑在 **Anthropic Messages 协议** 上 —— `POST /v1/messages`。这一点没得商量：值得用的 agent 框架需要 `tool_use` block、`cache_control` block、`thinking` block 端到端透传，而 Anthropic 形状是唯一把这三者作为一等概念暴露出来的协议。
+
+DOSIA Chat 模式是另一回事 —— 它跑在 OpenAI Chat Completions 上，覆盖 ByteSpike 上所有 chat 形状的模型。本页专谈 Agent 模式：今天能用什么、规划了什么、每个上游有哪些值得知道的点。
+
+## 协议表面
+
+DOSIA Agent 的请求落到 `https://llm.bytespike.ai/v1/messages`，用标准 Anthropic 形状：
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 2048,
+  "tools": [
+    {
+      "name": "search_files",
+      "description": "Search the local workspace for files.",
+      "input_schema": { ... }
+    }
+  ],
+  "messages": [
+    { "role": "user", "content": "Find every place we set the locale cookie." }
+  ]
+}
+```
+
+`tool_use` content block 在响应里回来；DOSIA 执行工具；下一轮把 `tool_result` block 发回去。标准的 Anthropic Messages agent 循环。
+
+DOSIA 在 system prompt 和稳定上下文（workspace 树、最近编辑）上加的 `cache_control: { type: "ephemeral" }` 标记会透传到任意服务该请求的上游 channel —— 见下文 [按 provider 的 cache_control 说明](#cache_control-per-provider)。
+
+## Agent 模式能调哪些模型
+
+ByteSpike 通过 model-alias 层和 channel 层一起解析 `model` 字段。Agent 模式享受和其他请求一样的多 channel 路由 —— 但协议把可选集合限定到 **暴露 Anthropic Messages 表面的上游**。
+
+今天的合格集合：
+
+| 模型家族 | 主 channel | 状态 | 备注 |
+|---|---|---|---|
+| `claude-haiku-4-5` / `sonnet-4-5` / `sonnet-4-6` / `opus-4-5` / `opus-4-6` / `opus-4-7` | Anthropic API + Bedrock | ✅ 已上线 | Anthropic 原生；一切都能用 |
+| `deepseek-v4-pro` / `deepseek-v4-flash` | DeepSeek HTTP API anthropic-compat | ✅ 已上线 | 见下文 [DeepSeek 注意事项](#deepseek-caveats) |
+| `kimi-k2-6` / `kimi-k2-5`（anthropic-compat 别名） | Moonshot 直连 | ⏳ 已规划 | Moonshot 的 anthropic-compat endpoint 已暴露；ByteSpike 路由在进行中 |
+| GLM via Zhipu anthropic-compat 别名 | Zhipu 直连 | ⏳ 已规划 | 同上 |
+| MiniMax（anthropic-compat 别名） | MiniMax 直连 | ⏳ 已规划 | 同 |
+| `doubao-seed-*` / `deepseek-v3-2` / `kimi-*` / `glm-*` / `minimax-*`（via Volcengine CodePlan） | Volcengine CodePlan 订阅 | ⏳ 已规划 | Volcengine CodePlan 的 anthropic-compat 路径存在；W2 的 PR-W2-VC 路由修复上线后，ByteSpike 的 vendor-compat dispatcher 就能正确路由 |
+
+GPT 和 Gemini **不** 在此列。两家都不暴露原生 Anthropic Messages endpoint；ByteSpike 不会去合成（在 agent 用途上协议映射的保真损失不值得）。GPT 或 Gemini 走 DOSIA Chat 模式 —— 见 [Endpoint 类型](/zh/concepts/endpoints)。
+
+## 为 Agent 挑模型
+
+给 DOSIA Agent 用户的一份观点性决策辅助：
+
+| 场景 | 选 | 为什么 |
+|---|---|---|
+| 默认 agent 工作、能力面广 | `claude-sonnet-4-6` | Tool use + thinking + cache_control + web_search 全在一起 |
+| 代码库规模的 agent（整个 repo 进上下文） | `claude-opus-4-7` | 1M 上下文窗口 |
+| 生产规模、成本优化的 agent | `claude-haiku-4-5` | 含 tool use；不含 thinking，但大多数 agent 循环不需要 extended thinking |
+| 中文工作负载、成本敏感 | `deepseek-v4-pro` | 比 Sonnet 便宜约 10×；带 reasoning chain |
+| 中文、最便宜档 | `deepseek-v4-flash` | Haiku 级价格；Pro 能力的子集 |
+| 团队用 Volcengine CodePlan 订阅 | `kimi-k2-6`（CodePlan channel，路由上线后） | 订阅摊薄；长上下文 |
+
+[models/index](/zh/models) 的推荐路径表从模型视角覆盖了同一片土壤。
+
+## 各 provider 的 `cache_control`
+
+`cache_control: { type: "ephemeral" }` 标记在不同 channel 上行为不同：
+
+- **Anthropic API / Bedrock channel** —— 一等支持。Cache write 是输入的 1.25×；cache read 是输入的约 10%。每次命中刷新 TTL。
+- **DeepSeek anthropic-compat channel** —— DeepSeek 上游尚未发布 `cache_control`。标记原样透传；上游忽略它。没有缓存收益，但也不报错。
+- **Moonshot / Zhipu / MiniMax / CodePlan channel** —— 当前同 DeepSeek。Anthropic-compat 别名接受形状，但上游缓存层未打通。
+
+这是已知的限制。当前推荐：不管目标是哪个上游，都在你的 DOSIA Agent system prompt 里保留 `cache_control` 标记 —— 被忽略时是免费的，上游一旦获得支持就自动激活。
+
+## DeepSeek 注意事项
+
+DOSIA Agent 对 `deepseek-v4-pro` / `deepseek-v4-flash` 当下完全支持，有三个注意点：
+
+1. **不支持 `cache_control`。** 如上。
+2. **HTTP API 上没有 vision。** DeepSeek 的 `chat.deepseek.com` 网页应用支持图像输入；HTTP API（OpenAI 形状和 anthropic-compat 都是）不支持。如果你的 Agent 要发 `image` content block，把这部分请求路由到 Claude 或 GPT-4o channel；其余留在 DeepSeek。
+3. **`thinking` block 在 OpenAI endpoint 上以 `reasoning_content` 出现，但在 anthropic-compat endpoint 上以正经 `thinking` block 出现。** DOSIA Agent 走 anthropic-compat 路径，所以你拿到原生形状；这个差别只有切协议时才重要。
+
+完整注意事项见 [DeepSeek provider 页](/zh/providers/deepseek)。
+
+## Volcengine CodePlan 说明
+
+Volcengine CodePlan bundle 在 `https://ark.cn-beijing.volces.com/api/coding` 暴露 anthropic-compat 路径。ByteSpike 的 vendor-compat 多 endpoint 设计（[见架构](/zh/concepts/vendor-compat-multi-endpoint)）通过给 CodePlan 账号填 `base_url_anthropic` 把它接好。
+
+路由还在 W2 那边进行中（PR-W2-VC）。一旦上线，DOSIA Agent 对 `kimi-k2-6` / `kimi-k2-5` / 其他 CodePlan 模型就能不改代码工作 —— 路由层会给这些模型名挑出 CodePlan channel，从 anthropic-compat 上游端 serving 请求。
+
+在此之前，跑 CodePlan 订阅团队的客户先把 DOSIA Agent 默认到 DeepSeek，路由修复上线后再调回去。
+
+## 失败模式
+
+DOSIA Agent → ByteSpike → 上游一条链上能出哪些错、各长什么样：
+
+| 现象 | 可能原因 | 去哪查 |
+|---|---|---|
+| `/v1/messages` 上 404 | 模型名对 Agent 不合格（例如发了一个 GPT 模型） | 发 Claude / DeepSeek / 未来支持的模型。见上文合格性表。 |
+| 422 "tool_use not supported" | 模型在尚未启用 anthropic-compat 的 channel 上 | 切到 Claude 或 DeepSeek；查 [覆盖矩阵](#which-models-agent-mode-can-target) |
+| 5xx 上游 | 挑中的 channel 出问题 | ByteSpike 在你 key 分组里的下一条合格 channel 自动重试。如果分组内全部失败，网关把上游错误透出来。要查哪些 channel 试过，看 `/api/v1/usage` 对应请求行的 `upstream_provider` 字段。 |
+| 流中 `error` 事件 | 上游中途中止响应 | 零 credit 扣费（见 [credits 与账单](/zh/concepts/credits-and-billing)）；DOSIA 会以 streaming-failure toast 给用户提示 |
+
+更全面的 failure-billing 策略见 [credits 与账单](/zh/concepts/credits-and-billing)。重试和幂等见 [错误处理](/zh/concepts/error-handling)。
+
+## 配置 DOSIA Cloud Enterprise
+
+给 DOSIA Cloud Enterprise 管理员搭权限模板用：**Global edition** 和 **China edition** 预设按区域预选了正确的 Agent 默认值。把每套预设映射到 Agent + Chat 默认值的表见 [models 索引 DOSIA 推荐路径](/zh/models#dosia-recommended-paths)。
+
+## 下一步
+
+- [Endpoint 类型](/zh/concepts/endpoints) —— 完整的八协议地图
+- [Vendor compat · 多 endpoint 架构](/zh/concepts/vendor-compat-multi-endpoint) —— `base_url_anthropic` 如何让一个凭证服务两种协议
+- [DeepSeek provider 页](/zh/providers/deepseek) —— DeepSeek 的 vision + cache_control + reasoning 细节
+- [Models 索引](/zh/models) —— 每个模型的文档，含 DOSIA 推荐路径表
