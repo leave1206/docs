@@ -1,0 +1,120 @@
+---
+title: "GPT-5.4 mini"
+description: "5.4-tier mini — the small model with 5.4's tighter tool-call generation. Drop-in cost-down from GPT-5.4."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-4-mini`
+**Capability:** 128K context · tool use · vision · streaming · structured output
+**Pricing:** per-token, mini tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5.4-mini sits between [GPT-5-mini](/api-reference/text/gpt-5-mini)
+and [GPT-5.4](/api-reference/text/gpt-5-4): mini-tier price with 5.4's
+tighter structured output and tool-call argument generation. Right
+default for production extraction and agent loops where you want 5.4's
+quality bump without the standard-tier cost.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-mini",
+    "messages": [{"role": "user", "content": "Extract the dollar amounts from this invoice."}],
+    "response_format": {"type": "json_object"}
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-4-mini` |
+| `messages` | array | yes | — | — |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `tools` | array | no | — | Parallel function calling. |
+| `response_format` | object | no | — | JSON / structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-4-mini",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "{\"amounts\": [142.50, 89.00]}"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 87, "completion_tokens": 24, "total_tokens": 111}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-4-mini", "messages": [{"role": "user", "content": "Extract amounts as JSON."}], "response_format": {"type": "json_object"}}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-4-mini",
+    messages=[{"role": "user", "content": "Extract amounts as JSON."}],
+    response_format={"type": "json_object"},
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4-mini",
+  messages: [{ role: "user", content: "Extract amounts as JSON." }],
+  response_format: { type: "json_object" },
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Production extraction and structured output where 5-mini's quality plateaus.
+- Tool-using agent steps where argument tightness matters.
+- For lower latency at smaller scale, see [GPT-5.4-nano](/api-reference/text/gpt-5-4-nano).
+- For more capability, see [GPT-5.4](/api-reference/text/gpt-5-4) or [GPT-5.5](/api-reference/text/gpt-5-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

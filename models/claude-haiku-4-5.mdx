@@ -1,0 +1,97 @@
+---
+title: "claude-haiku-4-5"
+description: "Anthropic's small-and-cheap model — for classification, routing, structured extraction at scale. Vision and tool use included; pair with prompt caching on the system prompt for the lowest possible per-request cost."
+---
+
+`claude-haiku-4-5` is the small / fast / cheap Claude. It's the right default for **anything you'd run at scale** where the prompt is short, the response is short, and you'd rather call the API ten thousand times an hour than three hundred. Vision and tool use are still included; what you give up is the bigger models' reasoning depth on hard problems.
+
+## Channels
+
+| Channel group | Input | Output | Cache read |
+|---|---|---|---|
+| **claude-default** (Anthropic upstream) | $1.00 / 1M | $5.00 / 1M | $0.10 / 1M |
+
+Pricing is per [channels](/concepts/channels) the routing layer picks from your key's group. Cache write tier is 1.25× input.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions (shim) | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 256,
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK with cache_control)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=256,
+    system=[
+        {
+            "type": "text",
+            "text": LARGE_CLASSIFICATION_RUBRIC,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ],
+    messages=[{"role": "user", "content": "My invoice charged twice."}],
+)
+
+print(resp.content[0].text)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| Prompt caching (cache_control) | ✅ |
+| Extended thinking | — |
+| Web search | — |
+| JSON / structured output | ✅ |
+| Context window | 200K tokens |
+
+## When to use
+
+- **Classification, routing, triage.** Tickets → categories. Emails → priority. Calls → next-best action.
+- **Structured extraction at scale.** PII redaction, entity extraction, schema-driven parsing on a firehose.
+- **Cache-amortized agents.** Big system prompt + many short user turns; cache_control on the system makes each turn ~10× cheaper after the first.
+- **Vision OCR on cheap models.** Haiku's vision is good enough for receipts, invoices, screenshots — at a quarter of Sonnet's price.
+
+When **not** to use:
+
+- Hard reasoning — no extended thinking on Haiku; go to Sonnet or Opus.
+- Long-form writing — Haiku's prose tier is below Sonnet.
+
+## Next
+
+- [claude-sonnet-4-6](/models/claude-sonnet-4-6) — production mid-tier
+- [claude-opus-4-7](/models/claude-opus-4-7) — 1M-context flagship
+- [Anthropic provider page](/providers/anthropic) — family overview

@@ -1,0 +1,121 @@
+---
+title: "Nano Banana"
+description: "Google's photorealistic image generator — studio-grade lighting and material rendering, the entry point to the Nano Banana family."
+---
+
+**Vendor:** Google
+**Model ID:** `nano-banana`
+**Capability:** 1024² · photorealism · studio lighting · material accuracy
+**Pricing:** per image, photoreal tier ([live rate](https://bytespike.ai/pricing#image))
+
+Nano Banana is Google's entry photorealistic image generator. Reach
+for it when the brief reads "studio lighting, glass surfaces,
+anatomical correctness" and the Seedream family's illustrative
+aesthetic would fight your direction. For higher fidelity with extended
+post-processing, see [Nano Banana Pro](/api-reference/image/nano-banana-pro);
+for the latest iteration with improved text rendering, see
+[Nano Banana 2](/api-reference/image/nano-banana-v2).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana",
+    "prompt": "A glass of red wine on a marble counter, side-lit by afternoon sun",
+    "size": "1024x1024",
+    "n": 1
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `nano-banana` |
+| `prompt` | string | yes | — | English-recommended; CJK supported but tuned for English. |
+| `size` | string | no | `1024x1024` | Supported: `1024x1024`, `1024x1536`, `1536x1024`. |
+| `n` | integer | no | 1 | 1–2 images. |
+| `seed` | integer | no | — | Reproducibility supported. |
+| `aspect_ratio` | string | no | — | Alternate to `size`: `1:1` / `9:16` / `16:9` / `4:3` / `3:4`. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "nano-banana", "prompt": "A glass of red wine on a marble counter"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="nano-banana",
+    prompt="A glass of red wine on a marble counter, side-lit by afternoon sun",
+    size="1024x1024",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "nano-banana",
+  prompt: "A glass of red wine on a marble counter, side-lit by afternoon sun",
+  size: "1024x1024",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Photorealistic stills where material accuracy matters.
+- Studio-lit product / food / lifestyle imagery.
+- For higher-fidelity post-processing, see [Nano Banana Pro](/api-reference/image/nano-banana-pro).
+- For sharper text rendering, see [Nano Banana 2](/api-reference/image/nano-banana-v2).
+- For aesthetic / illustrative output, see [Seedream V4](/api-reference/image/seedream-v4).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 1536×1536 |
+| Max images per call (`n`) | 2 |
+| Supports init image (img2img) | No |
+| Supports negative prompt | No |
+| Supports seed reproduction | Yes |
+| Sync? | Yes (≤30s typical) |
+| Avg latency for 1024² | 6-10s |

@@ -1,0 +1,105 @@
+---
+title: "gpt-image-2"
+description: "OpenAI's flagship image model. Text-to-image and image-to-image (mask-driven edits) on one endpoint, billed per image. The default choice when you want OpenAI fidelity on layout, typography, and product shots."
+---
+
+`gpt-image-2` is OpenAI's flagship image model. Text-to-image and image-to-image (mask-driven edits) live on a single endpoint, billed per image generated. Strong on layout fidelity, in-image typography, and product/scene composition — the place to reach for when "looks like a real OpenAI render" matters more than the lowest per-image cost.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI Images** | OpenAI direct | `api.openai.com` | per-image (see [/pricing](/pricing) for current rate) | ~6s (1024×1024) | global edge |
+
+Pricing varies by `size` and `quality` and ships under one rate card on the marketing page. See [/pricing](/pricing) for the live numbers — the gateway always bills against the same source. Failures don't bill.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "A flat-style red apple on a soft beige background, marketing hero",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="gpt-image-2",
+    prompt="A flat-style red apple on a soft beige background, marketing hero",
+    n=1,
+    size="1024x1024",
+)
+
+print(resp.data[0].url)
+```
+
+```typescript TypeScript (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.images.generate({
+  model: "gpt-image-2",
+  prompt: "A flat-style red apple on a soft beige background, marketing hero",
+  n: 1,
+  size: "1024x1024",
+})
+
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-image | ✅ |
+| Image-to-image (with `source_image`) | ✅ |
+| Mask-driven edits | ✅ |
+| `n` ≥ 2 batch generation | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| `quality` standard / hd | ✅ |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## When to use
+
+- **Marketing creative** — hero images, social cards, anywhere typography-in-image matters.
+- **Product mockups** — fidelity on materials, lighting, and small print holds up better than most domestic alternatives.
+- **DOSIA `generate_image` tool** — the main brain will resolve "draw me an X" to this model by default when permission is granted.
+
+When **not** to use:
+
+- High-volume or budget-sensitive work — [`nano-banana`](/models/nano-banana) is materially cheaper for the same shape.
+- Photorealistic Chinese aesthetic / poster work — try [`seedream-4`](/models/seedream-4) or [`seedream-4.5`](/models/seedream-4-5).
+
+## Next
+
+- [`nano-banana`](/models/nano-banana) — cheaper Google text-to-image
+- [`seedream-4`](/models/seedream-4) — ByteDance flagship
+- [Multimodal endpoints](/concepts/multimodal) — overview of image / video / audio / embedding surfaces

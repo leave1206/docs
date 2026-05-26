@@ -1,0 +1,281 @@
+---
+title: "Anthropic on ByteSpike"
+description: "Every Claude model — Haiku 4.5, Sonnet 4.5 / 4.6, Opus 4.5 / 4.6 / 4.7 — behind one ByteSpike key. Native Anthropic Messages plus a transparent OpenAI Chat Completions shim. Full cache_control, tool_use, thinking, and web_search support."
+---
+
+ByteSpike routes the full Claude family — Haiku 4.5, Sonnet 4.5 / 4.6, Opus 4.5 / 4.6 / 4.7 — behind a single ByteSpike API key. The native Anthropic Messages shape (with `cache_control`, `tool_use`, and `thinking` blocks) is preserved end-to-end. An OpenAI Chat Completions shim is available for legacy code that hasn't migrated yet.
+
+## Two endpoints, one key
+
+Anthropic models on ByteSpike speak both major chat protocols. Pick whichever your client already uses.
+
+| Endpoint | Path | Use when |
+|---|---|---|
+| **Anthropic Messages** | `POST https://llm.bytespike.ai/v1/messages` | You want native `tool_use`, `cache_control`, `thinking`, and `web_search` blocks. Required if you're writing an agent. |
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | You already have OpenAI SDK code. Drop in `base_url`, swap `model`, keep the rest. |
+
+Either endpoint accepts the same ByteSpike key. Switch protocols by changing the path, not the credential.
+
+## Authentication
+
+Issue a key from the Console, then send it on every request.
+
+1. Sign in at [console.bytespike.ai](https://console.bytespike.ai)
+2. Open **API keys** → **Create key**
+3. Copy the key when shown (it's displayed only once)
+4. Pass it as `Authorization: Bearer $BYTESPIKE_API_KEY` for the OpenAI endpoint, or `x-api-key: $BYTESPIKE_API_KEY` for the Anthropic endpoint
+
+The same key works against every model on the gateway. Revoke per-key in the Console; rotation does not affect other keys on the account.
+
+## Models
+
+All Claude models on the gateway. Pricing is per million tokens unless otherwise noted; see [bytespike.ai/pricing](https://bytespike.ai/pricing) for the nightly-refreshed authoritative rate card.
+
+| Model ID | Tier | Context | Input | Output | Cache read | Capabilities |
+|---|---|---|---|---|---|---|
+| `claude-haiku-4-5` | Haiku 4.5 | 200K | $0.80 | $4.00 | $0.08 | chat · vision · tools · cache |
+| `claude-sonnet-4-5` | Sonnet 4.5 | 200K | $3.00 | $15.00 | $0.30 | chat · vision · tools · cache · web_search |
+| `claude-sonnet-4-6` | Sonnet 4.6 | 200K | $3.00 | $15.00 | $0.30 | chat · vision · tools · cache · web_search · thinking |
+| `claude-opus-4-5` | Opus 4.5 | 200K | $15.00 | $75.00 | $1.50 | chat · vision · tools · cache · thinking |
+| `claude-opus-4-6` | Opus 4.6 | 200K | $15.00 | $75.00 | $1.50 | chat · vision · tools · cache · thinking · web_search |
+| `claude-opus-4-7` | Opus 4.7 | 1M | $15.00 | $75.00 | $1.50 | chat · vision · tools · cache · thinking · web_search · 1M context |
+
+<Note>
+  Cache write is 1.25× the input rate per Anthropic's published schedule. The first request that populates a cache block pays the write tier; subsequent reads from that block pay the cache-read tier above.
+</Note>
+
+## Quickstart
+
+Send your first request with whichever stack you prefer. All four examples produce the same completion against `claude-sonnet-4-6`.
+
+<CodeGroup>
+
+```bash cURL (Anthropic Messages)
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (OpenAI SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="claude-sonnet-4-6",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```javascript Node (OpenAI SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "claude-sonnet-4-6",
+  messages: [
+    { role: "user", content: "Hello, ByteSpike." },
+  ],
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+```python Python (Anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.content[0].text)
+```
+
+</CodeGroup>
+
+## Anthropic-specific features
+
+Every feature shipped by Anthropic for direct-to-api customers passes through ByteSpike unchanged. The block shapes, header semantics, and SDK type narrowing all match the upstream contract.
+
+### Prompt caching with `cache_control`
+
+Mark a prefix as cacheable to amortize its cost across many requests.
+
+```python
+client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": LARGE_SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ],
+    messages=[{"role": "user", "content": "Question 1"}],
+)
+```
+
+The first request pays the cache-write rate (1.25× input). Subsequent requests reusing the same prefix pay the cache-read rate (~10% of input). Cache TTL is 5 minutes by default and extends on each hit.
+
+### Tool use
+
+`tool_use` blocks pass through transparently, including parallel tool calls.
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Return the current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "properties": { "city": { "type": "string" } },
+        "required": ["city"]
+      }
+    }
+  ],
+  "messages": [{ "role": "user", "content": "Weather in SF?" }]
+}
+```
+
+The response includes a `content` array with a `tool_use` block; respond with a `tool_result` block in the next turn to continue.
+
+### Extended thinking
+
+Sonnet 4.6 and Opus 4.5+ expose interleaved reasoning via `thinking` blocks. Enable by passing `thinking: { type: "enabled", budget_tokens: N }`.
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "max_tokens": 2048,
+  "thinking": { "type": "enabled", "budget_tokens": 1024 },
+  "messages": [{ "role": "user", "content": "Untangle this contract." }]
+}
+```
+
+Thinking tokens count toward output billing. The `thinking` block appears in `content` ahead of the final `text` block.
+
+### Web search
+
+Opus 4.6 / 4.7 and Sonnet 4.6 support Anthropic's web search tool. Add the tool to your request and the model orchestrates retrieval transparently.
+
+```json
+{
+  "tools": [{ "type": "web_search_20250305", "name": "web_search" }]
+}
+```
+
+Each web search invocation counts as a separate tool use; results are billed at the upstream's published rate.
+
+### Streaming
+
+Set `stream: true` on either endpoint for SSE.
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "stream": true,
+    "messages": [{"role": "user", "content": "Stream this."}]
+  }'
+```
+
+A mid-stream error closes the SSE channel with an `error` event and the request bills zero credits — even if tokens were already rendered. See [Failures don't bill](/concepts/credits-and-billing) for the policy.
+
+## Capabilities matrix
+
+What every Claude model on ByteSpike supports today.
+
+| Capability | Haiku 4.5 | Sonnet 4.5 | Sonnet 4.6 | Opus 4.5 | Opus 4.6 | Opus 4.7 |
+|---|---|---|---|---|---|---|
+| Chat completions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Streaming (SSE) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Vision (image input) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tool use (function calling) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Parallel tool use | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| JSON / structured output | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Prompt caching | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Extended thinking | — | — | ✅ | ✅ | ✅ | ✅ |
+| Web search | — | ✅ | ✅ | — | ✅ | ✅ |
+| 1M context window | — | — | — | — | — | ✅ |
+| OpenAI shim endpoint | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Anthropic Messages endpoint | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+## Errors
+
+ByteSpike surfaces upstream errors verbatim where the shape is informative, and rewrites a small set where the upstream returns 200 OK with an `error` body field.
+
+| Status | Trigger | Billed? |
+|---|---|---|
+| 400 | Malformed request (bad JSON, unknown field, invalid model) | No |
+| 401 | Missing or invalid `Authorization` / `x-api-key` | No |
+| 402 | Insufficient credits | No |
+| 422 | Validation (e.g. context window exceeded) | No |
+| 429 | Rate limit (account or upstream) | No |
+| 500 | Internal gateway error | No (auto-retried 2×) |
+| 502 / 503 / 504 | Upstream unavailable | No (auto-retried 2×) |
+
+A non-2xx status always bills zero credits. Mid-stream `error` events on a 200 SSE response also bill zero, even if tokens were rendered.
+
+## Rate limits
+
+Per-account limits apply across all models; the gateway buffers spikes up to a 60-second burst window.
+
+| Plan | Requests per minute | Tokens per minute |
+|---|---|---|
+| Free | 60 | 50K |
+| Pro | 600 | 500K |
+| Max | 6,000 | 5M |
+| Enterprise | custom | custom |
+
+Hitting the limit returns 429 with a `retry-after` header. Set [Idempotency-Key](/concepts/error-handling#idempotency) on each request to deduplicate retries.
+
+## When to use which Claude
+
+- **Haiku 4.5** — classification, routing, structured extraction at scale. Cheap and fast; pair with `cache_control` for the system prompt.
+- **Sonnet 4.5** — drafting and summarization where speed matters more than depth. Web search if you need fresh facts.
+- **Sonnet 4.6** — the default production workhorse. Vision, tools, thinking, web search, prompt cache — all together at a Sonnet price.
+- **Opus 4.5** — long-form reasoning that doesn't need fresh web context. Cheaper than 4.6 / 4.7 but lacks web search.
+- **Opus 4.6** — Opus with web search. Reach for it for research, briefings, anything that needs current sources.
+- **Opus 4.7** — the 1M-context flagship. Codebase-scale refactors, full-document review, anything that's too long for 200K.
+
+## Next
+
+- [OpenAI on ByteSpike](/providers/openai) for GPT and DALL-E
+- [Concepts: credits and billing](/concepts/credits-and-billing) for the "failures don't bill" policy
+- [Concepts: error handling](/concepts/error-handling) for retries and idempotency
+- [API reference: claude-messages](/api-reference/text/claude-messages) for the full Anthropic Messages spec

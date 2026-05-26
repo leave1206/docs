@@ -1,126 +1,513 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "ByteSpike",
+  "description": "Anthropic-compatible AI gateway with one key for 45 frontier models. Public per-model rate card. Failures don't bill.",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3AE1E0",
+    "light": "#3AEEDE",
+    "dark": "#3964EF"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/logo/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://bytespike.ai"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Marketing",
+        "href": "https://bytespike.ai"
+      },
+      {
+        "label": "Pricing",
+        "href": "https://bytespike.ai/pricing"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Console",
+      "href": "https://console.bytespike.ai"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "register",
+              "top-up",
+              "configure-client",
+              "authentication",
+              "pricing",
+              "troubleshooting"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Client setup",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "claude-code-cli",
+              "codex-cli",
+              "gemini-cli",
+              "cursor"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Migrate from",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/components",
-              "essentials/reusable-snippets"
+              "migrate-from-openai",
+              "migrate-from-anthropic"
             ]
           },
           {
-            "group": "Agent ready",
+            "group": "Concepts",
             "pages": [
-              "agent-ready/prompt",
-              "agent-ready/visibility",
-              "agent-ready/contextual",
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "concepts/endpoints",
+              "concepts/channels",
+              "concepts/platforms-vs-channels",
+              "concepts/legacy-compat-names",
+              "concepts/provider-comparison",
+              "concepts/vendor-compat-multi-endpoint",
+              "concepts/dosia-agent-mode",
+              "concepts/mcp-integration",
+              "concepts/credits-and-billing",
+              "concepts/multimodal",
+              "concepts/streaming",
+              "concepts/rate-limits",
+              "concepts/error-handling",
+              "concepts/errors-reference"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "models/index",
+              "models/claude-haiku-4-5",
+              "models/claude-sonnet-4-6",
+              "models/claude-opus-4-7",
+              "models/gpt-4o-mini",
+              "models/gpt-4o",
+              "models/gpt-4v",
+              "models/gpt-5-2",
+              "models/gpt-5-3-codex",
+              "models/gpt-5-4-mini",
+              "models/gpt-5-4",
+              "models/gpt-5-5",
+              "models/gemini-2-5-flash",
+              "models/gemini-2-5-pro",
+              "models/gemini-3-1-pro",
+              "models/deepseek-v3-2",
+              "models/deepseek-v3-anthropic",
+              "models/deepseek-v4-flash",
+              "models/deepseek-v4-pro",
+              "models/deepseek-r1",
+              "models/doubao-seed-2-0-pro",
+              "models/glm-5",
+              "models/kimi-k2-6",
+              "models/minimax-m2-7",
+              "models/nano-banana",
+              "models/nano-banana-v2",
+              "models/gpt-image-2",
+              "models/seedream-4",
+              "models/seedream-4-5",
+              "models/seedream-v5lite",
+              "models/sora2",
+              "models/sora2-pro",
+              "models/veo3-1",
+              "models/veo3-1-fast",
+              "models/seedance-1-5-pro",
+              "models/seedance-2-0-pro",
+              "models/seedance-2-0-pro-fast",
+              "models/seedance-2-0-fast"
+            ]
+          },
+          {
+            "group": "Providers",
+            "pages": [
+              "providers/anthropic",
+              "providers/openai",
+              "providers/gemini",
+              "providers/deepseek",
+              "providers/volcengine-codeplan"
+            ]
+          },
+          {
+            "group": "Internal (DOSIA-coupled)",
+            "pages": [
+              "employee-onboarding",
+              "admin-operations"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "API Reference",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/overview"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Protocol endpoints",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/text/claude-messages",
+              "api-reference/text/openai-chat-completions",
+              "api-reference/text/openai-responses",
+              "api-reference/text/gemini-generate-content"
+            ]
+          },
+          {
+            "group": "OpenAI",
+            "pages": [
+              "api-reference/text/gpt-4o-mini",
+              "api-reference/text/gpt-4o",
+              "api-reference/text/gpt-5-nano",
+              "api-reference/text/gpt-5-mini",
+              "api-reference/text/gpt-5-2",
+              "api-reference/text/gpt-5-4-nano",
+              "api-reference/text/gpt-5-4-mini",
+              "api-reference/text/gpt-5-4",
+              "api-reference/text/gpt-5-4-pro",
+              "api-reference/text/gpt-5-5-instant",
+              "api-reference/text/gpt-5-5"
+            ]
+          },
+          {
+            "group": "Anthropic",
+            "pages": [
+              "api-reference/text/claude-haiku-4-5",
+              "api-reference/text/claude-sonnet-4-5",
+              "api-reference/text/claude-sonnet-4-6",
+              "api-reference/text/claude-opus-4-5",
+              "api-reference/text/claude-opus-4-6",
+              "api-reference/text/claude-opus-4-7"
+            ]
+          },
+          {
+            "group": "Google",
+            "pages": [
+              "api-reference/text/gemini-3-flash",
+              "api-reference/text/gemini-3-1-pro"
+            ]
+          },
+          {
+            "group": "DeepSeek",
+            "pages": [
+              "api-reference/text/deepseek-v3-2",
+              "api-reference/text/deepseek-v4-flash",
+              "api-reference/text/deepseek-v4-pro"
+            ]
+          },
+          {
+            "group": "Moonshot",
+            "pages": [
+              "api-reference/text/kimi-k2-5",
+              "api-reference/text/kimi-k2-6"
+            ]
+          },
+          {
+            "group": "Zhipu",
+            "pages": [
+              "api-reference/text/glm-5",
+              "api-reference/text/glm-5-1"
+            ]
+          },
+          {
+            "group": "MiniMax",
+            "pages": [
+              "api-reference/text/minimax-m2-5",
+              "api-reference/text/minimax-m2-7"
+            ]
+          },
+          {
+            "group": "Image",
+            "pages": [
+              "api-reference/image/seedream-v4",
+              "api-reference/image/seedream-v4-5",
+              "api-reference/image/seedream-v5lite",
+              "api-reference/image/nano-banana",
+              "api-reference/image/nano-banana-pro",
+              "api-reference/image/nano-banana-v2",
+              "api-reference/image/gpt-image-2",
+              "api-reference/image/gpt-image-2-official",
+              "api-reference/image/gpt-4o-image"
+            ]
+          },
+          {
+            "group": "Video",
+            "pages": [
+              "api-reference/video/sora-2",
+              "api-reference/video/sora-2-pro",
+              "api-reference/video/veo-3-1",
+              "api-reference/video/veo-3-1-fast",
+              "api-reference/video/seedance-1-5-pro",
+              "api-reference/video/seedance-2-0",
+              "api-reference/video/seedance-2-0-pro",
+              "api-reference/video/seedance-2-0-pro-fast",
+              "api-reference/video/seedance-fast"
+            ]
+          },
+          {
+            "group": "Account & billing",
+            "pages": [
+              "api-reference/account/me-account",
+              "api-reference/account/me-billing-transactions",
+              "api-reference/account/me-usage",
+              "api-reference/account/me-webhooks",
+              "api-reference/account/me-notifications"
+            ]
+          },
+          {
+            "group": "Utility",
+            "pages": [
+              "api-reference/utility/v1-models",
+              "api-reference/utility/balance",
+              "api-reference/utility/tasks-submit",
+              "api-reference/utility/tasks-query",
+              "api-reference/utility/tasks-cancel"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/bytespike",
+      "twitter": "https://twitter.com/bytespike"
     }
+  },
+  "redirects": [
+    {
+      "source": "/anthropic",
+      "destination": "/providers/anthropic"
+    },
+    {
+      "source": "/concepts/model-aliases",
+      "destination": "/concepts/legacy-compat-names"
+    },
+    {
+      "source": "/api/claude-messages",
+      "destination": "/api-reference/text/claude-messages"
+    },
+    {
+      "source": "/api/claude-haiku-4-5",
+      "destination": "/api-reference/text/claude-haiku-4-5"
+    },
+    {
+      "source": "/api/claude-sonnet-4-5",
+      "destination": "/api-reference/text/claude-sonnet-4-5"
+    },
+    {
+      "source": "/api/claude-sonnet-4-6",
+      "destination": "/api-reference/text/claude-sonnet-4-6"
+    },
+    {
+      "source": "/api/claude-opus-4-5",
+      "destination": "/api-reference/text/claude-opus-4-5"
+    },
+    {
+      "source": "/api/claude-opus-4-6",
+      "destination": "/api-reference/text/claude-opus-4-6"
+    },
+    {
+      "source": "/api/claude-opus-4-7",
+      "destination": "/api-reference/text/claude-opus-4-7"
+    },
+    {
+      "source": "/api/gpt-4o-mini",
+      "destination": "/api-reference/text/gpt-4o-mini"
+    },
+    {
+      "source": "/api/gpt-4o",
+      "destination": "/api-reference/text/gpt-4o"
+    },
+    {
+      "source": "/api/gpt-5-nano",
+      "destination": "/api-reference/text/gpt-5-nano"
+    },
+    {
+      "source": "/api/gpt-5-mini",
+      "destination": "/api-reference/text/gpt-5-mini"
+    },
+    {
+      "source": "/api/gpt-5-2",
+      "destination": "/api-reference/text/gpt-5-2"
+    },
+    {
+      "source": "/api/gpt-5-4-nano",
+      "destination": "/api-reference/text/gpt-5-4-nano"
+    },
+    {
+      "source": "/api/gpt-5-4-mini",
+      "destination": "/api-reference/text/gpt-5-4-mini"
+    },
+    {
+      "source": "/api/gpt-5-4",
+      "destination": "/api-reference/text/gpt-5-4"
+    },
+    {
+      "source": "/api/gpt-5-4-pro",
+      "destination": "/api-reference/text/gpt-5-4-pro"
+    },
+    {
+      "source": "/api/gpt-5-5-instant",
+      "destination": "/api-reference/text/gpt-5-5-instant"
+    },
+    {
+      "source": "/api/gpt-5-5",
+      "destination": "/api-reference/text/gpt-5-5"
+    },
+    {
+      "source": "/api/gemini-3-flash",
+      "destination": "/api-reference/text/gemini-3-flash"
+    },
+    {
+      "source": "/api/gemini-3-1-pro",
+      "destination": "/api-reference/text/gemini-3-1-pro"
+    },
+    {
+      "source": "/api/deepseek-v3-2",
+      "destination": "/api-reference/text/deepseek-v3-2"
+    },
+    {
+      "source": "/api/deepseek-v4-flash",
+      "destination": "/api-reference/text/deepseek-v4-flash"
+    },
+    {
+      "source": "/api/deepseek-v4-pro",
+      "destination": "/api-reference/text/deepseek-v4-pro"
+    },
+    {
+      "source": "/api/kimi-k2-5",
+      "destination": "/api-reference/text/kimi-k2-5"
+    },
+    {
+      "source": "/api/kimi-k2-6",
+      "destination": "/api-reference/text/kimi-k2-6"
+    },
+    {
+      "source": "/api/glm-5",
+      "destination": "/api-reference/text/glm-5"
+    },
+    {
+      "source": "/api/glm-5-1",
+      "destination": "/api-reference/text/glm-5-1"
+    },
+    {
+      "source": "/api/minimax-m2-5",
+      "destination": "/api-reference/text/minimax-m2-5"
+    },
+    {
+      "source": "/api/minimax-m2-7",
+      "destination": "/api-reference/text/minimax-m2-7"
+    },
+    {
+      "source": "/api/openai-chat-completions",
+      "destination": "/api-reference/text/openai-chat-completions"
+    },
+    {
+      "source": "/api/openai-responses",
+      "destination": "/api-reference/text/openai-responses"
+    },
+    {
+      "source": "/api/seedream-v4",
+      "destination": "/api-reference/image/seedream-v4"
+    },
+    {
+      "source": "/api/gpt-image-2-official",
+      "destination": "/api-reference/image/gpt-image-2-official"
+    },
+    {
+      "source": "/api/gpt-4o-image",
+      "destination": "/api-reference/image/gpt-4o-image"
+    },
+    {
+      "source": "/api/seedream-v4-5",
+      "destination": "/api-reference/image/seedream-v4-5"
+    },
+    {
+      "source": "/api/seedream-v5lite",
+      "destination": "/api-reference/image/seedream-v5lite"
+    },
+    {
+      "source": "/api/gpt-image-2",
+      "destination": "/api-reference/image/gpt-image-2"
+    },
+    {
+      "source": "/api/nano-banana",
+      "destination": "/api-reference/image/nano-banana"
+    },
+    {
+      "source": "/api/nano-banana-pro",
+      "destination": "/api-reference/image/nano-banana-pro"
+    },
+    {
+      "source": "/api/nano-banana-v2",
+      "destination": "/api-reference/image/nano-banana-v2"
+    },
+    {
+      "source": "/api/sora-2",
+      "destination": "/api-reference/video/sora-2"
+    },
+    {
+      "source": "/api/sora-2-pro",
+      "destination": "/api-reference/video/sora-2-pro"
+    },
+    {
+      "source": "/api/veo-3-1",
+      "destination": "/api-reference/video/veo-3-1"
+    },
+    {
+      "source": "/api/veo-3-1-fast",
+      "destination": "/api-reference/video/veo-3-1-fast"
+    },
+    {
+      "source": "/api/seedance-1-5-pro",
+      "destination": "/api-reference/video/seedance-1-5-pro"
+    },
+    {
+      "source": "/api/seedance-2-0",
+      "destination": "/api-reference/video/seedance-2-0"
+    },
+    {
+      "source": "/api/seedance-2-0-pro",
+      "destination": "/api-reference/video/seedance-2-0-pro"
+    },
+    {
+      "source": "/api/seedance-2-0-pro-fast",
+      "destination": "/api-reference/video/seedance-2-0-pro-fast"
+    },
+    {
+      "source": "/api/seedance-fast",
+      "destination": "/api-reference/video/seedance-fast"
+    },
+    {
+      "source": "/api/balance",
+      "destination": "/api-reference/utility/balance"
+    },
+    {
+      "source": "/api/tasks-submit",
+      "destination": "/api-reference/utility/tasks-submit"
+    },
+    {
+      "source": "/api/tasks-query",
+      "destination": "/api-reference/utility/tasks-query"
+    },
+    {
+      "source": "/api/tasks-cancel",
+      "destination": "/api-reference/utility/tasks-cancel"
+    }
+  ],
+  "search": {
+    "prompt": "Search ByteSpike docs..."
   }
 }

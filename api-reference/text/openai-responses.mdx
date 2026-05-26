@@ -1,0 +1,185 @@
+---
+title: "POST /responses"
+description: "OpenAI Responses API on ByteSpike — get o-series and GPT-5 structured-output shape against any model in the catalog."
+---
+
+The Responses API shape (introduced by OpenAI for o1 / o3 / GPT-5 +
+Agents SDK) — billed and routed by ByteSpike like any other endpoint.
+Under the hood the gateway translates Responses-shaped requests into
+the upstream provider's native protocol, so you can point your
+OpenAI SDK + Agents SDK + Codex CLI at ByteSpike and have it work
+against Claude, Gemini, DeepSeek, etc.
+
+## When to use
+
+- **OpenAI Agents SDK** — the SDK speaks Responses-shape by default
+- **Codex CLI** — uses Responses internally; ByteSpike is a drop-in
+  via `--responses-base-url https://llm.bytespike.ai/v1`
+- **Multi-turn agents with structured outputs** — `response_format`
+  + reasoning blocks ship in the same envelope
+- **Cross-model parity** — you want a single client shape that
+  reaches the o-series, GPT-5, and the Claude family
+
+For straight chat without reasoning steps, prefer
+[`/chat/completions`](./openai-chat-completions). For Anthropic-native
+tool_use + cache_control, use [`/messages`](./claude-messages).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/responses \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5",
+    "input": "What is the capital of France?"
+  }'
+```
+
+### Headers
+
+| Header | Required | Notes |
+|---|---|---|
+| `Authorization` | yes | `Bearer sk-byts-…` — the only auth shape Responses accepts. |
+| `content-type` | yes | `application/json`. |
+
+### Body (selected fields)
+
+The Responses API surface is large; ByteSpike forwards the full schema
+to whichever upstream serves the requested `model`. Common fields:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | Catalog slug (`gpt-5-5`, `claude-opus-4-7`, `gpt-5-4-mini`, …). |
+| `input` | string \| array | yes | The conversation. String = single user message; array = multi-turn (role/content shapes match OpenAI's Responses spec). |
+| `instructions` | string | no | The "system prompt" position. |
+| `tools` | array | no | Tool definitions in Responses shape (`{type, name, parameters, …}`). |
+| `tool_choice` | string \| object | no | `auto` / `none` / `required` / `{type: "function", function: {name}}`. |
+| `temperature` | number | no | `1.0` default. |
+| `top_p` | number | no | Nucleus sampling. |
+| `max_output_tokens` | integer | no | Cap on output token count. |
+| `reasoning` | object | no | `{"effort": "low" \| "medium" \| "high"}` — for o-series and GPT-5 reasoning models. |
+| `response_format` | object | no | `{"type": "json_object"}` or `{"type": "json_schema", "json_schema": {...}}` for strict structured output. |
+| `stream` | boolean | no | SSE delivery. Same event protocol as upstream OpenAI. |
+| `metadata` | object | no | `{"user_id": "..."}` — forwarded upstream and logged. |
+| `previous_response_id` | string | no | Multi-turn chaining; references a prior `response.id`. |
+
+## Response
+
+```json
+{
+  "id": "resp_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "object": "response",
+  "created_at": 1716700000,
+  "model": "gpt-5-5",
+  "status": "completed",
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_01ABC",
+      "role": "assistant",
+      "content": [
+        {"type": "output_text", "text": "Paris."}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 9,
+    "output_tokens": 2,
+    "total_tokens": 11
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Server-generated id, prefix `resp_`. Use in `previous_response_id` for chaining. |
+| `status` | string | `completed`, `in_progress`, `failed`. Always `completed` on a non-streaming success. |
+| `output` | array | Array of output items. Each item has a `type` — `message`, `reasoning`, `tool_call`, etc. |
+| `usage.input_tokens` | integer | Tokens billed for input. |
+| `usage.output_tokens` | integer | Tokens billed for output (includes reasoning tokens for o-series). |
+| `usage.reasoning_tokens` | integer | Subset of `output_tokens` spent on hidden reasoning, when applicable. |
+
+### Accounting headers
+
+Same quota envelope as every other endpoint:
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+Full breakdown in the [API Reference overview](/api-reference/overview#conventions).
+
+## Streaming
+
+Pass `"stream": true`:
+
+```bash
+curl -N https://llm.bytespike.ai/v1/responses \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5",
+    "input": "Tell a 3-sentence story.",
+    "stream": true
+  }'
+```
+
+The SSE stream is byte-for-byte compatible with the OpenAI Responses
+streaming protocol — `response.created`, `response.output_text.delta`,
+`response.completed`, etc.
+
+## Cross-model routing
+
+The same Responses request shape works against every model in our
+catalog. Pick by the `model` field:
+
+| Model family | Example slugs | What ByteSpike does under the hood |
+|---|---|---|
+| OpenAI GPT-5 / o-series | `gpt-5-5`, `gpt-5-4`, `gpt-5-3-codex` | Direct passthrough to OpenAI Responses upstream. |
+| Anthropic Claude | `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5` | Translated to Anthropic Messages and back. `reasoning` maps to Claude's `thinking` blocks. |
+| Google Gemini | `gemini-3-1-pro`, `gemini-2-5-flash` | Translated to Gemini `generateContent` and back. |
+
+Translated paths preserve `tool_use` / `tool_calls`, structured
+outputs (`response_format`), and reasoning tokens. The output shape
+you receive is always Responses-API regardless of which upstream
+served the call.
+
+## Errors
+
+OpenAI envelope (matches upstream OpenAI):
+
+```json
+{
+  "error": {
+    "message": "Model \"foo-3\" not found",
+    "type": "invalid_request_error",
+    "code": "model_not_found"
+  }
+}
+```
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `invalid_request_error` | Bad JSON, missing `model`, malformed `tools`. |
+| 401 | `authentication_error` | Missing / revoked key. |
+| 402 | `insufficient_balance` | Account is out of credits. Top up at [console.bytespike.ai](https://console.bytespike.ai). |
+| 413 | `invalid_request_error` (body too large) | Prompt + tool schema exceeds the body cap. |
+| 429 | `rate_limit_exceeded` | See the rate-limit chapter. |
+| 502 / 503 | `api_error` | Upstream timeout or no available account in the routing group for this `model`. The dial-test in [Console → Models](https://console.bytespike.ai/dosia/models) helps debug. |
+
+## Pricing
+
+Per-1k tokens. Same rate as the model's native endpoint — translation
+overhead is not billed. Live card: [bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+## Related
+
+- [`/chat/completions`](./openai-chat-completions) — OpenAI Chat Completions shape
+- [`/messages`](./claude-messages) — Anthropic Messages shape
+- [Configuring Codex with ByteSpike](/configure-client) — concrete CLI setup

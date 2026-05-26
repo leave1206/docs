@@ -1,0 +1,128 @@
+---
+title: "GET /me/usage"
+description: "Per-day / per-model spend rollup. Powers the console usage chart."
+---
+
+The usage rollup. Aggregates every inference call you've made into
+buckets that the console charts on
+[/usage](https://console.bytespike.ai/usage). Free.
+
+## When to use
+
+- **Build a custom spend chart** outside the console
+- **Detect a model-cost regression** after switching `model` slug
+- **Reconcile credits-headers against a wider window** (per-call vs daily roll-up)
+
+For balance movement (top-ups, refunds), see [`/me/billing/transactions`](./me-billing-transactions). For per-call data (raw inference log items), wait for the per-call audit endpoint — not yet exposed in v1.
+
+## Request
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/usage?since=2026-05-01&until=2026-05-22&group_by=day' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### Query parameters
+
+| Param | Type | Notes |
+|---|---|---|
+| `since` | string | ISO date / timestamp — bucket from this moment (inclusive). Default: 30 days ago. |
+| `until` | string | ISO date / timestamp — bucket until this moment (exclusive). Default: now. |
+| `group_by` | string | `day` (default) / `hour` / `model` / `api_key`. Combine via comma: `?group_by=day,model`. |
+| `model` | string | Filter to a single model slug. |
+| `api_key` | string | Filter to a single key (server-side resolved by key id; you can pass either the masked form or the key's `id`). |
+
+`since` / `until` default windows cap at **90 days** of history.
+
+## Response — `group_by=day`
+
+```json
+{
+  "buckets": [
+    {
+      "bucket": "2026-05-21",
+      "total_usd": 4.18,
+      "input_tokens": 142000,
+      "output_tokens": 18400,
+      "call_count": 312
+    },
+    {
+      "bucket": "2026-05-20",
+      "total_usd": 3.94,
+      "input_tokens": 134800,
+      "output_tokens": 17220,
+      "call_count": 298
+    }
+    // …
+  ],
+  "totals": {
+    "total_usd": 78.42,
+    "input_tokens": 2580000,
+    "output_tokens": 332000,
+    "call_count": 5824
+  }
+}
+```
+
+## Response — `group_by=day,model`
+
+```json
+{
+  "buckets": [
+    {
+      "bucket": "2026-05-21",
+      "model": "claude-sonnet-4-6",
+      "total_usd": 2.10,
+      "input_tokens": 88000,
+      "output_tokens": 11200,
+      "call_count": 142
+    },
+    {
+      "bucket": "2026-05-21",
+      "model": "gpt-5-4",
+      "total_usd": 1.74,
+      "input_tokens": 42000,
+      "output_tokens": 5800,
+      "call_count": 96
+    }
+    // …
+  ],
+  "totals": { /* same shape */ }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `buckets[].bucket` | string | ISO date (for `day`), ISO timestamp truncated to hour (for `hour`), or the dimension value (model id / key id). |
+| `buckets[].total_usd` | number | Billed amount in this bucket. |
+| `buckets[].input_tokens` | integer | Sum of input tokens. |
+| `buckets[].output_tokens` | integer | Sum of output tokens. |
+| `buckets[].call_count` | integer | Number of successful calls. Failed calls are free + excluded. |
+| `totals` | object | Same shape, summed across every returned bucket. |
+
+## Errors
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 400 | `invalid_request_error` | `since`/`until` malformed, `group_by` unknown, or window > 90 days. |
+| 401 | `authentication_error` | Missing / revoked key. |
+
+## Example — month-to-date by model
+
+```python
+import requests, os, datetime
+
+today = datetime.date.today()
+since = today.replace(day=1).isoformat()
+r = requests.get(
+    "https://llm.bytespike.ai/api/v1/me/usage",
+    params={"since": since, "group_by": "model"},
+    headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+    timeout=10,
+).json()
+
+for b in sorted(r["buckets"], key=lambda x: -x["total_usd"]):
+    print(f"{b['model']:30s}  ${b['total_usd']:8.2f}  {b['call_count']} calls")
+```

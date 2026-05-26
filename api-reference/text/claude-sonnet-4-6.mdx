@@ -1,0 +1,180 @@
+---
+title: "Claude Sonnet 4.6"
+description: "The current production Sonnet — same context as 4.5 with measurably better tool use and code generation. Default Anthropic mid-tier."
+---
+
+**Vendor:** Anthropic
+**Model ID:** `claude-sonnet-4-6`
+**Capability:** 200K context · tool use · vision · prompt caching · streaming
+**Pricing:** per-token, Sonnet tier ([live rate](https://bytespike.ai/pricing#text))
+
+Sonnet 4.6 is what you should reach for first inside the 4-series. It
+keeps the 200K context window and tool-use shape of 4.5, while
+delivering measurably better structured output and tighter tool-call
+arguments. If you're starting a new project, default here. If you're on
+4.5, the migration is a single string change — most production code
+sees a quality bump with no measurable latency or cost difference.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 4096,
+    "messages": [
+      {"role": "user", "content": "Extract the dates from this paragraph as JSON."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `claude-sonnet-4-6` |
+| `messages` | array | yes | — | Conversation history. |
+| `max_tokens` | integer | yes | — | Hard cap. Max for this model: 16384. |
+| `system` | string \| array | no | — | Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Supported, including parallel tool calls. |
+| `tool_choice` | object | no | `{"type":"auto"}` | `auto` / `any` / `tool` (named). |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "msg_sonnet_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-6",
+  "content": [
+    {"type": "text", "text": "[\"2024-08-12\", \"2024-09-01\"]"}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 87,
+    "output_tokens": 24
+  }
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 4096,
+    "messages": [{"role": "user", "content": "Extract the dates from this paragraph as JSON."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=4096,
+    messages=[
+        {"role": "user", "content": "Extract the dates from this paragraph as JSON."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-sonnet-4-6",
+  max_tokens: 4096,
+  messages: [
+    { role: "user", content: "Extract the dates from this paragraph as JSON." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## Streaming
+
+Set `"stream": true` for SSE in the standard Anthropic format. Estimated
+credits ship in the HTTP headers before the first event.
+
+## Cache control
+
+`cache_control` blocks reduce cost on repeated prompts. Cache reads at
+the discounted rate visible in the
+[pricing table](https://bytespike.ai/pricing#text). With Sonnet 4.6's
+tighter tool-arg generation, retrieval-augmented agent loops see the
+biggest cache wins (system prompt + tool schema kept stable, only the
+user turn changes).
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+## When to use
+
+- Default Anthropic mid-tier — start here, benchmark against Opus / Haiku later.
+- Code generation / refactoring / structured extraction where Haiku is too imprecise.
+- Tool-heavy agents where parallel tool calls and tight argument JSON matter.
+- For the prior version with the same shape, see [Sonnet 4.5](/api-reference/text/claude-sonnet-4-5).
+- For higher throughput at lower quality, see [Haiku 4.5](/api-reference/text/claude-haiku-4-5).
+- For deeper reasoning across long contexts, see [Opus 4.7](/api-reference/text/claude-opus-4-7).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Yes |

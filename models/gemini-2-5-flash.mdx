@@ -1,0 +1,65 @@
+---
+title: "gemini-2-5-flash"
+description: "Google's Gemini 2.5 Flash — small-mid multimodal with 1M context window. Surprisingly capable for general chat at Haiku-comparable pricing."
+---
+
+`gemini-2-5-flash` is Google's small-mid Gemini — fast, multimodal, with the **1M-token context window** that distinguishes the entire Gemini family. Competitive with `gpt-4o-mini` and `claude-haiku-4-5` on most benchmarks at roughly half the price, plus the long-context advantage.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **Google AI Studio** | Google direct | `generativelanguage.googleapis.com` | $0.30 / 1M | $1.20 / 1M | ~500ms | global edge |
+
+See [/providers/gemini](/providers/gemini) for the full channel + auth model.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Gemini Native | `POST https://llm.bytespike.ai/v1beta/models/gemini-2-5-flash:generateContent` |
+| OpenAI Chat Completions (shim) | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| Anthropic Messages (translated) | `POST https://llm.bytespike.ai/v1/messages` |
+
+For the OpenAI shim, the gateway translates the request body to Gemini's `generateContent` shape behind the scenes. From the client side, you write standard `openai`-SDK code.
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-2-5-flash",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions (shim) | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tools / function calling | ✅ parallel |
+| JSON mode | ✅ |
+| Grounding (web search) | ✅ |
+| Long context | ✅ 1M tokens |
+| Context window | 1M tokens |
+
+## When to use
+
+- **Long-context cheap** — 1M context at Haiku price is unique. Codebase reviews, multi-doc QA where 200K isn't enough.
+- **Fresh-fact tasks at low cost** — grounding (Google Search) is supported on Flash.
+- **High-volume vision** — OCR-style tasks on receipts / invoices / screenshots.
+
+When **not** to use:
+
+- Hard reasoning — `gemini-2-5-pro` is sized for it; Flash is more chat-tier.
+- Anthropic Messages protocol — Gemini only speaks the OpenAI shim today.
+
+## Next
+
+- [gemini-2.5-pro](/models/gemini-2-5-pro) — 2M-context flagship
+- [Gemini provider page](/providers/gemini) — channels, enterprise specifics

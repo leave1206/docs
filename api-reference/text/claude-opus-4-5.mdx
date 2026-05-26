@@ -1,0 +1,181 @@
+---
+title: "Claude Opus 4.5"
+description: "First 4-series Opus — the model that shipped 1M-token context to production. Strong on long-form reasoning, deprecated by 4.6 / 4.7 for new work."
+---
+
+**Vendor:** Anthropic
+**Model ID:** `claude-opus-4-5`
+**Capability:** 1M context · tool use · vision · prompt caching · streaming · extended thinking
+**Pricing:** per-token, Opus tier ([live rate](https://bytespike.ai/pricing#text))
+
+Opus 4.5 was the model that put the 1M-token context window into
+production at Opus quality. If your prompt is longer than 200K tokens
+and reasoning across the whole thing matters, this is the entry point
+to the 4-series Opus family. For new work, prefer
+[Opus 4.7](/api-reference/text/claude-opus-4-7) — it ships the same 1M
+context with measurably tighter output and better tool-use precision.
+4.5 is kept available for teams who've already validated against it.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-5",
+    "max_tokens": 16384,
+    "messages": [
+      {"role": "user", "content": "Review this 800-page deposition for inconsistencies in the dates."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `claude-opus-4-5` |
+| `messages` | array | yes | — | Conversation history. Up to 1M tokens of input. |
+| `max_tokens` | integer | yes | — | Hard cap. Max for this model: 32768. |
+| `system` | string \| array | no | — | Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Supported. |
+| `tool_choice` | object | no | `{"type":"auto"}` | `auto` / `any` / `tool` (named). |
+| `thinking` | object | no | — | Extended-thinking budget. See [Anthropic thinking docs](https://docs.anthropic.com/claude/docs/extended-thinking). |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "msg_opus_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-5",
+  "content": [
+    {"type": "thinking", "thinking": "<extended reasoning trace>"},
+    {"type": "text", "text": "Three date inconsistencies on pages 142, 387, and 691..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 643250,
+    "output_tokens": 1872
+  }
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-5",
+    "max_tokens": 16384,
+    "messages": [{"role": "user", "content": "Review this deposition for date inconsistencies."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-opus-4-5",
+    max_tokens=16384,
+    messages=[
+        {"role": "user", "content": "Review this deposition for date inconsistencies."}
+    ],
+)
+
+print(message.content[-1].text)  # text block is last when thinking is present
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-opus-4-5",
+  max_tokens: 16384,
+  messages: [
+    {
+      role: "user",
+      content: "Review this deposition for date inconsistencies.",
+    },
+  ],
+})
+
+const textBlock = message.content.find((b) => b.type === "text")
+console.log(textBlock.text)
+```
+
+</CodeGroup>
+
+## Cache control
+
+Cache control on Opus is the most cost-significant setting in the
+4-series. With 1M-token contexts, cache reads can mean a 10× cost
+reduction across repeated agent turns. Cache rate visible in the
+[pricing table](https://bytespike.ai/pricing#text).
+
+```json
+{
+  "model": "claude-opus-4-5",
+  "system": [
+    {
+      "type": "text",
+      "text": "<the 100K-token corpus you keep referring to>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed (`max_tokens` too high, etc.) | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted (Opus calls trip this faster than Sonnet) | No |
+| 413 | Input exceeds 1M tokens | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+## When to use
+
+- Long-form reasoning across 200K–1M tokens (legal review, code-base
+  audit, multi-document synthesis).
+- Multi-step prompts where Sonnet starts skipping steps.
+- For new work, prefer [Opus 4.7](/api-reference/text/claude-opus-4-7) — same
+  context window, tighter output.
+- For mid-tier cost / latency, see [Sonnet 4.6](/api-reference/text/claude-sonnet-4-6).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Yes |
+| Supports extended thinking | Yes |

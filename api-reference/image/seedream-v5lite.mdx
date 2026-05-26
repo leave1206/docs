@@ -1,0 +1,125 @@
+---
+title: "Seedream V5 lite"
+description: "Lightweight Seedream variant — cheap iteration at 1024², the right pick for prompt design and rough exploration."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedream-v5lite`
+**Capability:** 1024² · CJK prompts · low-latency
+**Pricing:** per image, lite tier ([live rate](https://bytespike.ai/pricing#image))
+
+Seedream V5 lite trades resolution and refinement for speed and cost.
+It's the right model when you're still iterating on a prompt and want
+ten cheap drafts before committing to a Seedream V4 / V4.5 final
+render. The aesthetic is recognizably Seedream — same illustration
+strengths, same CJK prompt handling — at a price that lets you brute-
+force prompt design.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v5lite",
+    "prompt": "An ink-wash mountain at dawn, soft mist",
+    "size": "1024x1024",
+    "n": 4
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `seedream-v5lite` |
+| `prompt` | string | yes | — | CJK accepted natively. |
+| `size` | string | no | `1024x1024` | Supported: `1024x1024`, `1024x1536`, `1536x1024`. |
+| `n` | integer | no | 1 | 1–4. Each billed separately. |
+| `seed` | integer | no | — | Reproducibility supported. |
+| `negative_prompt` | string | no | — | Standard SD-style negation. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedream-v5lite", "prompt": "An ink-wash mountain at dawn", "n": 4}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="seedream-v5lite",
+    prompt="An ink-wash mountain at dawn, soft mist",
+    size="1024x1024",
+    n=4,
+)
+for img in resp.data:
+    print(img.url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "seedream-v5lite",
+  prompt: "An ink-wash mountain at dawn, soft mist",
+  size: "1024x1024",
+  n: 4,
+})
+resp.data.forEach((img) => console.log(img.url))
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 413 | Prompt too long | No |
+| 429 | Rate-limited | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Prompt iteration / design exploration before committing to a Seedream
+  V4 or V4.5 final render.
+- High-volume ideation where the cost of trying ten variations matters.
+- For aesthetic 1024² finals, see [Seedream V4](/api-reference/image/seedream-v4).
+- For 2048² + text-edge fidelity, see [Seedream V4.5](/api-reference/image/seedream-v4-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 1536×1536 |
+| Max images per call (`n`) | 4 |
+| Supports init image (img2img) | No |
+| Supports negative prompt | Yes |
+| Supports seed reproduction | Yes |
+| Sync? | Yes (≤15s typical) |
+| Avg latency for 1024² | 4-6s |

@@ -1,81 +1,125 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
-icon: 'rocket'
+description: "Make your first request in under two minutes."
 ---
 
-## Get started in three steps
+## 1. Get a key
 
-Get your documentation site running locally and make your first customization.
+1. Sign in to [console.bytespike.ai](https://console.bytespike.ai) — sign-up takes ~30 seconds (email + password, or Google).
+2. Top up a few dollars at [Billing](https://console.bytespike.ai/billing). The minimum top-up is **$5**.
+3. Go to [API keys](https://console.bytespike.ai/keys) and click **Create key**. Pick a routing group (`claude-default` for Claude models, `volcengine-default` for DeepSeek/Doubao, `gemini-default` for Gemini — see [Channels](/concepts/channels) for what's where).
 
-### Step 1: Set up your local environment
+Copy the secret value shown after creation. It looks like `sk-byts-...` and **only displays once** — store it somewhere safe.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Warning>
+The plaintext is shown only at creation time. If you lose it you can either
+reveal it again from [Console → API keys](https://console.bytespike.ai/keys)
+or rotate the key to get a fresh secret. See [Authentication](/authentication).
+</Warning>
 
-### Step 2: Deploy your changes
+## 2. Pick a protocol
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+ByteSpike speaks three protocols natively. Same gateway, identical
+billing — pick the header your client speaks.
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Tabs>
+  <Tab title="Anthropic Messages">
+    ```bash
+    curl https://llm.bytespike.ai/v1/messages \
+      -H "x-api-key: $BYTESPIKE_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "Hello, who are you?"}]
+      }'
+    ```
+  </Tab>
+  <Tab title="OpenAI Chat Completions">
+    ```bash
+    curl https://llm.bytespike.ai/v1/chat/completions \
+      -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-5",
+        "messages": [{"role": "user", "content": "Hello, who are you?"}]
+      }'
+    ```
+  </Tab>
+  <Tab title="Gemini Native">
+    ```bash
+    curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=$BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "contents": [{"parts": [{"text": "Hello, who are you?"}]}]
+      }'
+    ```
+  </Tab>
+</Tabs>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+## 3. Read the quota headers
 
-### Step 3: Go live
+Every response — success or failure — carries the gateway's accounting
+headers:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
 
-## Next steps
+- `X-RateLimit-Limit` / `Remaining` / `Reset` — the rate-limit bucket
+  closest to constraining you, in USD. Reset is a Unix timestamp.
+- `X-Quota-Remaining-Credits` — lifetime credits remaining on this key
+  (USD; `1 USD = 1,000,000 credits`). `0.00` means you've hit the
+  per-key `quota` cap; top up at the console or raise the cap.
+- `X-Org-Quota-Remaining-Credits` — same, at the org wallet level, on
+  org-owned keys.
 
-Now that you have your docs running, explore these key features:
+For the actual per-call cost, hit [`GET /v1/usage`](/api-reference/account/me-usage)
+or look at the delta in `X-Quota-Remaining-Credits` between two
+requests. Failed requests don't bill — `X-Quota-Remaining-Credits`
+won't move on a non-2xx.
+
+## 4. Use any model behind the same key
+
+Switching models means changing exactly one field — `model`. No new
+SDKs, no new auth flows, no new billing accounts.
+
+```diff
+- "model": "claude-sonnet-4-6",
++ "model": "gpt-5-5",
+```
+
+```diff
+- "model": "claude-sonnet-4-6",
++ "model": "deepseek-v4-pro",
+```
+
+```diff
+- "model": "claude-sonnet-4-6",
++ "model": "gemini-2-5-pro",
+```
+
+Catch: your key has to be bound to a routing group that actually
+serves the target model. `claude-default` won't reach DeepSeek; pick
+the right group at key-creation time, or create a second key. The
+console's [Test](https://console.bytespike.ai/dosia/models) button
+verifies key + group + model before you wire it into a client.
+
+For image / video / utility endpoints, see the
+[API Reference](/api-reference/overview) — the request shape per
+family is documented per-endpoint.
+
+## Next
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Authentication" icon="key" href="/authentication">
+    Sub-keys, scopes, IP allowlists.
+  </Card>
+  <Card title="Credits & Billing" icon="coins" href="/concepts/credits-and-billing">
+    How credits convert to dollars, when failures bill (they don't), and how to read the headers.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

@@ -1,0 +1,56 @@
+---
+title: "Legacy compat names"
+description: "Old DeepSeek model strings (deepseek-chat, deepseek-reasoner) still resolve through ByteSpike until DeepSeek's official 2026/07/24 sunset. New code should target the canonical names — deepseek-v4-flash and deepseek-v4-pro — directly."
+---
+
+ByteSpike accepts a small set of **legacy compat names** that DeepSeek itself retired on the upstream side. They're kept here so existing customer code keeps working through DeepSeek's official sunset window. New code should not use them.
+
+## Canonical names (recommended)
+
+Write your code against these:
+
+| Canonical name | What you get |
+|---|---|
+| `deepseek-v4-flash` | DeepSeek V4 Flash — fast non-thinking mode, default for general chat / completion |
+| `deepseek-v4-pro` | DeepSeek V4 Pro — adds the thinking / reasoning mode (set `reasoning_effort` to control depth) |
+
+Both are first-class names: they appear in usage exports, audit logs, billing line items, and the [models index](/models) without further translation.
+
+## Legacy compat (until **2026-07-24**)
+
+DeepSeek announced these names will be **removed upstream on 2026-07-24**. ByteSpike's gateway will continue to accept them until then, resolving each request to the canonical name below.
+
+| Legacy name | Resolves to | Note |
+|---|---|---|
+| `deepseek-chat` | `deepseek-v4-flash` | The most common pre-V4 DeepSeek string |
+| `deepseek-reasoner` | `deepseek-v4-pro` (thinking mode) | The pre-V4 "reasoner" handle |
+
+After 2026-07-24 these names will return a 400 from ByteSpike (matching DeepSeek's own behavior). Update your code before then.
+
+## Names not to use
+
+Earlier DeepSeek lineages — `deepseek-coder`, `deepseek-r1`, `deepseek-v2`, `deepseek-v3` family handles — have been removed both upstream and from ByteSpike. Requests using them return a 404 with a hint pointing at the V4 line.
+
+For other providers, ByteSpike accepts the canonical upstream model ID directly. No alias layer applies; there are no synonyms to memorize. Look up the exact string for each model on its [models](/models) page.
+
+## How to migrate
+
+A one-line code change in most clients:
+
+```diff
+- "model": "deepseek-chat"
++ "model": "deepseek-v4-flash"
+```
+
+```diff
+- "model": "deepseek-reasoner"
++ "model": "deepseek-v4-pro"
+```
+
+If you use `deepseek-reasoner` and depend on the thinking output specifically, also confirm your client sets `reasoning_effort` (default is medium on V4 Pro).
+
+## Next
+
+- [Models index](/models) — every canonical model ByteSpike serves, with pricing and protocol coverage
+- [Provider comparison](/concepts/provider-comparison) — picking between providers when many can serve the same workload
+- [DeepSeek provider page](/providers/deepseek) — V4 split (Flash vs Pro), pricing, dual-protocol coverage

@@ -1,0 +1,205 @@
+---
+title: "Configure your client"
+description: "After signing up — wire any client to ByteSpike: base URL, API key, protocol choice, model name."
+---
+
+You signed up, you have a key. Now you need to point your client at
+ByteSpike instead of the upstream vendor's own gateway. The whole gateway
+lives at **`https://llm.bytespike.ai`** — every protocol, every model.
+Pick the protocol that matches your client, set two env vars, and you're
+done.
+
+## 1. Get an API key
+
+Sign in to [console.bytespike.ai/keys](https://console.bytespike.ai/keys)
+and **Create key**. Pick the routing group (`claude-default` for Claude
+models, `volcengine-default` for DeepSeek/Doubao, `gemini-default` for
+Gemini — see [Channels](/concepts/channels)). The plaintext is shown
+once at creation — store it. Format: `sk-byts-…`.
+
+<Warning>
+Treat the key like a database password. Each key binds to **one**
+routing group; create separate keys for each provider family you want
+to reach instead of trying to put one key everywhere.
+</Warning>
+
+## 2. Pick a protocol
+
+Three protocols hit the same gateway. Pick whichever your client speaks
+natively — billing, throttling, and credit accounting are identical
+across all three.
+
+| Protocol | Base URL | When to use |
+|---|---|---|
+| **Anthropic Messages** | `https://llm.bytespike.ai` | Claude Code, Claude Desktop, anything in the Anthropic SDK |
+| **OpenAI Chat Completions** | `https://llm.bytespike.ai/v1` | OpenAI SDK, Cherry Studio, NextChat, LobeChat, Python `openai` lib |
+| **Gemini Native** | `https://llm.bytespike.ai/v1beta` | Google AI Studio examples, vertex-compat clients |
+
+## 3. Set the env vars
+
+<Tabs>
+  <Tab title="Anthropic Messages">
+    For Claude Code and the Anthropic SDK, two env vars are all you need:
+
+    ```bash
+    export ANTHROPIC_BASE_URL=https://llm.bytespike.ai
+    export ANTHROPIC_API_KEY=sk-byts-...
+    ```
+
+    Any client that reads these standard vars (Claude Code, Anthropic
+    Python / TypeScript SDK, third-party clients) picks them up
+    transparently. Then call any Anthropic-compatible model:
+
+    ```python
+    import anthropic
+    client = anthropic.Anthropic()  # reads env vars
+    msg = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    ```
+  </Tab>
+
+  <Tab title="OpenAI Chat Completions">
+    OpenAI's SDK takes the base URL as a constructor arg:
+
+    ```python
+    from openai import OpenAI
+    client = OpenAI(
+        base_url="https://llm.bytespike.ai/v1",
+        api_key="sk-byts-...",
+    )
+    r = client.chat.completions.create(
+        model="gemini-2-5-pro",      # any ByteSpike model id works
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    ```
+
+    Or with env vars on most OpenAI-compat clients:
+
+    ```bash
+    export OPENAI_BASE_URL=https://llm.bytespike.ai/v1
+    export OPENAI_API_KEY=sk-byts-...
+    ```
+  </Tab>
+
+  <Tab title="Gemini Native">
+    Google's native protocol passes the key as a query param:
+
+    ```bash
+    curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=sk-byts-..." \
+      -H "content-type: application/json" \
+      -d '{
+        "contents": [{"parts": [{"text": "hi"}]}]
+      }'
+    ```
+
+    Vertex/AI-Studio SDKs that read `GEMINI_API_KEY` and let you override
+    the endpoint will work the same way.
+  </Tab>
+</Tabs>
+
+## 4. Pick a model
+
+One key calls every model regardless of which vendor originally made it.
+You don't need a separate Anthropic / OpenAI / Google / DeepSeek
+subscription — ByteSpike routes to the upstream provider for you.
+
+Common model IDs (full catalog at
+[Console → Models](https://console.bytespike.ai/dosia/models) or via
+`GET /v1/models`):
+
+| Family | Use these ids |
+|---|---|
+| Claude | `claude-sonnet-4-6`, `claude-opus-4-7`, `claude-haiku-4-5` |
+| GPT-5 / o-series | `gpt-5-5`, `gpt-5-4`, `gpt-5-4-mini`, `gpt-5-3-codex`, `gpt-5-2` |
+| GPT-4 | `gpt-4o`, `gpt-4o-mini` |
+| Gemini | `gemini-3-1-pro`, `gemini-2-5-pro`, `gemini-2-5-flash` |
+| DeepSeek | `deepseek-v4-pro`, `deepseek-v4-flash`, `deepseek-v3-2`, `deepseek-v3-anthropic` |
+| Kimi / GLM / MiniMax / Doubao | `kimi-k2-6`, `glm-5`, `minimax-m2-7`, `doubao-seed-2-0-pro` |
+| Image | `seedream-4-5`, `seedream-v5lite`, `nano-banana`, `nano-banana-v2`, `gpt-image-2` |
+| Video | `sora-2`, `sora-2-pro`, `veo-3-1`, `veo-3-1-fast`, `seedance-2-0-pro`, `seedance-1-5-pro` |
+
+A model id is the same string regardless of which protocol you use —
+`claude-sonnet-4-6` works on Anthropic Messages, OpenAI Chat
+Completions, and Gemini Native.
+
+## 5. Client-specific setup
+
+<AccordionGroup>
+  <Accordion title="Claude Code (CLI / agent)">
+    Claude Code reads `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`
+    automatically. Add to your shell profile:
+
+    ```bash
+    # ~/.zshrc or ~/.bashrc
+    export ANTHROPIC_BASE_URL=https://llm.bytespike.ai
+    export ANTHROPIC_API_KEY=sk-byts-...
+    ```
+
+    Then `claude` calls every Anthropic-protocol model through ByteSpike.
+  </Accordion>
+
+  <Accordion title="Claude Desktop">
+    Open Settings → Developer → Edit Config. Add the env vars under your
+    OS's section. Restart the app for the change to take.
+  </Accordion>
+
+  <Accordion title="Cherry Studio">
+    Settings → Model Providers → Add Provider → "OpenAI Compatible".
+    Base URL: `https://llm.bytespike.ai/v1`. API key: your ByteSpike key.
+    Then any of the model ids from the table above works.
+  </Accordion>
+
+  <Accordion title="NextChat / ChatGPT-Next-Web">
+    Settings → Custom Endpoint. API URL: `https://llm.bytespike.ai/v1`.
+    API Key: your ByteSpike key. Model: any of the ids above.
+  </Accordion>
+
+  <Accordion title="OpenAI SDK (Python / TypeScript)">
+    Pass `base_url` / `baseURL` in the client constructor. The model
+    string is the only thing that changes per call.
+
+    Python:
+    ```python
+    from openai import OpenAI
+    OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="sk-byts-...")
+    ```
+
+    TypeScript:
+    ```ts
+    import OpenAI from "openai"
+    new OpenAI({ baseURL: "https://llm.bytespike.ai/v1", apiKey: "sk-byts-..." })
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## 6. Verify the wiring
+
+Hit `/v1/models` to confirm the key is live and see what your account
+can actually call:
+
+```bash
+curl https://llm.bytespike.ai/v1/models \
+  -H "Authorization: Bearer sk-byts-..."
+```
+
+The response is a JSON array of model objects. `data[].id` should
+include every model your tier exposes. If the list is short and you
+expected more, check
+[console.bytespike.ai/account](https://console.bytespike.ai/account) —
+your `allowed_models` may be capped by an org default or admin policy.
+
+<Tip>
+Errors come back in the protocol's native shape. A 401 means the key is
+wrong; a 403 means the key is fine but the model isn't on your tier; a
+402 means out of credits — top up at
+[console.bytespike.ai/billing](https://console.bytespike.ai/billing).
+</Tip>
+
+## Next steps
+
+- [Authentication](/authentication) — full header reference + key management
+- [Models](/models) — per-model rate cards and capability tags
+- [Error handling](/concepts/error-handling) — retry semantics + status codes

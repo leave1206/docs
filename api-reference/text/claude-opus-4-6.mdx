@@ -1,0 +1,177 @@
+---
+title: "Claude Opus 4.6"
+description: "Refined 4-series Opus — same 1M context as 4.5 with tighter long-form output and reduced hallucination on multi-document synthesis."
+---
+
+**Vendor:** Anthropic
+**Model ID:** `claude-opus-4-6`
+**Capability:** 1M context · tool use · vision · prompt caching · streaming · extended thinking
+**Pricing:** per-token, Opus tier ([live rate](https://bytespike.ai/pricing#text))
+
+Opus 4.6 is the refinement step on 4.5 — same 1M-token context, tighter
+long-form prose, and a measurable drop in hallucinations when summarising
+across many documents. It's the right Opus for multi-document workflows
+that 4.5 was nearly good enough at: legal review, scientific literature
+synthesis, codebase audit reports.
+[Opus 4.7](/api-reference/text/claude-opus-4-7) is a further step
+forward; 4.6 is kept available for teams who've validated against this
+specific version.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-6",
+    "max_tokens": 16384,
+    "messages": [
+      {"role": "user", "content": "Synthesize the methodology sections of these 14 papers."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `claude-opus-4-6` |
+| `messages` | array | yes | — | Conversation history. Up to 1M tokens of input. |
+| `max_tokens` | integer | yes | — | Hard cap. Max for this model: 32768. |
+| `system` | string \| array | no | — | Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Supported. |
+| `tool_choice` | object | no | `{"type":"auto"}` | `auto` / `any` / `tool` (named). |
+| `thinking` | object | no | — | Extended-thinking budget. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "msg_opus_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-6",
+  "content": [
+    {"type": "text", "text": "Across the 14 papers, three methodological themes emerge..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 287430,
+    "output_tokens": 4218
+  }
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-6",
+    "max_tokens": 16384,
+    "messages": [{"role": "user", "content": "Synthesize the methodology sections of these papers."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-opus-4-6",
+    max_tokens=16384,
+    messages=[
+        {"role": "user", "content": "Synthesize the methodology sections of these papers."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-opus-4-6",
+  max_tokens: 16384,
+  messages: [
+    {
+      role: "user",
+      content: "Synthesize the methodology sections of these papers.",
+    },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## Cache control
+
+```json
+{
+  "model": "claude-opus-4-6",
+  "system": [
+    {
+      "type": "text",
+      "text": "<the corpus you keep referring to>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+Cache rate at the discounted tier visible in the
+[pricing table](https://bytespike.ai/pricing#text).
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 413 | Input exceeds 1M tokens | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+## When to use
+
+- Multi-document synthesis where 4.5 was almost-but-not-quite reliable.
+- Long-form summarisation that needs tight, non-repetitive prose.
+- For the latest Opus, see [Opus 4.7](/api-reference/text/claude-opus-4-7).
+- For the prior Opus, see [Opus 4.5](/api-reference/text/claude-opus-4-5).
+- For mid-tier cost / latency, see [Sonnet 4.6](/api-reference/text/claude-sonnet-4-6).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Yes |
+| Supports extended thinking | Yes |

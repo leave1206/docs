@@ -1,0 +1,117 @@
+---
+title: "Seedance 2.0 Pro"
+description: "Seedance 2.0 with extended detail pass — ByteDance's video flagship for hero-quality character motion."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedance-2.0-pro`
+**Capability:** 1080p · up to 10s · text + image init · CJK prompts · async via tasks API
+**Pricing:** per second + submit fee, pro tier ([live rate](https://bytespike.ai/pricing#video))
+
+Seedance 2.0 Pro is ByteDance's current video flagship. Adds an
+extended detail pass on top of 2.0 base — sharper texture work,
+cleaner character edges, better lip-sync on dialogue scenes. The
+right call when the clip is the deliverable, not iteration material.
+For drafts use [Seedance 2.0](/api-reference/video/seedance-2-0); for
+hero shots use Pro.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro",
+    "prompt": "一位主厨在专业厨房里抛炒锅，火焰升起，慢动作",
+    "duration_seconds": 8,
+    "resolution": "1080p"
+  }'
+```
+
+### Body parameters
+
+Same shape as [Seedance 2.0](/api-reference/video/seedance-2-0). Max
+`duration_seconds` is 10.
+
+## Submit + poll
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 1.20}
+```
+
+Recommended cadence: 2s for first 90s, then 5s up to 240s.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-2.0-pro", "prompt": "主厨抛炒锅", "duration_seconds": 8, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-2.0-pro",
+    "prompt": "一位主厨在专业厨房里抛炒锅，火焰升起",
+    "duration_seconds": 8,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-2.0-pro", prompt: "主厨抛炒锅", duration_seconds: 8, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+Standard.
+
+## When to use
+
+- Hero / final-quality ByteDance video output.
+- Dialogue scenes where lip-sync coherence matters.
+- For drafts / iteration, see [Seedance 2.0](/api-reference/video/seedance-2-0).
+- For latency-tuned Pro variant, see [Seedance 2.0 Pro Fast](/api-reference/video/seedance-2-0-pro-fast).
+- For Western-market hero, see [Sora 2 Pro](/api-reference/video/sora-2-pro).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 10s |
+| Resolutions | 720p, 1080p |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 8s clip | 90-150s |
+| Async via tasks API | Yes |

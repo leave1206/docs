@@ -1,0 +1,167 @@
+---
+title: "GET /me/notifications (+ unread-count / mark-read / mark-all-read)"
+description: "In-app notification feed. Polls the same data the console bell shows."
+---
+
+The in-app notification feed. Powers the bell icon in
+[console.bytespike.ai](https://console.bytespike.ai) — the same five
+event types you can subscribe to via webhooks
+([`/me/webhooks`](./me-webhooks)) also accrue here for in-app display
+unless you've muted them. Free.
+
+For push-style consumption, prefer [webhooks](./me-webhooks) — this
+endpoint is a polling fallback (e.g. for an IDE extension or a status
+bar where running a webhook receiver isn't practical).
+
+## Endpoint family
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/me/notifications?unread=&type=&page=&page_size=` | List notifications |
+| `GET` | `/api/v1/me/notifications/unread-count` | Just the unread counter |
+| `POST` | `/api/v1/me/notifications/:id/mark-read` | Mark a single notification read |
+| `POST` | `/api/v1/me/notifications/mark-all-read` | Mark every unread one read |
+
+All require a logged-in key. Mark-read operations are free.
+
+## List
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/notifications?unread=true&page=1&page_size=10' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### Query parameters
+
+| Param | Type | Notes |
+|---|---|---|
+| `unread` | bool | `true` to only return unread rows. Mutually exclusive with `read`. |
+| `read` | bool | `true` to only return read rows. |
+| `type` | string | Filter by event type (see [event catalog](#event-catalog)). |
+| `page` | integer | Default `1`. |
+| `page_size` | integer | Default `50`, max `200`. |
+
+### Response
+
+```json
+{
+  "items": [
+    {
+      "id": 5001,
+      "type": "system.payment.received",
+      "title": "Payment received · $25.00",
+      "body": "Your top-up has cleared. Available balance is now $31.40.",
+      "link": "/billing",
+      "read_at": null,
+      "created_at": "2026-05-22T08:08:00Z"
+    },
+    {
+      "id": 5006,
+      "type": "system.payment.received",
+      "title": "Payment received · $50.00",
+      "body": "Stripe receipt #ch_3PYj-mock-49. Your balance is now $54.80.",
+      "link": "/billing",
+      "read_at": "2026-05-20T08:00:00Z",
+      "created_at": "2026-05-20T05:08:00Z"
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "page_size": 10
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `items[].type` | string | One of the 5 user-visible events (see [event catalog](#event-catalog)). |
+| `items[].title` | string | Single-line summary shown in the bell dropdown. |
+| `items[].body` | string | One-paragraph description. |
+| `items[].link` | string \| null | Console-relative deep-link the row clicks through to. |
+| `items[].read_at` | string \| null | ISO timestamp the user opened it. `null` = unread. |
+| `total` | integer | Matches the filter (page-independent). When `unread=true` this is also the unread count. |
+
+## Unread count
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/notifications/unread-count \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{"count": 7}
+```
+
+Cheaper than the list endpoint — use this for a badge that polls every minute or so.
+
+## Mark single read
+
+```bash
+curl -X POST https://llm.bytespike.ai/api/v1/me/notifications/5001/mark-read \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{
+  "id": 5001,
+  "type": "system.payment.received",
+  "read_at": "2026-05-22T08:14:32Z"
+}
+```
+
+Idempotent — calling it on an already-read row is a no-op (read_at unchanged).
+
+## Mark all read
+
+```bash
+curl -X POST https://llm.bytespike.ai/api/v1/me/notifications/mark-all-read \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{"marked_read": 7}
+```
+
+Returns the count flipped. Idempotent — calling again returns `{"marked_read": 0}`.
+
+## Event catalog
+
+The notification feed only surfaces **user-visible** events — a curated subset of the [webhook event catalog](./me-webhooks#event-catalog). Five types:
+
+| Type | When it fires |
+|---|---|
+| `system.payment.received` | A top-up posts to your wallet |
+| `system.balance.notify.dispatched` | Low-balance cron crossed your threshold |
+| `admin.org.member.add` | Someone was added to your org (visible to org owners/admins) |
+| `admin.api_key.revoke` | Platform admin revoked your personal key |
+| `org.api_key.revoke` | Org admin revoked one of your org keys |
+
+If you need the full set (every admin write, every org member change, etc.), use [webhooks](./me-webhooks) — those receive the wider catalog.
+
+## Errors
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 400 | `invalid_request_error` | Both `read=true` and `unread=true`, or unknown `type`. |
+| 401 | `authentication_error` | Missing / revoked key. |
+| 404 | `not_found_error` | Notification `:id` doesn't belong to this caller. |
+
+## Example — polling status bar
+
+```python
+import time, requests, os
+
+headers = {"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"}
+
+while True:
+    r = requests.get(
+        "https://llm.bytespike.ai/api/v1/me/notifications/unread-count",
+        headers=headers,
+        timeout=5,
+    ).json()
+    print(f"Unread: {r['count']}")
+    time.sleep(60)
+```
+
+Switch to a webhook subscription if you have an HTTPS endpoint — push beats polling on freshness and load.

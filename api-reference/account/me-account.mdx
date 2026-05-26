@@ -1,0 +1,97 @@
+---
+title: "GET /me/account"
+description: "Your account dashboard in one call — balance, allowed models, quotas, profile."
+---
+
+The dashboard endpoint. Returns the same payload that
+[console.bytespike.ai/dashboard](https://console.bytespike.ai/dashboard)
+renders on first paint: balance, allowed-model roster, per-model quota
+caps, and basic profile bits. Calling it is **free** and never debits
+credits.
+
+## When to use
+
+- **Boot a custom dashboard / status bar** that mirrors the console
+- **Verify which models the current key can call** without enumerating `/v1/models` first
+- **Surface balance + low-balance flag** in IDE extensions / agents
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/account \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+`x-api-key: $BYTESPIKE_API_KEY` also works. No body.
+
+## Response
+
+```json
+{
+  "user": {
+    "id": 88,
+    "username": "ada",
+    "email": "ada@dosia.ai",
+    "created_at": "2026-01-04T07:11:00Z",
+    "tier": "individual"
+  },
+  "balance": {
+    "available_usd": 31.40,
+    "lifetime_topup_usd": 250.00,
+    "lifetime_spent_usd": 218.60,
+    "low_balance_threshold_usd": 5.00,
+    "low_balance_flagged": false
+  },
+  "allowed_models": [
+    {"id": "claude-sonnet-4-6", "quota_used_usd": 64.04, "quota_cap_usd": null},
+    {"id": "gpt-5-4", "quota_used_usd": 18.22, "quota_cap_usd": 50.00},
+    {"id": "gemini-3-1-pro", "quota_used_usd": 0.41, "quota_cap_usd": null}
+  ],
+  "org": {
+    "id": 1,
+    "name": "Dosia AI",
+    "role": "admin"
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `user.tier` | string | `individual` (personal wallet) or `enterprise` (org-billed). |
+| `balance.available_usd` | number | Available now after pending holds. |
+| `balance.lifetime_topup_usd` | number | All-time top-ups for this user/org. |
+| `balance.lifetime_spent_usd` | number | All-time spend across every API call. |
+| `balance.low_balance_threshold_usd` | number | The notification threshold the user set in `/account/notifications`. |
+| `balance.low_balance_flagged` | bool | `true` when `available_usd` is at or below the threshold. |
+| `allowed_models[]` | array | Models this key can route to. |
+| `allowed_models[].quota_cap_usd` | number \| null | Per-model spend cap; `null` = uncapped. |
+| `org` | object \| null | Set only when the caller is a member of an org. `role` is `owner` / `admin` / `member`. |
+
+## Errors
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 401 | `authentication_error` | Missing / revoked key. |
+| 403 | `permission_error` | Key was created in a paused org. |
+
+The endpoint is free; no `402` path. `429` is theoretically possible but the per-key cap is ~600/min — only realistic during a key-rotation hammer.
+
+## Example — low-balance gate
+
+```python
+import os, requests
+
+acc = requests.get(
+    "https://llm.bytespike.ai/api/v1/me/account",
+    headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+    timeout=10,
+).json()
+
+if acc["balance"]["low_balance_flagged"]:
+    print(f"Balance ${acc['balance']['available_usd']:.2f} ≤ threshold "
+          f"${acc['balance']['low_balance_threshold_usd']:.2f} — top up.")
+```
+
+Pair with [`POST /me/webhooks`](./me-webhooks) and subscribe to `system.balance.notify.dispatched` to be paged instead of polling.

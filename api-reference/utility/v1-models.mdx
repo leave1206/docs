@@ -1,0 +1,142 @@
+---
+title: "GET /models"
+description: "List the models your key can call, with capability tags and live pricing pointers."
+---
+
+The catalog endpoint. Returns the models in scope for your API key —
+the same set that `model` field accepts on
+[`/v1/messages`](../text/claude-messages),
+[`/v1/chat/completions`](../text/openai-chat-completions), and
+[`/v1beta/models/{model}:generateContent`](../text/gemini-generate-content).
+Calling it is free and never debits credits.
+
+## When to use
+
+- **Verify key validity** at boot — a 200 here proves the key is alive and in-scope
+- **Discover capability tags** before sending an image / video / audio block
+- **Build a model picker** in your own UI without hard-coding the catalog
+- **Detect retired slugs** — anything not in the list returns 400 `unsupported_model` on `/messages` / `/chat/completions`
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/models \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+`x-api-key: $BYTESPIKE_API_KEY` also works. No body.
+
+### Query parameters
+
+| Param | Type | Notes |
+|---|---|---|
+| `capability` | string | Filter by capability tag, e.g. `?capability=vision` or `?capability=tool_use`. Multiple OK: `?capability=vision&capability=streaming`. |
+| `family` | string | Filter by vendor family: `anthropic` / `openai` / `google` / `deepseek` / `moonshot` / `zhipu` / `minimax` / `volcengine`. |
+
+## Response
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "claude-sonnet-4-6",
+      "object": "model",
+      "owned_by": "anthropic",
+      "family": "claude",
+      "capabilities": ["text", "vision", "tool_use", "streaming", "cache_control", "thinking"],
+      "context_window": 200000,
+      "max_output_tokens": 8192,
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "pricing_url": "https://bytespike.ai/pricing#claude-sonnet-4-6",
+      "created": 1714003200
+    },
+    {
+      "id": "gpt-5-4",
+      "object": "model",
+      "owned_by": "openai",
+      "family": "gpt",
+      "capabilities": ["text", "vision", "tool_use", "streaming", "json_schema", "logprobs"],
+      "context_window": 256000,
+      "max_output_tokens": 16384,
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "pricing_url": "https://bytespike.ai/pricing#gpt-5-4",
+      "created": 1716393600
+    }
+    // …
+  ]
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `data[].id` | string | Model slug. Use this as the `model` value on inference endpoints. |
+| `data[].owned_by` | string | Upstream vendor (`anthropic`, `openai`, `google`, etc.). |
+| `data[].family` | string | Coarser grouping for UI (`claude`, `gpt`, `gemini`, `deepseek`, `kimi`, `glm`, `minimax`, `doubao`). |
+| `data[].capabilities` | string[] | Feature tags (see [Capability tags](#capability-tags)). |
+| `data[].context_window` | integer | Max input context in tokens. |
+| `data[].max_output_tokens` | integer | Hard cap on a single generation. |
+| `data[].input_modalities` | string[] | `text`, `image`, `audio`, `video`. |
+| `data[].output_modalities` | string[] | Same union; text-only models return `["text"]`. |
+| `data[].pricing_url` | string | Deep link to the per-model pricing row. |
+| `data[].created` | integer | Unix timestamp when the model entered the catalog. |
+
+### Live pricing
+
+The `pricing_url` deep-links to the row in [bytespike.ai/pricing](https://bytespike.ai/pricing). We don't ship per-token rates in this response on purpose — the rate card is refreshed nightly from the gateway and the docs page reflects whatever the gateway will actually bill you at, so reading it client-side stays canonical.
+
+## Capability tags
+
+| Tag | Meaning |
+|---|---|
+| `text` | Accepts text input + emits text output. Present on every model. |
+| `vision` | Accepts image content blocks (`image` on `/messages`, `image_url` on `/chat/completions`, `inlineData` on Gemini). |
+| `audio` | Accepts audio input parts. |
+| `video` | Accepts video input parts. |
+| `tool_use` | Honors `tools` / `tool_choice`. |
+| `streaming` | Supports `stream: true` SSE. |
+| `cache_control` | Supports Anthropic-style prompt caching. |
+| `thinking` | Emits `thinking` content blocks (Opus / Sonnet 4.x). |
+| `json_schema` | Supports OpenAI `response_format: {"type": "json_schema"}`. |
+| `logprobs` | Supports OpenAI `logprobs: true`. |
+| `image_gen` | Image generation endpoint (`/v1/images/generations`). |
+| `video_gen` | Video generation endpoint (`/v1/videos/generations`). |
+
+## Errors
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 401 | `authentication_error` | Missing / revoked key. |
+| 403 | `permission_error` | Key valid but no models granted (rare — usually means the key was created in a paused org). |
+
+`GET /v1/models` is free; no `402` path. Rate limits exist but are very loose — the only realistic 429 is a key-rotation hammer storm.
+
+## Example — boot-time validation
+
+```python
+import os
+import requests
+
+r = requests.get(
+    "https://llm.bytespike.ai/v1/models",
+    headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+    timeout=10,
+)
+if r.status_code == 401:
+    raise SystemExit("BYTESPIKE_API_KEY missing or revoked")
+catalog = {m["id"]: m for m in r.json()["data"]}
+assert "vision" in catalog["claude-sonnet-4-6"]["capabilities"]
+```
+
+## Example — capability filter
+
+```bash
+curl 'https://llm.bytespike.ai/v1/models?capability=vision&capability=tool_use' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+Returns only models that accept images AND can call tools — useful when wiring an agent that has to OCR a screenshot and then act on it.

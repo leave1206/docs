@@ -1,0 +1,84 @@
+---
+title: "deepseek-v4-flash"
+description: "DeepSeek V4 Flash — small-mid tier of DeepSeek's V4 family. Anthropic and OpenAI-compatible. The best Chinese-LLM dollar-per-quality at the moment, well-suited to high-volume classification and agent loops."
+---
+
+`deepseek-v4-flash` is the **small-mid** of the DeepSeek V4 family. At $0.20 / 1M input it's roughly Haiku-priced but speaks both OpenAI Chat Completions and the Anthropic Messages shape — making it a popular cost-savings substitute for `gpt-5-4-mini` or `claude-haiku-4-5` in volume-sensitive pipelines.
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **DeepSeek API** | `api.deepseek.com` | $0.20 / 1M | $0.80 / 1M | ~500ms | CN + global |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-flash",
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "Classify this ticket."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Anthropic Messages | ✅ |
+| Streaming (SSE) | ✅ |
+| Tool use | ✅ |
+| Parallel tools | — |
+| JSON mode | ✅ |
+| Reasoning chain | — (use `deepseek-v4-pro`) |
+| Vision (HTTP API) | ❌ |
+| Context window | 128K tokens |
+
+## When to use
+
+- **High-volume classification, routing, structured extraction** — cheapest Chinese-LLM tier with both OpenAI + Anthropic protocol coverage.
+- **Agent loops on a tight budget** — `tool_use` works via the Anthropic endpoint at Haiku-comparable pricing.
+- **Cost-optimized fallback** — when your task fits Flash, prefer this id directly over `deepseek-v4-pro` for ~3× cost savings.
+
+When **not** to use:
+
+- Tasks that need reasoning chain — go to `deepseek-v4-pro`.
+- Vision input — not on HTTP API today.
+
+## Next
+
+- [deepseek-v4-pro](/models/deepseek-v4-pro) — reasoning flagship
+- [deepseek-v3.2](/models/deepseek-v3-2) — older V3 via CodePlan
+- [DeepSeek provider page](/providers/deepseek) — channel details, vision status

@@ -1,0 +1,117 @@
+---
+title: "MiniMax M2.5"
+description: "MiniMax's prior flagship — strong on creative writing and dialogue, kept for benchmark-validated paths."
+---
+
+**Vendor:** MiniMax
+**Model ID:** `minimax-m2.5`
+**Capability:** 128K context · tool use · streaming · CJK-native
+**Pricing:** per-token, mid tier ([live rate](https://bytespike.ai/pricing#text))
+
+MiniMax M2.5 was MiniMax's prior production model. It earned a
+reputation for creative writing in Chinese — character voice
+consistency, dialogue, narrative flow — at a price tier where most
+competitors flatten tone. Still production-capable for that niche.
+For new general-purpose work, prefer
+[MiniMax M2.7](/api-reference/text/minimax-m2-7).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "minimax-m2.5",
+    "messages": [{"role": "user", "content": "续写这段对话，保持角色性格。"}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `minimax-m2.5` |
+| `messages` | array | yes | — | CJK accepted natively. |
+| `max_tokens` | integer | no | model max | Max: 8192. |
+| `temperature` | number | no | 1.0 | Creative writing benefits from 1.0–1.3. |
+| `tools` | array | no | — | Function calling supported. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "minimax-m2.5",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 287, "completion_tokens": 612, "total_tokens": 899}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "minimax-m2.5", "messages": [{"role": "user", "content": "续写对话"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="minimax-m2.5",
+    messages=[{"role": "user", "content": "续写这段对话，保持角色性格。"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "minimax-m2.5",
+  messages: [{ role: "user", content: "续写这段对话，保持角色性格。" }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Existing creative-writing pipelines validated against this version.
+- For new work, prefer [MiniMax M2.7](/api-reference/text/minimax-m2-7).
+- For Chinese general-purpose flagship, see [Kimi K2.6](/api-reference/text/kimi-k2-6) or [GLM-5.1](/api-reference/text/glm-5-1).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 8192 tokens |
+| Supports tool use | Yes |
+| Supports vision | No |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

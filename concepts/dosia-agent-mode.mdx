@@ -1,0 +1,117 @@
+---
+title: "DOSIA Agent mode"
+description: "How DOSIA Agent uses ByteSpike upstream — which protocol it speaks, which models it can target, what cache_control and tool_use blocks it expects to pass through, and the per-provider caveats DOSIA users should know."
+---
+
+DOSIA Agent mode runs on the **Anthropic Messages protocol** — `POST /v1/messages`. That's not negotiable: agent frameworks worth using need `tool_use` blocks, `cache_control` blocks, and `thinking` blocks to pass through end-to-end, and the Anthropic shape is the only protocol that exposes all three as first-class concepts.
+
+DOSIA Chat mode is a different story — it runs on OpenAI Chat Completions and works across every chat-shape model on ByteSpike. This page is about Agent mode specifically: what works today, what's planned, what's worth knowing per upstream.
+
+## The protocol surface
+
+A DOSIA Agent request lands on `https://llm.bytespike.ai/v1/messages` with the standard Anthropic shape:
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 2048,
+  "tools": [
+    {
+      "name": "search_files",
+      "description": "Search the local workspace for files.",
+      "input_schema": { ... }
+    }
+  ],
+  "messages": [
+    { "role": "user", "content": "Find every place we set the locale cookie." }
+  ]
+}
+```
+
+`tool_use` content blocks come back in the response; DOSIA executes the tool; the next turn sends a `tool_result` block back. Standard Anthropic Messages agent loop.
+
+The `cache_control: { type: "ephemeral" }` markers DOSIA puts on its system prompt and on stable context (workspace tree, recent edits) flow through to whichever upstream channel serves the request — see the [cache_control note per provider](#cache_control-per-provider) below.
+
+## Which models Agent mode can target
+
+ByteSpike resolves the `model` field through both the model-alias layer and the channel layer. Agent mode benefits from the same multi-channel routing as every other request — but the protocol constrains the eligible set to **upstreams that expose an Anthropic Messages surface**.
+
+Today's eligible set:
+
+| Model family | Primary channel | Status | Notes |
+|---|---|---|---|
+| `claude-haiku-4-5` / `sonnet-4-5` / `sonnet-4-6` / `opus-4-5` / `opus-4-6` / `opus-4-7` | Anthropic API + Bedrock | ✅ live | Native Anthropic; everything works |
+| `deepseek-v4-pro` / `deepseek-v4-flash` | DeepSeek HTTP API anthropic-compat | ✅ live | See [DeepSeek caveats](#deepseek-caveats) below |
+| `kimi-k2-6` / `kimi-k2-5` (anthropic-compat alias) | Moonshot direct | ⏳ planned | Moonshot's anthropic-compat endpoint exposed; ByteSpike routing in flight |
+| GLM via Zhipu anthropic-compat alias | Zhipu direct | ⏳ planned | Same as above |
+| MiniMax (anthropic-compat alias) | MiniMax direct | ⏳ planned | Same |
+| `doubao-seed-*` / `deepseek-v3-2` / `kimi-*` / `glm-*` / `minimax-*` (via Volcengine CodePlan) | Volcengine CodePlan subscription | ⏳ planned | Volcengine CodePlan's anthropic-compat path exists; ByteSpike's vendor-compat dispatcher routes it correctly once W2's PR-W2-VC routing fix ships |
+
+GPT and Gemini do **not** appear here. Neither provider exposes a native Anthropic Messages endpoint; ByteSpike does not synthesize one (the protocol-mapping cost in fidelity is not worth it for agent use). For GPT or Gemini, DOSIA Chat mode is the route — see [endpoint types](/concepts/endpoints).
+
+## Picking a model for Agent
+
+A short opinionated decision aid for DOSIA Agent users:
+
+| Scenario | Pick | Why |
+|---|---|---|
+| Default agent work, broad capability | `claude-sonnet-4-6` | Tool use + thinking + cache_control + web_search all together |
+| Codebase-scale agent (full repo into context) | `claude-opus-4-7` | 1M context window |
+| Cost-optimized agent at production scale | `claude-haiku-4-5` | Tool use included; thinking is not, but most agent loops don't need extended thinking |
+| Chinese-language workloads, cost-sensitive | `deepseek-v4-pro` | ~10× cheaper than Sonnet; reasoning chain available |
+| Chinese-language at the cheapest tier | `deepseek-v4-flash` | Haiku-class price; subset of Pro's capabilities |
+| Team on Volcengine CodePlan subscription | `kimi-k2-6` (CodePlan channel, once routing ships) | Subscription-amortized; long context |
+
+The recommended-paths table in [models/index](/models) covers the same ground from the model-first angle.
+
+## `cache_control` per provider
+
+`cache_control: { type: "ephemeral" }` markers behave differently per channel:
+
+- **Anthropic API / Bedrock channels** — full first-class support. Cache write is 1.25× input; cache read is ~10% of input. TTL refreshes on each hit.
+- **DeepSeek anthropic-compat channel** — DeepSeek's upstream does not yet ship `cache_control`. The marker passes through unchanged; the upstream ignores it. No caching benefit, but no error either.
+- **Moonshot / Zhipu / MiniMax / CodePlan channels** — same as DeepSeek today. Anthropic-compat aliases accept the shape but the upstream caching layer is not wired through.
+
+This is a known limitation. The current recommendation: keep `cache_control` markers in your DOSIA Agent system prompt regardless of which upstream you're targeting — they're free when ignored and they activate automatically when the upstream gains support.
+
+## DeepSeek caveats
+
+DOSIA Agent against `deepseek-v4-pro` / `deepseek-v4-flash` is fully supported today, with three caveats:
+
+1. **No `cache_control`.** As above.
+2. **Vision is not on the HTTP API.** DeepSeek's `chat.deepseek.com` web app supports image input; the HTTP API (both OpenAI shape and anthropic-compat) does not. If your Agent expects to send `image` content blocks, route those requests to a Claude or GPT-4o channel; keep the rest on DeepSeek.
+3. **`thinking` blocks appear as `reasoning_content` on the OpenAI endpoint but as proper `thinking` blocks on the anthropic-compat endpoint.** DOSIA Agent uses the anthropic-compat path so you get the native shape; the difference matters only if you switch protocols.
+
+See [the DeepSeek provider page](/providers/deepseek) for the full caveat list.
+
+## Volcengine CodePlan note
+
+The Volcengine CodePlan bundle exposes an anthropic-compat path at `https://ark.cn-beijing.volces.com/api/coding`. ByteSpike's vendor-compat multi-endpoint design ([see architecture](/concepts/vendor-compat-multi-endpoint)) wires this up by filling `base_url_anthropic` on the CodePlan account.
+
+Routing is in flight on W2's side (PR-W2-VC). Once shipped, DOSIA Agent against `kimi-k2-6` / `kimi-k2-5` / other CodePlan models will work without code changes — the routing layer picks the CodePlan channel for those model names and serves the request via the anthropic-compat upstream endpoint.
+
+Until then, customers running CodePlan-subscribed teams should default DOSIA Agent to DeepSeek for now and re-target once the routing fix lands.
+
+## Failure modes
+
+What can go wrong on a DOSIA Agent → ByteSpike → upstream call, and what each failure looks like:
+
+| Symptom | Likely cause | Where to look |
+|---|---|---|
+| 404 on `/v1/messages` | Model name not eligible for Agent (e.g. you sent a GPT model) | Send a Claude / DeepSeek / future-supported model. See the eligibility table above. |
+| 422 with "tool_use not supported" | Model is on a channel that hasn't enabled anthropic-compat yet | Switch the request to Claude or DeepSeek; check the [coverage matrix](#which-models-agent-mode-can-target) |
+| 5xx upstream | The picked channel is having trouble | ByteSpike auto-retries on the next eligible channel in your key's group. If all channels in the group fail, the gateway surfaces the upstream's error. To see which channel(s) tried, look at `/api/v1/usage` rows for that request (`upstream_provider` field). |
+| Mid-stream `error` event | Upstream aborted mid-response | Zero credits charged (see [credits and billing](/concepts/credits-and-billing)); DOSIA will surface to the user as a streaming-failure toast |
+
+For the broader failure-billing policy, see [credits and billing](/concepts/credits-and-billing). For retries and idempotency, see [error handling](/concepts/error-handling).
+
+## Configuring DOSIA Cloud Enterprise
+
+For DOSIA Cloud Enterprise admins building permission templates: the **Global edition** and **China edition** presets pre-select the right Agent default per region. See the [models index DOSIA recommended paths](/models#dosia-recommended-paths) section for the table mapping each preset to its Agent + Chat defaults.
+
+## Next
+
+- [Endpoint types](/concepts/endpoints) — full eight-protocol map
+- [Vendor compat · multi-endpoint architecture](/concepts/vendor-compat-multi-endpoint) — how `base_url_anthropic` lets one credential serve both protocols
+- [DeepSeek provider page](/providers/deepseek) — DeepSeek's vision + cache_control + reasoning details
+- [Models index](/models) — per-model docs including the DOSIA recommended-paths table

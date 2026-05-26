@@ -1,0 +1,71 @@
+---
+title: "gpt-4v"
+description: "OpenAI's vision-specialized GPT-4 surface — image-in, text-out. Kept for legacy code that targets gpt-4v explicitly; new vision work should target gpt-4o or gpt-5.5 directly."
+---
+
+`gpt-4v` is OpenAI's vision-focused GPT-4 surface — image input, text output. Kept on the rate card so existing code that pinned to it continues working without rewrites. **New vision work should target [`gpt-4o`](/models/gpt-4o)** (broader multimodal) or [`gpt-5-5`](/models/gpt-5-5) (newer family) instead — they're the active models behind the DOSIA `analyze_image` tool. This page exists for compat reference.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI direct | `api.openai.com` | see [/pricing](/pricing) | see [/pricing](/pricing) | ~700ms | global edge |
+
+Failures don't bill. Pricing sits below `gpt-5-5` and `gpt-4o`.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4v",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "Describe what's in this image." },
+          { "type": "image_url", "image_url": { "url": "https://example.com/photo.jpg" } }
+        ]
+      }
+    ]
+  }'
+```
+
+Vision content blocks (`type: "image_url"`) follow the standard OpenAI Chat Completions multimodal shape.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Audio input | — (use [`gpt-4o`](/models/gpt-4o)) |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Modality | chat + vision |
+| Capability bucket | `vision` |
+
+## When to use
+
+- **Existing pinned integration** — code that targets `gpt-4v` and you don't want to do the regression-test work to migrate.
+- **Reproducing earlier outputs** — match a benchmark or experiment that used `gpt-4v` historically.
+
+When **not** to use:
+
+- New project — pick [`gpt-4o`](/models/gpt-4o) (audio + vision) or [`gpt-5-5`](/models/gpt-5-5) (newer family).
+- Cost-sensitive vision at volume — [`gpt-4o-mini`](/models/gpt-4o-mini).
+
+## Next
+
+- [`gpt-4o`](/models/gpt-4o) — current multimodal mid-tier
+- [`gpt-5-5`](/models/gpt-5-5) — newer GPT-5 family flagship
+- [DOSIA MCP integration](/concepts/mcp-integration) — how DOSIA's `analyze_image` tool resolves vision models

@@ -1,0 +1,65 @@
+---
+title: "seedream-v5lite"
+description: "ByteDance Seedream's lightweight tier. The lowest per-image cost in the image lineup, traded against tighter generation quality on hard prompts. The default for high-volume programmatic image work where good-enough beats expensive."
+---
+
+`seedream-v5lite` is the lowest-cost image tier in the ByteSpike image lineup. The trade-off vs [`seedream-4`](/models/seedream-4) and [`nano-banana`](/models/nano-banana): noticeably cheaper per image, with looser quality on hard prompts (complex composition, dense in-image text, precise product shots). The right call for programmatic volume where the per-image cost shows up in the monthly bill more than the per-image quality shows up in the output.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedream** | Volcengine | `ark.cn-beijing.volces.com` | per-image (see [/pricing](/pricing) — lowest tier in the image rate card) | ~3s (1024×1024) | cn-beijing |
+
+Failures don't bill.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v5lite",
+    "prompt": "Simple illustration of a coffee cup on a wooden desk, top-down",
+    "n": 8,
+    "size": "1024x1024"
+  }'
+```
+
+`n=8` batch generation is one of this model's natural use cases — programmatic content pipelines hammer it for thumbnails, A/B variants, and placeholder assets.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-image | ✅ |
+| Image-to-image (with `source_image`) | ✅ basic |
+| `n` ≥ 2 batch generation | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## When to use
+
+- **Programmatic volume** — thumbnail generation, asset libraries, A/B variants, demo placeholders.
+- **Internal-facing creative** — mockups for design reviews where quality just needs to land "in the ballpark".
+- **Budget-bound DOSIA users** — main brain reaches for this when capability bucket includes it and you've configured cost preference toward cheap.
+
+When **not** to use:
+
+- Customer-facing marketing creative — [`seedream-4`](/models/seedream-4) or [`gpt-image-2`](/models/gpt-image-2).
+- Image-to-image with high fidelity required — [`nano-banana-v2`](/models/nano-banana-v2) or [`seedream-4-5`](/models/seedream-4-5).
+
+## Next
+
+- [`seedream-4`](/models/seedream-4) — flagship tier
+- [`nano-banana`](/models/nano-banana) — Google lightweight alternative
+- [Multimodal endpoints](/concepts/multimodal) — protocol overview

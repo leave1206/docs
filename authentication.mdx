@@ -1,0 +1,171 @@
+---
+title: "Authentication"
+description: "API key format, the three protocol headers, key management, and the per-key controls (group binding, quota, rate limits, IP allowlist)."
+---
+
+## Key format
+
+Every ByteSpike key starts with `sk-byts-`. You generate them in
+[Console → API keys](https://console.bytespike.ai/keys); the
+secret value is shown **once** at creation time, then masked. To
+retrieve a plaintext later, use the per-key reveal flow in the console
+or `GET /v1/keys/{id}/reveal` on the management API.
+
+```
+sk-byts-AbCdEf0123456789...
+```
+
+Treat the key like a database password. Never commit it to git, never
+log it server-side, never put it in browser bundles. The gateway
+hashes the prefix-suffix pair in its database — leaked keys are
+revocable in seconds but unrecoverable once leaked.
+
+## Header layout per protocol
+
+ByteSpike accepts the native auth header for whichever protocol you're
+calling. The same key works across all three — pick the header your
+client speaks.
+
+| Protocol | Header | Example |
+|---|---|---|
+| Anthropic Messages | `x-api-key` | `x-api-key: sk-byts-...` |
+| OpenAI Chat Completions / Responses | `Authorization: Bearer` | `Authorization: Bearer sk-byts-...` |
+| Gemini Native | query param `?key=` | `?key=sk-byts-...` |
+
+You can also send `Authorization: Bearer` on the Anthropic endpoint
+and `x-api-key` on the OpenAI endpoint — the gateway accepts both
+shapes on both routes. If both headers are present, `x-api-key` wins.
+
+The gateway never reads request bodies to discover credentials.
+
+## Per-key controls
+
+Each key carries its own configuration, set when you create the key
+and editable later from the console:
+
+| Field | What it does | Default |
+|---|---|---|
+| `name` | Display label in the console — pick something memorable like `prod-vision-pipeline` | required |
+| `group_id` | Which channel routing group this key can hit. Picking `claude-default` means the key can only call models served by the Claude pool; `volcengine-default` only routes DeepSeek + Doubao. See [Channels](/concepts/channels). | required (single value per key) |
+| `quota` | Hard cap on lifetime spend in USD. `0` = unlimited. | `0` |
+| `expires_in_days` | Auto-revoke after N days. | never |
+| `rate_limit_5h` | USD cap on the rolling 5-hour window. `0` = unlimited. | `0` |
+| `rate_limit_1d` | USD cap on the rolling 24-hour window. | `0` |
+| `rate_limit_7d` | USD cap on the rolling 7-day window. | `0` |
+| `ip_whitelist` | List of CIDR blocks the key is allowed to call from. Empty = allow all. | `[]` |
+| `ip_blacklist` | List of CIDR blocks explicitly denied. | `[]` |
+| `custom_key` | Optionally supply your own secret string instead of letting the gateway generate one. Useful when migrating from another provider's key infrastructure. | gateway-generated |
+
+A key is bound to **exactly one** routing group — there is no
+multi-group binding today. If you need a single client to reach
+multiple groups (e.g. Claude + DeepSeek), create separate keys per
+group and select per request, or call models that have cross-group
+fallback configured.
+
+## Key lifecycle
+
+### Create
+
+```bash
+curl https://llm.bytespike.ai/api/v1/keys \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "name": "prod-vision-pipeline",
+    "group_id": 11,
+    "quota": 200,
+    "rate_limit_5h": 50,
+    "ip_whitelist": ["52.0.0.0/8"],
+    "expires_in_days": 90
+  }'
+```
+
+The response includes the plaintext key — capture it once, store
+encrypted. Subsequent reads through `GET /v1/keys` return a masked
+form (`sk-byts-...****1234`).
+
+### Rotate
+
+`POST /v1/keys/{id}/rotate` re-rolls the secret in place. The old
+secret stops working **immediately** on rotation — there's no
+overlap window. Plan deploys accordingly: roll your config + verify
+on the new secret before invoking rotate, or use two keys with
+staggered rotations.
+
+### Reveal
+
+`GET /v1/keys/{id}/reveal` returns the plaintext for a key you
+already have access to. Useful for recovery flows where the operator
+has lost their copy but is still authenticated.
+
+### Delete
+
+`DELETE /v1/keys/{id}` — immediate, no undo. Pending requests using
+that key in-flight get a 401 mid-stream.
+
+## Failure modes
+
+The error envelope matches the protocol you called. Anthropic shape:
+
+```json
+{
+  "type": "error",
+  "error": { "type": "authentication_error", "message": "invalid x-api-key" }
+}
+```
+
+OpenAI shape:
+
+```json
+{
+  "error": {
+    "type": "invalid_request_error",
+    "code": "invalid_api_key",
+    "message": "invalid x-api-key"
+  }
+}
+```
+
+| Scenario | HTTP | OpenAI `code` | Anthropic `type` |
+|---|---|---|---|
+| Missing or malformed key | 401 | `invalid_api_key` | `authentication_error` |
+| Revoked / deleted key | 401 | `invalid_api_key` | `authentication_error` |
+| Key valid but expired | 401 | `invalid_api_key` | `authentication_error` |
+| IP outside `ip_whitelist` | 403 | `permission_denied` | `permission_error` |
+| IP matches `ip_blacklist` | 403 | `permission_denied` | `permission_error` |
+| Quota / rate-limit exhausted | 402 | `insufficient_balance` | `permission_error` |
+| Model not in the key's routing group | 503 | `api_error` (no available account) | `api_error` |
+
+None of these are billed — failures don't consume credits.
+
+## Programmatic key management
+
+The full management surface lives under `/api/v1/keys`. Cookie auth
+(from the console) and `x-api-key` auth (with any active key) both
+work.
+
+| Verb + path | What it does |
+|---|---|
+| `GET /api/v1/keys` | List your keys (masked secrets) |
+| `GET /api/v1/keys/{id}` | One key (masked) |
+| `GET /api/v1/keys/{id}/reveal` | Plaintext (use sparingly) |
+| `POST /api/v1/keys` | Create |
+| `PUT /api/v1/keys/{id}` | Update name / quota / rate limits / IP rules / status |
+| `POST /api/v1/keys/{id}/rotate` | Re-roll secret in place |
+| `DELETE /api/v1/keys/{id}` | Hard delete |
+
+## Test a key before shipping
+
+[Console → Models](https://console.bytespike.ai/dosia/models) has a
+**Test** button next to every model. The console picks the right
+key from your set automatically — the one whose `group_id` actually
+matches the model. A 200 there confirms key + group + upstream all
+line up before you commit to wiring it into a client.
+
+You can also dial test from the API:
+
+```bash
+curl https://llm.bytespike.ai/api/v1/dial/test \
+  -H "Cookie: $SESSION_COOKIE" \
+  -d '{"model": "claude-sonnet-4-6", "protocol": "anthropic", "keyId": 42}'
+```

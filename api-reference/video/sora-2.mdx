@@ -1,0 +1,82 @@
+---
+title: "Sora 2"
+description: "OpenAI's text-to-video flagship — 1080p, async via tasks API."
+---
+
+OpenAI's text-to-video flagship. Async by nature: submit returns a
+`task_id`, then poll [`tasks/query`](/api-reference/utility/tasks-query)
+until the result lands. Typical latency 60–120 seconds for a 5-second clip.
+
+**Slug:** `sora-2` · **Capability:** 1080p text-to-video, up to 10s · **Pricing:** per-second
+([live rate](https://bytespike.ai/pricing#video))
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora-2",
+    "prompt": "A drone shot tracking a yellow cab through Times Square at golden hour.",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | `sora-2` |
+| `prompt` | string | yes | Text prompt. |
+| `duration_seconds` | integer | yes | 1–10 |
+| `resolution` | string | no | `720p` (default), `1080p` |
+| `aspect_ratio` | string | no | `16:9` (default), `9:16`, `1:1` |
+| `seed` | integer | no | Reproducibility. |
+| `image_init` | string | no | URL of init image for image-to-video. |
+
+### Response
+
+```json
+{
+  "task_id": "task_01AbCdEf",
+  "status": "queued",
+  "estimated_credits": 0.42
+}
+```
+
+The estimated credits land before any GPU work runs — cancel via
+[`tasks/cancel`](/api-reference/utility/tasks-cancel) before the status
+flips to `running` for a free abort.
+
+## Poll
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/query?task_id=task_01AbCdEf \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+Response when complete:
+
+```json
+{
+  "task_id": "task_01AbCdEf",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/...",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  },
+  "credits": 0.42
+}
+```
+
+Recommended polling cadence: 2-second intervals up to 180 seconds, then
+back off to 5 seconds. The query endpoint is free.
+
+## When to use
+
+- Need 1080p output → Sora 2 or [Sora 2 Pro](/api-reference/video/sora-2-pro)
+- Need vertical (9:16) for short-form social → Sora 2 supports it natively
+- Latency-sensitive → consider [Veo 3.1 Fast](/api-reference/video/veo-3-1-fast) or [Seedance Fast](/api-reference/video/seedance-fast) for ~30s turn-around at lower fidelity

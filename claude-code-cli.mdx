@@ -1,0 +1,147 @@
+---
+title: "Claude Code CLI"
+description: "Point Anthropic's Claude Code CLI at ByteSpike. Two env vars, done — works against every Anthropic-compatible model in the catalog."
+---
+
+Claude Code is Anthropic's coding agent CLI. Out of the box it talks
+to Anthropic's gateway; redirecting it at ByteSpike unlocks the rest
+of the model catalog (Claude, plus DeepSeek-Anthropic, plus
+Anthropic-via-Gemini translation, etc.) under one key.
+
+## Prerequisites
+
+- A ByteSpike account + a key bound to the **`claude-default`** group
+  (or any group that includes Claude/DeepSeek-Anthropic). See
+  [Register](/register).
+- Claude Code installed:
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  # or
+  brew install claude-code
+  ```
+
+## Configure
+
+Two environment variables. Add to your shell profile (`~/.zshrc`,
+`~/.bashrc`, or `~/.config/fish/config.fish`):
+
+```bash
+export ANTHROPIC_BASE_URL="https://llm.bytespike.ai"
+export ANTHROPIC_API_KEY="sk-byts-..."
+```
+
+Reload the shell (`exec $SHELL` or open a new tab). That's it —
+`claude` now sends every Messages-API call through ByteSpike.
+
+<Tip>
+Want it scoped to one project, not your whole shell? Drop a
+`.envrc` (with `direnv`) or a project-local script that exports
+the vars only inside the repo:
+
+```bash
+# .envrc
+export ANTHROPIC_BASE_URL="https://llm.bytespike.ai"
+export ANTHROPIC_API_KEY="sk-byts-..."
+```
+</Tip>
+
+## Verify
+
+```bash
+claude --version
+```
+
+Then start a session:
+
+```bash
+claude
+```
+
+In the running session, try a small task:
+
+```
+> what model are you?
+```
+
+You should see the model self-identify (e.g. "I'm Claude Sonnet
+4.6 served via ByteSpike"). If you get an auth error,
+double-check `ANTHROPIC_API_KEY`; if you get `400 model_not_allowed`,
+your key's group doesn't include the model Claude Code defaulted to
+— switch to a group that includes it or override with `--model`.
+
+## Switching models
+
+Claude Code picks the right tool per command. Override per-session:
+
+```bash
+claude --model claude-opus-4-7    # use Opus for this session
+```
+
+Or per-tool inside the session:
+
+```
+> /model claude-haiku-4-5
+```
+
+Any model id from your `claude-default` group (or whatever group
+your key is bound to) works. See [Models](/models) for the full
+catalog.
+
+## Common configs
+
+<AccordionGroup>
+  <Accordion title="One key per project">
+    Generate a separate key per project from
+    [Console → API keys](https://console.bytespike.ai/keys) with its
+    own `quota` (USD lifetime cap) and `rate_limit_*` buckets. Wire
+    each project's `.envrc` to the right key. Spend stays
+    attributable in [`/api/v1/me/usage`](/api-reference/account/me-usage)
+    by `api_key_id`.
+  </Accordion>
+  <Accordion title="Streaming + tool use">
+    Both work end-to-end through ByteSpike — no extra config. The
+    gateway preserves `tool_use` blocks, `cache_control` markers, and
+    `thinking` blocks (Opus / Sonnet 4.x) untouched.
+  </Accordion>
+  <Accordion title="MCP server compatibility">
+    Claude Code's MCP servers (`mcp__*` tools) all run client-side —
+    they don't care which gateway sits between the CLI and the model.
+    Just set the env vars and your existing MCP config keeps working.
+  </Accordion>
+  <Accordion title="Behind a corporate proxy">
+    Claude Code respects `HTTPS_PROXY` / `NO_PROXY`. Add
+    `llm.bytespike.ai` to `NO_PROXY` if your proxy mangles SSE
+    streams; otherwise set `HTTPS_PROXY=https://proxy.corp:443` and
+    proceed normally.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `401 invalid x-api-key` | Wrong key value or key was revoked | Re-copy from [Console → API keys](https://console.bytespike.ai/keys); rotate if needed |
+| `402 insufficient_balance` | Account out of credits or key hit its `quota` | Top up at [Console → Billing](https://console.bytespike.ai/billing); raise the key's quota |
+| `403 permission_denied` (model) | Model not in the key's routing group | Switch key, or switch model with `--model` |
+| `503 no available accounts` | The key's group has no live channel that serves this model | Click **Test** next to the model in [Console → Models](https://console.bytespike.ai/dosia/models) to confirm; switch group if it's a mismatch |
+| Mid-stream stall (SSE) | Corporate proxy buffering | Add `llm.bytespike.ai` to `NO_PROXY` |
+
+For the live response shape, see
+[`/v1/messages`](/api-reference/text/claude-messages).
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Codex CLI" icon="terminal" href="/codex-cli">
+    OpenAI's coding CLI — same idea, OpenAI-side env vars.
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/models">
+    What Claude Code can actually call.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Group binding, quota, rate limits.
+  </Card>
+  <Card title="DOSIA Agent mode" icon="robot" href="/concepts/dosia-agent-mode">
+    The agent integration that builds on top of Claude Code's Messages shape.
+  </Card>
+</CardGroup>

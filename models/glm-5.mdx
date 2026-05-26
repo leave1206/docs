@@ -1,0 +1,52 @@
+---
+title: "glm-5"
+description: "Zhipu's GLM-5 — Chinese-LLM flagship for general chat with vision support. Available on ByteSpike through the Volcengine CodePlan subscription bundle."
+---
+
+`glm-5` is the production flagship from Zhipu's GLM family — strong on Chinese tasks, vision-capable. On ByteSpike, it is served through the **Volcengine CodePlan subscription channel**, sharing one credential with Doubao, Kimi, MiniMax, and DeepSeek-V3.2.
+
+## Channels
+
+| Channel | Provider | Base URL | Billing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Volcengine CodePlan** | Volcengine subscription | `ark.cn-beijing.volces.com/api/coding/v3` | Subscription (monthly, admin-amortized) | ~500ms | CN |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "glm-5",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | ✅ |
+| Context window | 128K tokens |
+
+## When to use
+
+- **Chinese-language general chat** — GLM is competitive with Doubao on Chinese benchmarks.
+- **Vision in CN region** — good OCR / document understanding.
+- **Cost-predictable** — no per-token surprises on CodePlan.
+
+## Next
+
+- [glm-5-air](/models/glm-5-air) — cheaper variant
+- [Volcengine CodePlan provider page](/providers/volcengine-codeplan)

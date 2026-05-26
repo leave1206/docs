@@ -1,0 +1,153 @@
+---
+title: "Veo 3.1"
+description: "Google's text-to-video flagship — strong on natural-world footage and physics-coherent motion."
+---
+
+**Vendor:** Google
+**Model ID:** `veo-3.1`
+**Capability:** 1080p · up to 8s · text + image init · async via tasks API
+**Pricing:** per second + submit fee, standard tier ([live rate](https://bytespike.ai/pricing#video))
+
+Veo 3.1 is Google's text-to-video flagship. The thing it does best is
+natural-world footage with coherent physics — water, foliage, animal
+motion, weather. For studio / cinematic shots Sora 2 Pro often has
+the edge; for "drone over a forest" / "tide coming in" / "wildlife"
+type briefs, Veo's the right call.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo-3.1",
+    "prompt": "A drone shot tracking along a river, autumn leaves on the bank, soft afternoon light.",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `veo-3.1` |
+| `prompt` | string | yes | — | English-tuned. |
+| `duration_seconds` | integer | yes | — | 1–8. |
+| `resolution` | string | no | `1080p` | Supported: `720p`, `1080p`. |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`. |
+| `seed` | integer | no | — | Reproducibility. |
+| `image_init` | string | no | — | URL of init image. |
+
+## Submit response
+
+```json
+{
+  "task_id": "task_…",
+  "status": "queued",
+  "estimated_credits": 0.55,
+  "submitted_at": "2026-05-08T13:00:00Z"
+}
+```
+
+## Poll for completion
+
+Recommended cadence: 2s for first 60s, then 5s up to 180s. Query is free.
+
+```json
+{
+  "task_id": "task_…",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/...",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  },
+  "credits": 0.55
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "veo-3.1", "prompt": "Drone shot along river", "duration_seconds": 5, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(
+    f"{API}/tasks/submit",
+    headers=HEADERS,
+    json={"model": "veo-3.1", "prompt": "Drone shot along river", "duration_seconds": 5, "resolution": "1080p"},
+).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"])
+        break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "veo-3.1", prompt: "Drone shot along river", duration_seconds: 5, resolution: "1080p" }),
+}).then((r) => r.json())
+
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation (duration > 8, resolution unsupported) | No |
+| 401 / 402 / 403 | Auth / wallet / scope | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Natural-world footage (landscape, weather, wildlife, water).
+- Physics-coherent motion at typical drone / handheld scales.
+- For lower fidelity at faster turnaround, see [Veo 3.1 Fast](/api-reference/video/veo-3-1-fast).
+- For studio / cinematic 1080p, see [Sora 2 Pro](/api-reference/video/sora-2-pro).
+- For lower cost, see [Seedance 2.0](/api-reference/video/seedance-2-0).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 8s |
+| Min duration | 1s |
+| Resolutions | 720p, 1080p |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 5s clip | 60-120s |
+| Async via tasks API | Yes |

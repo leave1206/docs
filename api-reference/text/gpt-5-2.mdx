@@ -1,0 +1,119 @@
+---
+title: "GPT-5.2"
+description: "Mid-tier 5-series — the standard model from the first 5.x refinement wave, kept for benchmark-validated paths."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-2`
+**Capability:** 200K context · tool use · vision · streaming · structured output
+**Pricing:** per-token, standard tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5.2 was the first refinement step on the original GPT-5 — same
+shape, more reliable structured output. It's still a competent
+production model for any team that's already benchmark-validated
+against this version. For new work, prefer
+[GPT-5.4](/api-reference/text/gpt-5-4) or
+[GPT-5.5](/api-reference/text/gpt-5-5).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-2",
+    "messages": [{"role": "user", "content": "Summarize this earnings transcript section."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-2` |
+| `messages` | array | yes | — | — |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `temperature` | number | no | 1.0 | — |
+| `tools` | array | no | — | Function calling supported (parallel). |
+| `response_format` | object | no | — | JSON mode + structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-2",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 1024, "completion_tokens": 218, "total_tokens": 1242}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-2", "messages": [{"role": "user", "content": "..."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-2",
+    messages=[{"role": "user", "content": "Summarize this earnings transcript section."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-2",
+  messages: [{ role: "user", content: "Summarize this earnings transcript section." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching on stable prefixes,
+discounted rate per [pricing table](https://bytespike.ai/pricing#text).
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Existing code validated against this exact version.
+- For new work, prefer [GPT-5.4](/api-reference/text/gpt-5-4) or [GPT-5.5](/api-reference/text/gpt-5-5).
+- For lower cost, see [GPT-5-mini](/api-reference/text/gpt-5-mini).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

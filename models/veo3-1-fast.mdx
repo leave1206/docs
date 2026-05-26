@@ -1,0 +1,66 @@
+---
+title: "veo3.1-fast"
+description: "Google Veo 3.1 Fast — the lower-cost tier of Veo. Trades some fidelity and the audio option for a meaningfully cheaper per-second price. Default for volume / programmatic video pipelines on the Google stack."
+---
+
+`veo3.1-fast` is the Fast tier of [`veo3.1`](/models/veo3-1). Trade-offs: drops the native audio option, slightly looser fidelity on hard motion, and meaningfully lower per-second cost. The right default for programmatic / volume video work where Sora-grade quality isn't the bar.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google Veo Fast** | Google direct | `aiplatform.googleapis.com` | per-second (see [/pricing](/pricing) — cheaper than `veo3.1`) | ~60s wall-clock for 5s clip | global edge |
+
+Failures don't bill.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo3.1-fast",
+    "prompt": "A coffee cup steaming on a kitchen counter, morning light",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# Poll pattern — see /models/sora2#quickstart
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| Audio generation | — (use [`veo3.1`](/models/veo3-1) for audio) |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Volume / programmatic video** — short social-card clips, A/B variants, demo placeholders.
+- **No audio needed** — explainer-style clips that will be dubbed or scored separately.
+- **Internal-facing creative** — quick visualizations for design review.
+
+When **not** to use:
+
+- Audio matters in the deliverable — go to [`veo3.1`](/models/veo3-1).
+- Hero / final marketing creative — [`sora2`](/models/sora2) or [`sora2-pro`](/models/sora2-pro).
+
+## Next
+
+- [`veo3.1`](/models/veo3-1) — full tier with audio
+- [`seedance-2.0-fast`](/models/seedance-2-0-fast) — ByteDance fast tier
+- [Multimodal endpoints](/concepts/multimodal) — overview

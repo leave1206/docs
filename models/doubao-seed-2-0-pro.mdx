@@ -1,0 +1,56 @@
+---
+title: "doubao-seed-2.0-pro"
+description: "ByteDance's flagship Doubao Seed 2.0 Pro — vision, tools, long context. Available on ByteSpike exclusively through the Volcengine CodePlan subscription bundle."
+---
+
+`doubao-seed-2.0-pro` is the flagship of ByteDance's Doubao family — strong on Chinese-language tasks, vision-capable, with a long context window. On ByteSpike, it is served through the **Volcengine CodePlan subscription channel**, sharing one credential with DeepSeek-V3.2, GLM, Kimi, and MiniMax.
+
+## Channels
+
+| Channel | Provider | Base URL | Billing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Volcengine CodePlan** | Volcengine subscription | `ark.cn-beijing.volces.com/api/coding/v3` | Subscription (monthly, admin-amortized) | ~500ms | CN |
+
+Per-token cost on the request line item is zero; the cost sits at the subscription level. See [/providers/volcengine-codeplan](/providers/volcengine-codeplan) for the amortization model.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "doubao-seed-2.0-pro",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | ✅ |
+| Long context (200K+) | ✅ |
+| Context window | 200K tokens |
+
+## When to use
+
+- **Chinese-language workloads** — Doubao's strongest dimension.
+- **Mixed-LLM teams** — the CodePlan subscription bundles five families; if your team uses several, this channel pays for itself.
+- **Vision tasks in CN region** — strong OCR + image understanding.
+
+## Next
+
+- [Volcengine CodePlan provider page](/providers/volcengine-codeplan) — subscription mechanics
+- [doubao-seed-1.5-pro](/models/doubao-seed-1-5-pro) — older, slightly cheaper
+- [Channels](/concepts/channels) — subscription vs per-token model

@@ -1,0 +1,107 @@
+---
+title: "Models"
+description: "Every model available on ByteSpike, organized by family. Each model page lists the channels that serve it, the per-channel price and protocol, and a runnable quickstart."
+---
+
+This is the **model-first** index for ByteSpike. Pick the model you want; the per-model page tells you which channels can serve it, what each channel costs, what protocol it speaks, and how to make your first call.
+
+If you're new to "channels," read [channels](/concepts/channels) first — the same model can have multiple prices behind it, and the routing layer picks one per request.
+
+## Claude family
+
+Anthropic's reasoning-and-vision lineup, available via both the Anthropic Messages protocol and the OpenAI Chat Completions shim. Cache control, tool use, and thinking blocks pass through transparently.
+
+| Model | Tier | Context | Cheapest channel | Page |
+|---|---|---|---|---|
+| `claude-haiku-4-5` | small | 200K | Anthropic API · $0.80/$4 | [→](/models/claude-haiku-4-5) |
+| `claude-sonnet-4-5` | mid | 200K | Anthropic API · $3/$15 | [→](/models/claude-sonnet-4-5) (soon) |
+| `claude-sonnet-4-6` | mid | 200K | Anthropic API · $3/$15 | [→](/models/claude-sonnet-4-6) |
+| `claude-opus-4-5` | large | 200K | Anthropic API · $15/$75 | [→](/models/claude-opus-4-5) (soon) |
+| `claude-opus-4-6` | large | 200K | Anthropic API · $15/$75 | [→](/models/claude-opus-4-6) (soon) |
+| `claude-opus-4-7` | flagship | 1M | Anthropic API · $15/$75 | [→](/models/claude-opus-4-7) |
+
+## GPT family
+
+OpenAI's GPT lineup — Chat Completions for ubiquitous SDK code, Responses for Codex-style clients. Reasoning, structured outputs, web search, and vision all pass through.
+
+| Model | Tier | Context | Cheapest channel | Page |
+|---|---|---|---|---|
+| `gpt-4o-mini` | small | 128K | OpenAI · $0.15/$0.60 | [→](/models/gpt-4o-mini) |
+| `gpt-4o` | mid | 128K | OpenAI · $2.50/$10 | [→](/models/gpt-4o) |
+| `gpt-5-4-mini` | small-mid | 256K | OpenAI · $0.50/$2 | [→](/models/gpt-5-4-mini) |
+| `gpt-5-4` | mid | 400K | OpenAI · $3/$12 | [→](/models/gpt-5-4) |
+| `gpt-5-3-codex` | code | 256K | OpenAI Responses · $2.50/$10 | [→](/models/gpt-5-3-codex) |
+| `gpt-5-5` | flagship | 1M | OpenAI · $10/$40 | (soon) |
+
+## Gemini family
+
+Google's Gemini lineup, exposed through the OpenAI Chat Completions shim. 2.5 Pro has the longest context window of any model on ByteSpike (2M).
+
+| Model | Tier | Context | Cheapest channel | Page |
+|---|---|---|---|---|
+| `gemini-2-5-flash` | small-mid | 1M | Google AI Studio · $0.30/$1.20 | [→](/models/gemini-2-5-flash) |
+| `gemini-2-5-pro` | flagship | 2M | Google AI Studio · $3.50/$14 | [→](/models/gemini-2-5-pro) |
+
+## DeepSeek family (V4 — per-token)
+
+The latest DeepSeek production lineup via DeepSeek's own HTTP API. Dual protocol (Chat Completions + Anthropic Messages). Vision **not** exposed on the HTTP API today.
+
+| Model | Tier | Context | Cheapest channel | Page |
+|---|---|---|---|---|
+| `deepseek-v4-flash` | small-mid | 128K | DeepSeek API · $0.20/$0.80 | [→](/models/deepseek-v4-flash) |
+| `deepseek-v4-pro` | flagship | 128K | DeepSeek API · $0.55/$2.19 | [→](/models/deepseek-v4-pro) |
+
+## Volcengine CodePlan family (subscription)
+
+Models bundled into the Volcengine CodePlan subscription — one credential, ten-plus models, fixed monthly cost amortized across the team. Different billing model than per-token: see [/providers/volcengine-codeplan](/providers/volcengine-codeplan) for the subscription mechanics.
+
+| Model | Family | Channel | Page |
+|---|---|---|---|
+| `doubao-seed-2.0-pro` | ByteDance Doubao | Volcengine CodePlan · subscription | [→](/models/doubao-seed-2-0-pro) |
+| `doubao-seed-1.5-pro` | ByteDance Doubao | Volcengine CodePlan · subscription | (soon) |
+| `doubao-lite` | ByteDance Doubao | Volcengine CodePlan · subscription | (soon) |
+| `deepseek-v3-2` | DeepSeek (older) | Volcengine CodePlan · subscription | [→](/models/deepseek-v3-2) |
+| `glm-5` | Zhipu | Volcengine CodePlan · subscription | [→](/models/glm-5) |
+| `glm-5-air` | Zhipu | Volcengine CodePlan · subscription | (soon) |
+| `kimi-k2-6` | Moonshot | Volcengine CodePlan · subscription | [→](/models/kimi-k2-6) |
+| `kimi-k2-5` | Moonshot | Volcengine CodePlan · subscription | (soon) |
+| `minimax-m2-7` | MiniMax | Volcengine CodePlan · subscription | [→](/models/minimax-m2-7) |
+| `minimax-m2-5` | MiniMax | Volcengine CodePlan · subscription | (soon) |
+
+## Image and video
+
+Image and video models live under their own protocol surfaces (`/v1/images/generations` for image, `/v1/tasks/submit` for async video). Per-model pages with current per-call rates live in [/api-reference/image](/api-reference/image) and [/api-reference/video](/api-reference/video) today; they'll migrate into `/models/` in a follow-up.
+
+## DOSIA recommended paths
+
+If you're calling ByteSpike from DOSIA, two protocol surfaces matter — and each one has a recommended primary model plus cheaper fallbacks.
+
+| DOSIA mode | Protocol | Primary | Cost-optimized fallback | Region-of-China primary |
+|---|---|---|---|---|
+| **Agent** (tool use, thinking, cache_control) | Anthropic Messages | [`claude-sonnet-4-6`](/models/claude-sonnet-4-6) | [`claude-haiku-4-5`](/models/claude-haiku-4-5) | [`deepseek-v4-pro`](/models/deepseek-v4-pro) (anthropic-compat) |
+| **Chat** (general Q&A, drafting) | OpenAI Chat Completions | [`gpt-5-4`](/models/gpt-5-4) | [`gpt-5-4-mini`](/models/gpt-5-4-mini) | [`deepseek-v4-flash`](/models/deepseek-v4-flash) or any Volcengine CodePlan model |
+
+For DOSIA Cloud Enterprise admins building permission templates:
+
+- **Global edition** preset → unlock `claude-sonnet-4-6`, `claude-opus-4-7`, `gpt-5-4`, `gpt-5-4-mini`, `gpt-4o`, `gemini-2-5-flash`, `gemini-2-5-pro`. Default to Anthropic for Agent, OpenAI for Chat.
+- **China edition** preset → unlock `deepseek-v4-pro`, `deepseek-v4-flash`, plus every model in the Volcengine CodePlan bundle (`doubao-seed-2.0-pro`, `glm-5`, `kimi-k2-6`, `minimax-m2-7`, `deepseek-v3-2`). Default to `deepseek-v4-pro` for Agent (anthropic-compat), `doubao-seed-2.0-pro` for Chat.
+
+Both presets are admin-defined in the [DOSIA Cloud Console](https://console.bytespike.ai); members never have to pick a model unless they want to override.
+
+## How to read a model page
+
+Each page is the same shape:
+
+1. **Channels** — every channel that serves this model, with per-channel cost, protocol, latency profile, region.
+2. **Quickstart** — a runnable request against the model via its primary protocol.
+3. **Capabilities** — what the model itself supports (vision, tools, reasoning, JSON mode, streaming).
+4. **When to use** — opinionated guidance.
+5. **Next** — links to related models and to the provider page that explains the channel mechanics.
+
+Same shape across families so you can scan side-by-side.
+
+## Next
+
+- [Channels](/concepts/channels) — the N:M model-to-channel mapping that powers per-model pricing
+- [Endpoint types](/concepts/endpoints) — the eight request shapes ByteSpike accepts
+- [Providers](/providers/anthropic) — admin-side per-upstream configuration docs

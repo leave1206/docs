@@ -1,0 +1,183 @@
+---
+title: "Sora 2 Pro"
+description: "Sora 2 at higher fidelity, longer max duration, and full 1080p — the model when the clip is the deliverable."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `sora-2-pro`
+**Capability:** 1080p · up to 20s · text + image init · async via tasks API
+**Pricing:** per second + submit fee, pro tier ([live rate](https://bytespike.ai/pricing#video))
+
+Sora 2 Pro is what you reach for when the video is the deliverable.
+Higher base fidelity than Sora 2, longer max duration (20s vs 10s),
+and fuller 1080p detail. Latency is the tradeoff — typical 5s clip
+runs 90–180 seconds end-to-end. For iteration / draft passes, use
+Sora 2 first; spend Pro budget on the keeper.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora-2-pro",
+    "prompt": "A cinematic dolly shot through a misty pine forest at dawn, golden light filtering through.",
+    "duration_seconds": 8,
+    "resolution": "1080p"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `sora-2-pro` |
+| `prompt` | string | yes | — | English-tuned. |
+| `duration_seconds` | integer | yes | — | 1–20. |
+| `resolution` | string | no | `1080p` | Supported: `720p`, `1080p`. |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`. |
+| `seed` | integer | no | — | Reproducibility. |
+| `image_init` | string | no | — | URL of init image for image-to-video. |
+| `style_preset` | string | no | — | Optional: `cinematic`, `anime`, `documentary`, `none`. |
+
+## Submit response
+
+```json
+{
+  "task_id": "task_…",
+  "status": "queued",
+  "estimated_credits": 1.85,
+  "submitted_at": "2026-05-08T13:00:00Z"
+}
+```
+
+Cancel during `queued` for a free abort. After `running`, partial
+seconds are billed.
+
+## Poll for completion
+
+```bash
+curl "https://llm.bytespike.ai/v1/tasks/query?task_id=task_…" \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+Recommended cadence: 2s for first 90s, then 5s up to 240s.
+
+```json
+{
+  "task_id": "task_…",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/...",
+    "duration_seconds": 8,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9"
+  },
+  "credits": 1.85,
+  "completed_at": "2026-05-08T13:02:14Z"
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+# Submit
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "sora-2-pro", "prompt": "Dolly shot through pine forest at dawn", "duration_seconds": 8, "resolution": "1080p"}'
+
+# Poll
+curl "https://llm.bytespike.ai/v1/tasks/query?task_id=task_…" \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(
+    f"{API}/tasks/submit",
+    headers=HEADERS,
+    json={
+        "model": "sora-2-pro",
+        "prompt": "A cinematic dolly shot through a misty pine forest at dawn",
+        "duration_seconds": 8,
+        "resolution": "1080p",
+    },
+).json()
+
+task_id = submit["task_id"]
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"])
+        break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+
+const submit = await fetch(`${API}/tasks/submit`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    model: "sora-2-pro",
+    prompt: "A cinematic dolly shot through a misty pine forest at dawn",
+    duration_seconds: 8,
+    resolution: "1080p",
+  }),
+}).then((r) => r.json())
+
+const { task_id } = submit
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation (duration > 20, resolution unsupported) | No |
+| 401 / 402 / 403 | Auth / wallet / scope | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+Cancelling a `running` task partial-bills the seconds rendered.
+
+## When to use
+
+- Hero / final-quality clips where 1080p and length matter.
+- Image-to-video from photoreal init frames.
+- For draft / iteration passes, use [Sora 2](/api-reference/video/sora-2) first.
+- For fast 30s-turnaround at lower fidelity, see [Veo 3.1 Fast](/api-reference/video/veo-3-1-fast).
+- For lower cost, see [Seedance 2.0 Pro](/api-reference/video/seedance-2-0-pro).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 20s |
+| Min duration | 1s |
+| Resolutions | 720p, 1080p |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 8s clip | 120-180s |
+| Async via tasks API | Yes |

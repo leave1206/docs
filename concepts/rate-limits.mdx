@@ -1,0 +1,144 @@
+---
+title: "Rate limits & concurrency"
+description: "Per-key rate-limit buckets (5h / 1d / 7d), concurrency, headers to read, and what 429 looks like when you hit a wall."
+---
+
+ByteSpike enforces three rolling-window spend caps **per API key**,
+plus a concurrency cap. All four are independent — the tightest one
+wins.
+
+## The four caps
+
+| Cap | Default | Set where |
+|---|---|---|
+| `rate_limit_5h` (USD spend, rolling 5 hours) | unlimited | Per key, in [Console → API keys](https://console.bytespike.ai/keys) |
+| `rate_limit_1d` (USD spend, rolling 24 hours) | unlimited | Per key |
+| `rate_limit_7d` (USD spend, rolling 7 days) | unlimited | Per key |
+| Concurrency (in-flight requests) | tier-defined | Per subscription tier; see [pricing](/pricing) |
+
+`0` on any of the spend caps = unlimited.
+
+## How they interact
+
+On every request the gateway computes:
+
+```
+remaining_5h  = rate_limit_5h - spend_in_last_5h
+remaining_1d  = rate_limit_1d - spend_in_last_1d
+remaining_7d  = rate_limit_7d - spend_in_last_7d
+```
+
+The response carries the **tightest** of the three:
+
+```
+X-RateLimit-Limit: 50.00            # the limit closest to constraining you
+X-RateLimit-Remaining: 4.18         # remaining in that bucket
+X-RateLimit-Reset: 1716705600       # Unix ts when that bucket resets
+```
+
+When `Remaining` hits `0`, the next request returns `429`:
+
+```json
+{
+  "error": {
+    "type": "rate_limit_error",
+    "message": "rate_limit_5h exceeded: 50.00 / 50.00 used; resets at 2026-05-25 14:00:00 UTC"
+  }
+}
+```
+
+(Anthropic shape for `/v1/messages`; OpenAI shape for `/chat/completions` + `/responses`.)
+
+## Picking values
+
+| Use case | Recommended caps |
+|---|---|
+| Dev / local laptop | `rate_limit_5h = 5`, `_1d = 20`, `_7d = 50` — caps an off-screen runaway loop without blocking ordinary work |
+| Production API key | `_5h = 100`, `_1d = 500`, `_7d = 2000` — sized to ~10× expected usage. Lets you absorb traffic spikes but contains runaway bugs |
+| Per-customer key (multi-tenant) | All three set to that customer's allowance — issue one key per customer with their billing window's cap |
+| Long-running batch job | `_5h` high (let the batch burn), `_1d` and `_7d` lower (prevent a runaway batch from looping for days) |
+
+`quota` (lifetime cap) and `expires_in_days` are separate from the
+rate-limit buckets — they don't interact. See
+[Authentication](/authentication#per-key-controls).
+
+## Concurrency
+
+Concurrency is the count of in-flight requests against your account
+at any one moment (across all your keys). It's set per subscription
+tier:
+
+| Tier | Concurrency cap |
+|---|---|
+| Free | 5 |
+| Pro | 25 |
+| Max | 100 |
+| Enterprise | Custom (typically 500–2000) |
+
+When you hit the cap, new requests return `429` immediately with
+`type: "rate_limit_error", code: "concurrency_limit"`. The
+recommended response is the same as a normal `429` — backoff + retry.
+
+If you're hitting concurrency on Free / Pro and the spend caps are
+nowhere near, upgrade tier rather than spawning more keys. The cap
+is account-level, not key-level.
+
+## Backoff strategy
+
+The gateway's reset timestamps are precise — use them rather than
+exponential backoff guesswork:
+
+```python
+import time, requests
+
+def call_with_backoff(payload):
+    while True:
+        r = requests.post(URL, json=payload, headers=HEADERS)
+        if r.status_code != 429:
+            return r
+        reset = int(r.headers.get("X-RateLimit-Reset", 0))
+        wait = max(1, reset - int(time.time()))
+        time.sleep(min(wait, 300))   # cap at 5 min so a stuck reset can't deadlock us
+```
+
+For concurrency 429s (no `X-RateLimit-Reset`), use a short jittered
+backoff (e.g. `1 + random()*2` seconds) — the cap clears as
+in-flight requests finish, which can be sub-second.
+
+## What's *not* rate-limited
+
+- `GET /api/v1/me/*` management calls — free, never throttled
+- `GET /api/v1/me/usage` — free
+- `GET /api/v1/me/account` — free
+- `POST /v1/tasks/query` — free, doesn't count against concurrency
+- `POST /v1/tasks/cancel` — free, doesn't count against concurrency
+- The dial-test in console — uses cookie auth, not a key, never billed
+
+Anything against `/v1/messages`, `/v1/chat/completions`, `/v1/responses`,
+`/v1beta/...`, `/v1/images/*`, `/v1/tasks/submit` counts.
+
+## Reading the usage log
+
+To debug a 429 — see what's been spending:
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/usage?limit=100&api_key_id=42' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+Sum the `credits` column over the relevant window. The tightest
+bucket from the response headers tells you which window to look at.
+
+## Raising the limits
+
+| You want | Action |
+|---|---|
+| Higher per-key spend cap | Edit the key in [Console → API keys](https://console.bytespike.ai/keys) |
+| Higher account concurrency | Upgrade tier in [Console → Subscriptions](https://console.bytespike.ai/subscriptions) |
+| Custom limits beyond Max tier | Email [enterprise@bytespike.ai](mailto:enterprise@bytespike.ai) |
+
+## Related
+
+- [Authentication](/authentication) — per-key control list
+- [Credits & billing](/concepts/credits-and-billing) — how spend rolls up
+- [Error handling](/concepts/error-handling) — error envelope + retry semantics

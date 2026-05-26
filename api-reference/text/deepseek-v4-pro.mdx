@@ -1,0 +1,124 @@
+---
+title: "DeepSeek V4 Pro"
+description: "DeepSeek's flagship V4 — strongest code generation in the open-weight tier, with reasoning chain support."
+---
+
+**Vendor:** DeepSeek
+**Model ID:** `deepseek-v4-pro`
+**Capability:** 128K context · tool use · streaming · structured output · reasoning
+**Pricing:** per-token, pro tier ([live rate](https://bytespike.ai/pricing#text))
+
+DeepSeek V4 Pro is the model to beat in the open-weight tier on code
+generation tasks. Reach for it when the problem is structured —
+implementations of well-defined algorithms, refactors with clear
+constraints, codebase-style migrations — and the answer either
+compiles or it doesn't. For freer-form tasks (architecture design,
+prose, multi-step planning), GPT-5.5 and Claude Opus 4.7 still have an
+edge.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `deepseek-v4-pro` |
+| `messages` | array | yes | — | — |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `temperature` | number | no | 1.0 | — |
+| `tools` | array | no | — | Function calling supported (parallel). |
+| `response_format` | object | no | — | JSON / structured output. |
+| `reasoning` | object | no | — | Optional reasoning chain — set `{"enabled": true}` to enable. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "deepseek-v4-pro",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "use std::sync::..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 32, "completion_tokens": 1248, "total_tokens": 1280}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "deepseek-v4-pro", "messages": [{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="deepseek-v4-pro",
+    messages=[{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "deepseek-v4-pro",
+  messages: [
+    { role: "user", content: "Implement a thread-safe LRU cache in Rust." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching on stable prefixes.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Structured code generation in well-defined languages.
+- Algorithm implementations, refactors with hard constraints.
+- For lower latency, see [DeepSeek V4 Flash](/api-reference/text/deepseek-v4-flash).
+- For multi-step planning beyond code, see [GPT-5.5](/api-reference/text/gpt-5-5) or [Claude Opus 4.7](/api-reference/text/claude-opus-4-7).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | No |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |
+| Supports reasoning chain | Yes |

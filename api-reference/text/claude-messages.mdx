@@ -1,0 +1,343 @@
+---
+title: "POST /messages"
+description: "Anthropic-native Messages endpoint — Claude family + cross-vendor models behind the same shape."
+---
+
+The native ByteSpike protocol. Speaks the Anthropic Messages API
+verbatim, including `tool_use`, `cache_control`, and `thinking` blocks.
+Cross-vendor models (GPT, Gemini, DeepSeek, Doubao, etc.) are
+transparently translated under the hood — the request you send is
+Anthropic-shape, regardless of which `model` value you pick.
+
+## When to use
+
+Pick this endpoint when you want:
+
+- **Anthropic SDK / Claude Code / Claude Desktop** to talk to any model in our catalog
+- **Tool use** with the cleanest schema (no JSON-string wrapping like OpenAI's `tool_calls`)
+- **Prompt caching** (`cache_control` blocks) on long static system prompts
+- **Extended thinking** on Opus / Sonnet 4.x
+
+For a strict OpenAI-shape request, use [`/chat/completions`](./openai-chat-completions). For Google Native, use [`/v1beta/models/{model}:generateContent`](./gemini-generate-content).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "system": "You are a helpful assistant.",
+    "messages": [
+      {"role": "user", "content": "Summarize the first chapter of Moby Dick."}
+    ]
+  }'
+```
+
+### Headers
+
+| Header | Required | Notes |
+|---|---|---|
+| `x-api-key` | yes | Your ByteSpike key (`sk-byts-…`). |
+| `anthropic-version` | yes | Pin `2023-06-01`. |
+| `content-type` | yes | `application/json`. |
+| `anthropic-beta` | no | Pass-through to upstream Anthropic for beta features. |
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | Model slug. Any catalog model works — see [Cross-model routing](#cross-model-routing) below. |
+| `messages` | array | yes | Conversation history (Anthropic shape). |
+| `max_tokens` | integer | yes | Hard cap on response length. |
+| `system` | string \| array | no | System prompt (string for simple cases, array for `cache_control`). |
+| `tools` | array | no | Tool definitions (Anthropic `input_schema` format). |
+| `tool_choice` | object | no | `{"type": "auto"}` / `{"type": "any"}` / `{"type": "tool", "name": "…"}`. |
+| `temperature` | number | no | Default 1.0. |
+| `top_p` | number | no | Nucleus sampling. |
+| `stop_sequences` | string[] | no | Custom stop tokens. |
+| `stream` | boolean | no | Server-sent events. See [Streaming](#streaming). |
+| `metadata` | object | no | `{"user_id": "..."}` — forwarded upstream and logged on our side. |
+
+## Response
+
+```json
+{
+  "id": "msg_01AbCdEf",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {"type": "text", "text": "Ishmael, the narrator, signs onto a whaling ship..."}
+  ],
+  "model": "claude-sonnet-4-6",
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 23,
+    "output_tokens": 87
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Server-generated id, prefix `msg_`. |
+| `type` | string | Always `"message"` on a non-error response. |
+| `role` | string | Always `"assistant"`. |
+| `content` | array | Content blocks: `text`, `tool_use`, `thinking` (Opus / Sonnet 4.x). |
+| `stop_reason` | string | `end_turn`, `max_tokens`, `stop_sequence`, `tool_use`. |
+| `usage.input_tokens` | integer | Tokens billed for input. |
+| `usage.output_tokens` | integer | Tokens billed for output. |
+| `usage.cache_read_input_tokens` | integer | Tokens served from cache (discounted rate). |
+| `usage.cache_creation_input_tokens` | integer | Tokens written to cache (full rate). |
+
+### Accounting headers
+
+Every response — success or failure, streamed or not — carries the gateway's quota envelope:
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+- `X-RateLimit-Limit` / `Remaining` — USD budget for the rate-limit bucket closest to constraining you (5h / 1d / 7d, whichever is tightest).
+- `X-RateLimit-Reset` — Unix timestamp for when that bucket resets.
+- `X-Quota-Remaining-Credits` — lifetime credits remaining on this key (USD; 1 USD = 1,000,000 credits). Failed requests don't move this number.
+- `X-Org-Quota-Remaining-Credits` — org wallet remaining, on org-owned keys.
+
+For the actual per-request cost, query [`GET /api/v1/usage`](/api-reference/account/me-usage) — it returns the prompt + completion tokens and the final billed `credits` per call.
+
+## Streaming
+
+Set `"stream": true`. The response is SSE in the standard Anthropic format:
+
+```
+event: message_start
+data: {"type":"message_start","message":{...}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Ishmael"}}
+
+…
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":87}}
+
+event: message_stop
+data: {"type":"message_stop"}
+```
+
+The full SSE event sequence — `message_start` → one or more (`content_block_start` → `content_block_delta`× → `content_block_stop`) → `message_delta` → `message_stop` — is identical to upstream Anthropic. Tool calls arrive as `tool_use` content blocks streamed in chunks via `input_json_delta`.
+
+## Tool use (multi-turn)
+
+Tool calling round-trips through two requests. The first carries the tool schema; the model responds with a `tool_use` block; you execute the tool and POST the result back in a second request.
+
+### Round 1 — tool offered
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {"type": "string", "description": "Name of the city."}
+        },
+        "required": ["city"]
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "What's the weather in Tokyo?"}
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "id": "msg_01...",
+  "role": "assistant",
+  "content": [
+    {"type": "text", "text": "Let me check that for you."},
+    {
+      "type": "tool_use",
+      "id": "toolu_01ABC",
+      "name": "get_weather",
+      "input": {"city": "Tokyo"}
+    }
+  ],
+  "stop_reason": "tool_use"
+}
+```
+
+### Round 2 — tool result returned
+
+Execute `get_weather({city: "Tokyo"})` locally, then send the result as a `tool_result` block referencing the original `tool_use.id`:
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "tools": [ /* same schema */ ],
+  "messages": [
+    {"role": "user", "content": "What's the weather in Tokyo?"},
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "Let me check that for you."},
+        {
+          "type": "tool_use",
+          "id": "toolu_01ABC",
+          "name": "get_weather",
+          "input": {"city": "Tokyo"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01ABC",
+          "content": "18°C, partly cloudy"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The model now returns a final text answer with `stop_reason: "end_turn"`.
+
+## Image / multimodal content
+
+Send images as `image` content blocks. Both `base64` and URL sources work; the gateway forwards the bytes directly to vision-capable upstream models (Claude Sonnet/Opus 4.x, GPT-5-x, Gemini, Doubao Vision, etc.).
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "/9j/4AAQSkZJRg..."
+          }
+        },
+        {"type": "text", "text": "What's in this image?"}
+      ]
+    }
+  ]
+}
+```
+
+For URL inputs:
+
+```json
+{
+  "type": "image",
+  "source": {"type": "url", "url": "https://example.com/photo.jpg"}
+}
+```
+
+Non-vision models reject image blocks with a 400; check the model's capability tags via [`GET /v1/models`](../utility/v1-models).
+
+## Cross-model routing
+
+This endpoint accepts **any** ByteSpike catalog model in the `model` field — the gateway translates the request to the upstream protocol transparently. Pick whatever fits your latency / cost / capability mix:
+
+```json
+{"model": "claude-opus-4-7", "messages": [...]}    // → Anthropic
+{"model": "gpt-5-4", "messages": [...]}            // → OpenAI (Anthropic→OpenAI shape translation)
+{"model": "gemini-3-1-pro", "messages": [...]}     // → Google (Anthropic→Gemini)
+{"model": "deepseek-v4-pro", "messages": [...]}    // → DeepSeek
+{"model": "doubao-seed-2-0-pro", "messages": [...]}  // → Volcengine
+```
+
+Caveats:
+
+- Vendor-specific features that don't translate (e.g. OpenAI `response_format: {"type": "json_schema"}`) need the matching protocol endpoint.
+- `stop_reason` and `usage` fields are normalised back to Anthropic shape regardless of upstream.
+
+Full model list: [`GET /v1/models`](../utility/v1-models). Pricing per model: [bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+## Cache control
+
+`cache_control` blocks work identically to upstream Anthropic. Costs are billed at the discounted cache-read rate when a hit occurs; the rate is visible in the [pricing table](https://bytespike.ai/pricing#text) under "cache read".
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+The `usage.cache_read_input_tokens` and `usage.cache_creation_input_tokens` fields in the response report hits and writes respectively.
+
+## Rate limiting & quota headers
+
+| Header | Notes |
+|---|---|
+| `x-ratelimit-limit-requests` | Requests/min cap for your tier. |
+| `x-ratelimit-remaining-requests` | Remaining in the current window. |
+| `x-ratelimit-reset-requests` | Seconds until the bucket refills. |
+| `x-ratelimit-limit-tokens` | Tokens/min cap. |
+| `x-ratelimit-remaining-tokens` | Tokens remaining in this window. |
+
+On a `429`, inspect the `x-ratelimit-reset-*` header to know when to retry.
+
+## Errors
+
+All non-2xx responses are **free** — failures don't bill.
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 400 | `invalid_request_error` | Body validation failed (per Anthropic schema). The message tells you which field. |
+| 400 | `unsupported_model` | `model` slug not in your scope or retired. |
+| 400 | `unsupported_feature` | E.g. image block sent to a text-only model, or `tools` to a model that can't tool-use. |
+| 401 | `authentication_error` | Missing / revoked key. |
+| 402 | `insufficient_credits` | Wallet exhausted. Top up at [console.bytespike.ai/billing](https://console.bytespike.ai/billing). |
+| 403 | `permission_error` | Scope denied, IP not allowlisted, or model gated. |
+| 404 | `not_found_error` | Path typo (`/v1/messages` vs `/messages`) or unknown model id. |
+| 429 | `rate_limit_error` | Tier rate-limit. Backoff per `x-ratelimit-reset-*`. |
+| 5xx | `api_error` / `overloaded_error` | Upstream provider issue. Free + automatic retry envelope. |
+
+Body shape:
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "You have exceeded your requests-per-minute budget."
+  }
+}
+```

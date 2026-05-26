@@ -1,0 +1,112 @@
+---
+title: "deepseek-v3-anthropic"
+description: "DeepSeek V3.2 served through the Anthropic Messages protocol surface. Same DeepSeek-V3-2 model, but you keep your Anthropic SDK, your tool_use blocks, and your cache_control markers."
+---
+
+`deepseek-v3-anthropic` is DeepSeek's V3.2 model accessed via the **Anthropic Messages protocol** at `POST /v1/messages`. The model weights are identical to [`deepseek-v3-2`](/models/deepseek-v3-2) — the differentiator is the wire format. If your code already speaks Anthropic Messages (DOSIA Agent mode, anthropic SDK, any tool_use / cache_control / thinking-block consumer), this is the alias to point it at; you don't have to rewrite the call site to route through DeepSeek.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Cache read | Latency p50 | Region |
+|---|---|---|---|---|---|---|---|
+| **DeepSeek Anthropic-shim** | DeepSeek direct | `api.deepseek.com` | $0.27 / 1M | $1.08 / 1M | $0.027 / 1M | ~700ms | global edge |
+
+Cache write is 1.25× input. See [channels](/concepts/channels) for routing details and the [Anthropic Messages protocol](/concepts/dosia-agent-mode) for what passes through.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+
+OpenAI Chat Completions is **not** wired on this alias — use [`deepseek-v3-2`](/models/deepseek-v3-2) if you need the OpenAI-shape interface.
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v3-anthropic",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Summarize this changelog into three bullets." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK)
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="deepseek-v3-anthropic",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Summarize this changelog into three bullets."}],
+)
+
+for block in resp.content:
+    if block.type == "text":
+        print(block.text)
+```
+
+```typescript TypeScript (anthropic SDK)
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.messages.create({
+  model: "deepseek-v3-anthropic",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Summarize this changelog into three bullets." }],
+})
+
+for (const block of resp.content) {
+  if (block.type === "text") console.log(block.text)
+}
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| Prompt caching (`cache_control`) | ✅ |
+| Extended thinking | — (use [`deepseek-r1`](/models/deepseek-r1) for reasoning chains) |
+| Vision (image input) | — |
+| JSON / structured output | ✅ |
+| Context window | 128K tokens |
+
+## When to use
+
+- **You already speak Anthropic Messages** — DOSIA Agent mode, anthropic SDK, a tool-use-heavy loop. Drop in the alias, save the rewrite.
+- **Cost-sensitive Anthropic-shape workloads** — DeepSeek V3.2 is roughly **one-fifty-fifth** the input price of `claude-opus-4-7` and one-tenth of `claude-sonnet-4-6`, while keeping the same wire format.
+- **Tool-use mixed batches** — when some of your agents target Claude and some target DeepSeek but everyone speaks the same protocol.
+
+When **not** to use:
+
+- You need vision input — use a Claude family model or [`gpt-4o`](/models/gpt-4o).
+- You're already on the OpenAI Chat Completions interface and don't want to migrate — stay on [`deepseek-v3-2`](/models/deepseek-v3-2).
+- You need explicit reasoning chains — try [`deepseek-r1`](/models/deepseek-r1).
+
+## Next
+
+- [`deepseek-v3-2`](/models/deepseek-v3-2) — same model, OpenAI Chat Completions surface
+- [`claude-sonnet-4-6`](/models/claude-sonnet-4-6) — Anthropic protocol, higher-tier reasoning
+- [DOSIA Agent mode](/concepts/dosia-agent-mode) — why the Anthropic shape matters for agent loops

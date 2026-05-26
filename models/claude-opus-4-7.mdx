@@ -1,0 +1,94 @@
+---
+title: "claude-opus-4-7"
+description: "Anthropic's 1M-context flagship. Codebase-scale refactors, long-document review, multi-document synthesis — anything that overflows 200K. Extended thinking, web search, and vision all supported."
+---
+
+`claude-opus-4-7` is the flagship of the Claude family — the **1M-context** model on ByteSpike. It exists for tasks that simply don't fit in a 200K window: full-codebase review, long-document QA across hundreds of pages, multi-document synthesis. Pricing is the standard Opus rate; context window is what you pay extra for.
+
+## Channels
+
+| Channel group | Input | Output | Cache read |
+|---|---|---|---|
+| **claude-default** (Anthropic upstream) | $5.00 / 1M | $25.00 / 1M | $0.50 / 1M |
+
+Cache write is 1.25× input. See [channels](/concepts/channels) for routing details.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions (shim) | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-7",
+    "max_tokens": 2048,
+    "thinking": { "type": "enabled", "budget_tokens": 1024 },
+    "messages": [
+      { "role": "user", "content": "Untangle this contract." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-opus-4-7",
+    max_tokens=2048,
+    thinking={"type": "enabled", "budget_tokens": 1024},
+    messages=[{"role": "user", "content": "Untangle this contract."}],
+)
+
+for block in resp.content:
+    if block.type == "text":
+        print(block.text)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| Prompt caching (cache_control) | ✅ |
+| Extended thinking | ✅ |
+| Web search (web_search tool) | ✅ |
+| JSON / structured output | ✅ |
+| Context window | **1M tokens** |
+
+## When to use
+
+- **Codebase-scale review** — full repo into the context, ask for an audit.
+- **Long-document QA** — books, hundreds of pages of legal/regulatory text, multi-doc synthesis.
+- **Hard reasoning** — pair with `thinking: { enabled, budget_tokens: 1024+ }` for the extended chain-of-thought.
+- **Web search + long context** — research-style queries that need both fresh facts and big context.
+
+When **not** to use:
+
+- Default chat at 200K or less — `claude-sonnet-4-6` is one-fifth the cost at the same capabilities (minus 1M context).
+- High-volume classification — `claude-haiku-4-5` is twenty times cheaper.
+
+## Next
+
+- [claude-sonnet-4-6](/models/claude-sonnet-4-6) — production mid-tier
+- [claude-haiku-4-5](/models/claude-haiku-4-5) — small + cheap
+- [Anthropic provider page](/providers/anthropic) — family overview

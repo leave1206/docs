@@ -1,0 +1,116 @@
+---
+title: "Seedance 2.0 Pro Fast"
+description: "Seedance 2.0 Pro fidelity at half the wait — the latency-tuned Pro variant for time-bound hero work."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedance-2.0-pro-fast`
+**Capability:** 1080p · up to 8s · text + image init · CJK prompts · async via tasks API
+**Pricing:** per second + submit fee, pro-fast tier ([live rate](https://bytespike.ai/pricing#video))
+
+Seedance 2.0 Pro Fast is the latency-tuned Pro variant. Roughly half
+the end-to-end latency of full Pro on bounded prompts (5–8s clips,
+720p/1080p) with output that holds against Pro on most A/B tests.
+Cap is 8 seconds (vs 10 on Pro). Right pick when the deadline is
+non-negotiable but you still want Pro-tier fidelity.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro-fast",
+    "prompt": "Aerial drone over a coral reef, school of fish swimming below",
+    "duration_seconds": 6,
+    "resolution": "1080p"
+  }'
+```
+
+### Body parameters
+
+Same shape as [Seedance 2.0 Pro](/api-reference/video/seedance-2-0-pro).
+Max `duration_seconds` is 8.
+
+## Submit + poll
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.72}
+```
+
+Recommended cadence: 2s for first 60s, then 5s up to 120s.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-2.0-pro-fast", "prompt": "Aerial drone coral reef", "duration_seconds": 6, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-2.0-pro-fast",
+    "prompt": "Aerial drone over a coral reef",
+    "duration_seconds": 6,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-2.0-pro-fast", prompt: "Aerial drone coral reef", duration_seconds: 6, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+Standard.
+
+## When to use
+
+- Time-bound hero work where Pro fidelity is required but full Pro
+  latency is unacceptable.
+- Production agent flows where each video step has an SLO.
+- For full Pro 10s clips, see [Seedance 2.0 Pro](/api-reference/video/seedance-2-0-pro).
+- For 5s ultra-fast turnaround, see [Seedance Fast](/api-reference/video/seedance-fast).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 8s |
+| Resolutions | 720p, 1080p |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 6s clip | 45-75s |
+| Async via tasks API | Yes |

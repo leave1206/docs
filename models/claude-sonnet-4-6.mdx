@@ -1,0 +1,109 @@
+---
+title: "claude-sonnet-4-6"
+description: "Anthropic's production workhorse mid-tier. Vision, tool use, prompt caching, extended thinking, and web search — together at Sonnet pricing. Available through the Anthropic Messages protocol and the OpenAI Chat Completions shim."
+---
+
+`claude-sonnet-4-6` is the production workhorse of the Claude family — the model most ByteSpike customers default to when they need a model that does **everything** at a mid-tier price. Vision, tools, prompt caching, extended thinking, and web search are all available; the only feature reserved for Opus is the 1M context window.
+
+## Channels
+
+| Channel group | Input | Output | Cache read |
+|---|---|---|---|
+| **claude-default** (Anthropic upstream) | $3.00 / 1M | $15.00 / 1M | $0.30 / 1M |
+
+Cache write tier is 1.25× input (Anthropic's standard ratio). The routing layer picks the channel automatically based on your key's `group_id` — see [Channels](/concepts/channels).
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions (shim) | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+The two protocols produce equivalent responses for the same input; pick whichever your client already speaks.
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (anthropic SDK)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.content[0].text)
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| Prompt caching (cache_control) | ✅ |
+| Extended thinking | ✅ |
+| Web search (web_search tool) | ✅ |
+| JSON / structured output | ✅ |
+| Context window | 200K tokens |
+
+## When to use
+
+- **Default mid-tier.** When you need a model that does everything — vision + tools + thinking + web search — at Sonnet pricing.
+- **Agents.** Use the Anthropic Messages endpoint; the `tool_use` and `thinking` blocks pass through transparently.
+- **RAG.** `cache_control` on a long system prompt amortizes the cost across many user turns. The first request pays the cache-write tier; subsequent reads from the same prefix pay $0.30/1M (10% of input).
+- **Fresh-fact tasks.** Add `web_search` to the tools array.
+
+When **not** to use:
+
+- Codebase-scale tasks (200K is too small) — go to [`claude-opus-4-7`](/models/claude-opus-4-7) for 1M context.
+- Cheapest-possible classification or routing — use [`claude-haiku-4-5`](/models/claude-haiku-4-5) at one-quarter the price.
+
+## Next
+
+- [claude-opus-4-7](/models/claude-opus-4-7) — flagship, 1M context
+- [claude-haiku-4-5](/models/claude-haiku-4-5) — small, fast, cheap
+- [Anthropic provider page](/providers/anthropic) — full family overview
+- [Channels](/concepts/channels) — why the same model has multiple prices

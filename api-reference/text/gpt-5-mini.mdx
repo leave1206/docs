@@ -1,0 +1,138 @@
+---
+title: "GPT-5 mini"
+description: "OpenAI's small 5-series — the right default for production extraction, structured output, and lightweight agent steps."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-mini`
+**Capability:** 128K context · tool use · vision · streaming · structured output
+**Pricing:** per-token, mini tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5-mini is the small model that displaced GPT-4o-mini for new
+production work. Same price tier, measurably tighter structured output,
+better tool-call argument generation. For most extraction and routing
+flows, this is the starting point — only step up to a standard 5-series
+model when you've benchmark-confirmed that mini's quality plateau is
+the bottleneck.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-mini",
+    "messages": [
+      {"role": "user", "content": "Extract the dates from: The deal closes 2024-08-12 with backup date 2024-09-01."}
+    ],
+    "response_format": {"type": "json_object"}
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-mini` |
+| `messages` | array | yes | — | OpenAI chat shape. |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `temperature` | number | no | 1.0 | Range 0.0–2.0. |
+| `tools` | array | no | — | Function calling supported (parallel). |
+| `tool_choice` | string \| object | no | `"auto"` | — |
+| `response_format` | object | no | — | JSON mode + structured output (recommended for extraction). |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-mini",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "{\"dates\": [\"2024-08-12\", \"2024-09-01\"]}"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 32, "completion_tokens": 18, "total_tokens": 50}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-mini",
+    "messages": [{"role": "user", "content": "Extract the dates as JSON."}],
+    "response_format": {"type": "json_object"}
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+
+resp = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": "Extract the dates as JSON."}],
+    response_format={"type": "json_object"},
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-5-mini",
+  messages: [{ role: "user", content: "Extract the dates as JSON." }],
+  response_format: { type: "json_object" },
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching — keep system prompt
+and tool schema stable for max cache hit rate.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 422 | Param not supported | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No |
+
+## When to use
+
+- Production extraction / structured output / routing.
+- Lightweight agent steps (one tool call per step).
+- For higher quality, see [GPT-5.5](/api-reference/text/gpt-5-5) or [GPT-5.4](/api-reference/text/gpt-5-4).
+- For lower latency, see [GPT-5-nano](/api-reference/text/gpt-5-nano).
+- For 5.4-era mini, see [GPT-5.4-mini](/api-reference/text/gpt-5-4-mini).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |
+| Supports structured output | Yes |

@@ -1,0 +1,127 @@
+---
+title: "GPT-5.5 instant"
+description: "Latency-tuned variant of GPT-5.5 — same flagship quality on shorter prompts, no reasoning chain delay."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-5-instant`
+**Capability:** 200K context · tool use · vision · streaming · structured output
+**Pricing:** per-token, flagship tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5.5-instant is GPT-5.5 with the reasoning chain elided — the model
+goes straight from prompt to answer. For shorter prompts and tasks
+where the reasoning was overkill (extraction, structured output,
+short-form rewriting), this is the right pick: same flagship quality
+on bounded inputs, sub-second TTFB.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5-instant",
+    "messages": [{"role": "user", "content": "Rewrite this support response in a friendlier tone."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-5-instant` |
+| `messages` | array | yes | — | — |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `tools` | array | no | — | Parallel function calling. |
+| `response_format` | object | no | — | JSON / structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+`reasoning_effort` is **not** accepted on this variant — passing it
+returns 422.
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-5-instant",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 87, "completion_tokens": 142, "total_tokens": 229}
+}
+```
+
+No `reasoning_tokens` field — there's no reasoning chain.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-5-instant", "messages": [{"role": "user", "content": "Rewrite this in a friendlier tone."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-5-instant",
+    messages=[{"role": "user", "content": "Rewrite this support response in a friendlier tone."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-5-instant",
+  messages: [
+    { role: "user", content: "Rewrite this support response in a friendlier tone." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Sub-second TTFB on most prompts because the
+reasoning chain is elided. Automatic prompt caching on stable prefixes.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 429 | Standard | No |
+| 422 | Including `reasoning_effort` (use [GPT-5.5](/api-reference/text/gpt-5-5) for reasoning) | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Latency-critical surfaces where reasoning is overkill.
+- Short-form rewriting, extraction, structured output on bounded inputs.
+- For deeper multi-step reasoning, use [GPT-5.5](/api-reference/text/gpt-5-5) with `reasoning_effort`.
+- For mini-tier cost on latency-bound work, see [GPT-5.4-mini](/api-reference/text/gpt-5-4-mini).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |
+| Supports reasoning_effort | No |

@@ -1,0 +1,221 @@
+---
+title: "Claude Opus 4.7"
+description: "The current production Opus — 1M context, top-of-line reasoning, the model to reach for when one shot has to be right."
+---
+
+**Vendor:** Anthropic
+**Model ID:** `claude-opus-4-7`
+**Capability:** 1M context · tool use · vision · prompt caching · streaming · extended thinking
+**Pricing:** per-token, Opus tier ([live rate](https://bytespike.ai/pricing#text))
+
+Opus 4.7 is the model you reach for when the one shot has to be right.
+It's slower than Sonnet, more expensive than Sonnet, and noticeably
+better at the things Sonnet starts cutting corners on: long-context
+reasoning, multi-step plans where each step depends on the last, and
+the kind of code generation where the *first* draft has to compile and
+match the architecture conventions of an existing codebase. With
+extended thinking enabled, the response wait grows but the answer
+quality on hard problems jumps further than the latency cost suggests.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-7",
+    "max_tokens": 16384,
+    "messages": [
+      {"role": "user", "content": "Implement an LRU cache with O(1) get and put."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `claude-opus-4-7` |
+| `messages` | array | yes | — | Conversation history. Up to 1M tokens of input. |
+| `max_tokens` | integer | yes | — | Hard cap. Max for this model: 32768. |
+| `system` | string \| array | no | — | Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Supported, parallel calls supported. |
+| `tool_choice` | object | no | `{"type":"auto"}` | `auto` / `any` / `tool` (named). |
+| `thinking` | object | no | — | Extended-thinking. Higher budget = better long-reasoning answer at higher latency. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "msg_opus_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-7",
+  "content": [
+    {"type": "thinking", "thinking": "<extended reasoning trace>"},
+    {"type": "text", "text": "Here's the LRU cache..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 32,
+    "output_tokens": 1248,
+    "thinking_tokens": 4032
+  }
+}
+```
+
+`thinking_tokens` are billed at the input-token rate (extended thinking
+adds latency but not the full output cost). See the
+[pricing table](https://bytespike.ai/pricing#text) for current rate.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-4-7",
+    "max_tokens": 16384,
+    "messages": [{"role": "user", "content": "Implement an LRU cache with O(1) get and put."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-opus-4-7",
+    max_tokens=16384,
+    messages=[
+        {"role": "user", "content": "Implement an LRU cache with O(1) get and put."}
+    ],
+)
+
+# When extended thinking is on, content[0] is the thinking block; the
+# text block is the last one in the array.
+text_block = next(b for b in message.content if b.type == "text")
+print(text_block.text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-opus-4-7",
+  max_tokens: 16384,
+  messages: [
+    {
+      role: "user",
+      content: "Implement an LRU cache with O(1) get and put.",
+    },
+  ],
+})
+
+const textBlock = message.content.find((b) => b.type === "text")
+console.log(textBlock.text)
+```
+
+</CodeGroup>
+
+## Extended thinking
+
+Opt in by setting the `thinking` block:
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "max_tokens": 16384,
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 8192
+  },
+  "messages": [...]
+}
+```
+
+`budget_tokens` is the maximum number of internal-reasoning tokens. The
+model may use fewer; the floor is a few hundred. Recommended budgets:
+
+| Task | Suggested budget |
+|---|---|
+| Multi-step coding | 4K–8K |
+| Long-context summarisation | 8K–16K |
+| Hard math / proof | 16K–32K |
+
+Higher budgets monotonically improve answer quality on hard problems —
+but the marginal return falls off above 16K for most tasks.
+
+## Cache control
+
+```json
+{
+  "model": "claude-opus-4-7",
+  "system": [
+    {
+      "type": "text",
+      "text": "<the corpus you keep referring to>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+Cache reads at the discounted rate visible in the
+[pricing table](https://bytespike.ai/pricing#text). On Opus 4.7, cache
+control is the single highest-leverage cost optimisation — large system
+prompts paid once, billed at the cache-read rate on every subsequent
+turn.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted (Opus calls trip this faster) | No |
+| 413 | Input exceeds 1M tokens | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+## When to use
+
+- One-shot quality matters and you can wait for a thoughtful answer.
+- Code generation in an existing codebase where conventions matter.
+- Multi-step plans where each step depends on the last (Sonnet starts
+  skipping; Opus 4.7 keeps the chain tight).
+- Long-context (>200K tokens) reasoning across legal / medical /
+  technical corpora.
+- For mid-tier cost / latency, see [Sonnet 4.6](/api-reference/text/claude-sonnet-4-6).
+- For high-throughput agent loops, see [Haiku 4.5](/api-reference/text/claude-haiku-4-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Yes |
+| Supports extended thinking | Yes |

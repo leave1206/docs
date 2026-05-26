@@ -1,0 +1,83 @@
+---
+title: "Credits & Billing"
+description: "How credits work, what bills (and doesn't), how to read the accounting headers, and where to manage quotas."
+---
+
+ByteSpike bills in **credits** where `1 USD = 1,000,000 credits`
+(micro-USD precision). Per-token / per-call rates are quoted in dollars
+in the [pricing table](https://bytespike.ai/pricing) and refreshed
+nightly from the production gateway.
+
+## What costs what
+
+| Surface | Pricing model |
+|---|---|
+| Text endpoints (`/v1/messages`, `/v1/chat/completions`, `/v1/responses`, `/v1beta/.../generateContent`) | Per 1M input + per 1M output tokens. Cache reads discounted, cache writes at 1.0× (most providers) or 1.25× (Anthropic). |
+| Image endpoints (`/v1/images/generations`, `/v1/tasks/submit` for batched/async) | Per image. Discrete per-call cost. |
+| Video endpoints (`/v1/tasks/submit` for Sora / Veo / Seedance) | Per second of output. Failed renders are free. |
+| Utility (`/v1/models`, `/v1/balance`, `/v1/usage`, `/v1/tasks/{query,cancel}`) | Free. |
+
+The authoritative live rate is always [bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+## Failures don't bill
+
+Any non-2xx response is free, regardless of which model failed or how
+far into the request the failure occurred. This is a hard contract —
+the `X-Quota-Remaining-Credits` header doesn't move on a non-2xx.
+
+The narrow exception: if you cancel a video task **after** the upstream
+provider has started rendering (status `running`), the partial seconds
+rendered may bill depending on the provider's own refund policy. The
+`credits_used` field on the cancel response is authoritative. See
+[`tasks/cancel`](/api-reference/utility/tasks-cancel).
+
+## Accounting headers
+
+Every response carries the quota envelope (success and failure both):
+
+| Header | What it means |
+|---|---|
+| `X-RateLimit-Limit` | USD cap of the rate-limit bucket closest to constraining you (the tightest of `rate_limit_5h` / `_1d` / `_7d`). |
+| `X-RateLimit-Remaining` | Budget left in that bucket. |
+| `X-RateLimit-Reset` | Unix timestamp when the bucket resets. |
+| `X-Quota-Remaining-Credits` | Lifetime credits remaining on this key (USD). `0.00` = key's `quota` cap reached. |
+| `X-Org-Quota-Remaining-Credits` | Org wallet remaining, on org-owned keys. |
+
+The actual cost of an individual request isn't in the response headers
+— it's available via [`GET /api/v1/usage`](/api-reference/account/me-usage),
+which returns one row per call with `prompt_tokens`, `completion_tokens`,
+and the final billed `credits`.
+
+## Pre-flight budgeting
+
+For "this will cost ~$X, confirm?" flows:
+
+1. Compute a worst-case from `max_tokens` × output rate + prompt size × input rate using the [pricing table](https://bytespike.ai/pricing).
+2. Compare against `X-Quota-Remaining-Credits` from a prior call (or hit [`/v1/balance`](/api-reference/utility/balance) — free).
+3. If the estimate exceeds your budget, don't send the request.
+4. After the request, reconcile actual cost via `/api/v1/usage`.
+
+ByteSpike does not currently emit a pre-flight estimate header — the
+quota headers are post-billing only.
+
+## Quota cliffs
+
+A key stops serving requests when **any** of the following is true:
+
+- `X-Quota-Remaining-Credits = 0` (key's `quota` cap reached)
+- `X-RateLimit-Remaining = 0` (key's tightest rate-limit bucket exhausted)
+- Org wallet is empty (org-owned keys)
+
+The gateway returns `402 insufficient_balance` (OpenAI envelope) or
+`permission_error` (Anthropic envelope). To raise the cap, edit the
+key in [Console → API keys](https://console.bytespike.ai/keys) or
+top up the org wallet.
+
+## Top-up and subscriptions
+
+Top up the org wallet at [Console → Billing](https://console.bytespike.ai/billing).
+The minimum top-up is $5; bonuses scale up to +11.2% on larger packs.
+
+Subscription tiers (Pro / Max / Enterprise) bundle credits with
+higher concurrency and priority. See [bytespike.ai/pricing](https://bytespike.ai/pricing)
+for the live tier table.

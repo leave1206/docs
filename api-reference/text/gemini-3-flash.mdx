@@ -1,0 +1,118 @@
+---
+title: "Gemini 3 Flash"
+description: "Google's small / fast Gemini 3 — high-throughput vision-native classification and extraction."
+---
+
+**Vendor:** Google
+**Model ID:** `gemini-3-flash`
+**Capability:** 1M context · vision · tool use · streaming · structured output
+**Pricing:** per-token, flash tier ([live rate](https://bytespike.ai/pricing#text))
+
+Gemini 3 Flash is the small / fast member of the Gemini 3 family.
+It's the model to reach for when you have lots of mostly-text input
+with occasional images and you'd rather make many cheap calls than a
+few expensive ones. The 1M context window also makes it useful for
+long-document classification where you don't need flagship reasoning.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-3-flash",
+    "messages": [{"role": "user", "content": "Classify the topic of this article."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gemini-3-flash` |
+| `messages` | array | yes | — | OpenAI chat shape with `image_url` blocks for vision. |
+| `max_tokens` | integer | no | model max | Max: 8192. |
+| `temperature` | number | no | 1.0 | Range 0.0–2.0. |
+| `tools` | array | no | — | Function calling supported. |
+| `response_format` | object | no | — | JSON mode + structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gemini-3-flash",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "technology / startups"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 412, "completion_tokens": 4, "total_tokens": 416}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gemini-3-flash", "messages": [{"role": "user", "content": "Classify the topic."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gemini-3-flash",
+    messages=[{"role": "user", "content": "Classify the topic of this article."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gemini-3-flash",
+  messages: [{ role: "user", content: "Classify the topic of this article." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching on stable prefixes.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- High-volume classification / routing on long-document inputs (1M context advantage).
+- Vision-native tasks at flash-tier price.
+- For deeper reasoning, see [Gemini 3.1 Pro](/api-reference/text/gemini-3-1-pro).
+- For OpenAI flash equivalent, see [GPT-5-mini](/api-reference/text/gpt-5-mini).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 8192 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

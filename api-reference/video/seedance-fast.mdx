@@ -1,0 +1,115 @@
+---
+title: "Seedance Fast"
+description: "Speed floor of the Seedance family — sub-30s turnaround on 5s clips for prompt iteration and time-bound UX."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedance-fast`
+**Capability:** 720p · up to 5s · text + image init · CJK prompts · async via tasks API
+**Pricing:** per second + submit fee, fast tier ([live rate](https://bytespike.ai/pricing#video))
+
+Seedance Fast is the speed floor of the ByteDance video family. Same
+character-motion strengths as 2.0 capped at 720p / 5s, with typical
+turnaround under 30 seconds. Use it for prompt iteration, draft
+passes, and UX where the user clicks "generate" and watches the
+clock.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-fast",
+    "prompt": "一只猫从沙发上跳下来，慢动作",
+    "duration_seconds": 4,
+    "resolution": "720p"
+  }'
+```
+
+### Body parameters
+
+Same shape as [Seedance 2.0](/api-reference/video/seedance-2-0). Max
+`duration_seconds` is 5; only `720p` resolution supported.
+
+## Submit + poll
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.12}
+```
+
+Recommended cadence: 1s for first 30s, then 2s up to 60s.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-fast", "prompt": "猫从沙发上跳下来", "duration_seconds": 4, "resolution": "720p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-fast",
+    "prompt": "一只猫从沙发上跳下来",
+    "duration_seconds": 4,
+    "resolution": "720p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(1)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-fast", prompt: "猫从沙发上跳下来", duration_seconds: 4, resolution: "720p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 1000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+Standard.
+
+## When to use
+
+- Latency-sensitive UX where the user is watching the clock.
+- Prompt iteration before committing to Seedance 2.0 / 2.0 Pro.
+- For 1080p output, see [Seedance 2.0](/api-reference/video/seedance-2-0).
+- For Google fast variant, see [Veo 3.1 Fast](/api-reference/video/veo-3-1-fast).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 5s |
+| Resolutions | 720p only |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 4s clip | 15-25s |
+| Async via tasks API | Yes |

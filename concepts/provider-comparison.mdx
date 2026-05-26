@@ -1,0 +1,106 @@
+---
+title: "Provider comparison"
+description: "Side-by-side view of every upstream platform ByteSpike routes to today — what they're best at, what protocols they speak, what they cost, and how to pick between them when more than one can serve your workload."
+---
+
+ByteSpike routes through seven upstream platforms: Anthropic, OpenAI, Google (Gemini), DeepSeek, plus the Volcengine CodePlan subscription bundle which itself wraps Doubao, GLM, Kimi, and MiniMax. Each platform has different strengths, different protocols, different billing models. This page is the side-by-side reference for picking between them.
+
+For *why* the same model can show up on multiple platforms with different prices, read [channels](/concepts/channels). For the underlying protocol contracts, read [endpoint types](/concepts/endpoints).
+
+## The seven platforms at a glance
+
+| Platform | Default protocol | Billing | Best at | Provider page |
+|---|---|---|---|---|
+| **Anthropic** | Anthropic Messages | Per-token (USD) | Tool-use agents, cache_control, thinking, web search | [→](/providers/anthropic) |
+| **OpenAI** | OpenAI Chat Completions + Responses | Per-token (USD) | Multimodal (incl. audio), Codex, structured outputs, web search | [→](/providers/openai) |
+| **Gemini** | OpenAI shim → Gemini | Per-token (USD) | 2M context, native PDF input, Google grounding, cheapest long-context | [→](/providers/gemini) |
+| **DeepSeek** | Both Anthropic + OpenAI | Per-token (USD) | Cost-effective reasoning chain; the dollar-per-quality winner in Chinese LLMs | [→](/providers/deepseek) |
+| **Volcengine CodePlan** (Doubao + GLM + Kimi + MiniMax + DeepSeek-V3.2) | OpenAI Chat Completions | **Subscription** (¥/month) | One credential for the entire Chinese-LLM stack; predictable monthly cost | [→](/providers/volcengine-codeplan) |
+
+## Capability comparison
+
+What each platform's flagship model supports, side by side. (Per-model detail lives on the [models index](/models).)
+
+| Capability | Anthropic | OpenAI | Gemini | DeepSeek | Volcengine CodePlan |
+|---|---|---|---|---|---|
+| Anthropic Messages endpoint | ✅ | — | — | ✅ | partial (selected models) |
+| OpenAI Chat Completions | shim | ✅ | shim | ✅ | ✅ |
+| OpenAI Responses (Codex) | — | ✅ | — | — | — |
+| Vision (image input) | ✅ | ✅ | ✅ | ❌ (HTTP API) | partial (Doubao + GLM ✅) |
+| Tool use (function calling) | ✅ parallel | ✅ parallel | ✅ parallel | ✅ parallel | partial |
+| Prompt caching (`cache_control`) | ✅ | — | — | — | — |
+| Extended thinking | ✅ Sonnet 4.6+ / Opus | — (reasoning_effort instead) | — | ✅ V4 Pro reasoning | — |
+| Reasoning effort knob | — | ✅ GPT-5 family | — | partial (V4 Pro) | — |
+| Web search / grounding | ✅ web_search tool | ✅ web_search tool | ✅ google_search tool | — | — |
+| JSON / structured outputs | ✅ | ✅ json_schema | ✅ | ✅ | ✅ |
+| Max context window | 1M (Opus 4.7) | 1M (GPT-5.5) | **2M** (Gemini 2.5 Pro) | 128K | 1M (Kimi K2.6) |
+| Streaming (SSE) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Image generation | — | DALL-E + GPT-Image-2 | Imagen + Nano Banana | — | partial (depends on bundle) |
+| Video generation | — | Sora 2, Sora 2 Pro | Veo 3.1, Veo 3.1 Fast | — | — |
+| Embeddings | — | text-embedding-3 | text-embedding-004 | — | — |
+| Audio (transcription / TTS) | — | Whisper / TTS-1 | — (Vertex Speech separate) | — | — |
+
+## Billing model comparison
+
+| Platform | How you pay | Predictability | Best fit |
+|---|---|---|---|
+| Anthropic | Per-token USD (rates published per-model) | Variable | When usage is bursty or hard to forecast |
+| OpenAI | Per-token USD | Variable | Same |
+| Gemini | Per-token USD (AI Studio); per-token + Cloud project quota (Vertex) | Variable | Enterprise: Vertex Project quota pins the upper bound |
+| DeepSeek | Per-token USD; among the cheapest tier on ByteSpike | Variable | High-volume reasoning at a low dollar-per-quality |
+| Volcengine CodePlan | **Subscription** ¥299/month upstream; admin amortizes across team | **Flat** | Teams running mixed Chinese-LLM workloads where finance wants a fixed number |
+
+The break-even for CodePlan vs paying each Chinese vendor separately: ~100K mixed-vendor requests / month. Below that, per-token providers win; above, CodePlan wins. See [/providers/volcengine-codeplan](/providers/volcengine-codeplan) for the math.
+
+## When to pick which platform
+
+A short decision aid for the most common scenarios. None of these are exclusive — you can route different requests to different platforms from the same key.
+
+| Scenario | Pick |
+|---|---|
+| Building an agent that needs `tool_use` + `thinking` + `cache_control` | **Anthropic** (Sonnet 4.6 or Opus 4.7) |
+| Codex CLI integration | **OpenAI** (gpt-5-3-codex via Responses) |
+| Multimodal with native audio input | **OpenAI** (gpt-4o is the only audio-in model on ByteSpike) |
+| 1M+ context, lowest cost | **Gemini** (2.5 Flash for 1M, 2.5 Pro for 2M) |
+| Web search + reasoning at premium tier | **OpenAI** (gpt-5-4-pro) or **Anthropic** (Opus 4.6 + 4.7) |
+| Reasoning chain on a budget | **DeepSeek** (V4 Pro; ~10× cheaper than gpt-5-4 at comparable quality) |
+| Chinese-LLM team with mixed vendor usage | **Volcengine CodePlan** subscription |
+| OpenAI-SDK code that needs to swap to a cheaper Chinese model | **DeepSeek** Chat Completions or **CodePlan** Chat Completions |
+| Anthropic-SDK agent that needs a Chinese-LLM fallback | **DeepSeek** Anthropic Messages (only Chinese vendor with anthropic-compat HTTP API today) |
+
+## Protocol overlap matrix
+
+For each protocol surface, which platforms can serve it today.
+
+| Protocol | Anthropic | OpenAI | Gemini | DeepSeek | CodePlan |
+|---|---|---|---|---|---|
+| `/v1/messages` (Anthropic Messages) | ✅ | translated | translated | ✅ | partial |
+| `/v1/chat/completions` (OpenAI Chat) | shim | ✅ | shim | ✅ | ✅ |
+| `/v1/responses` (OpenAI Responses, Codex) | translated | ✅ | translated | — | — |
+| `/v1beta/.../generateContent` (Gemini Native) | — | — | ✅ | — | — |
+| `/v1/images/generations` (sync image) | — | ✅ | — | — | ✅ (Seedream) |
+| `/v1/tasks/submit` (async multimodal) | — | ✅ Sora | ✅ Veo | — | ✅ Seedance |
+
+The same ByteSpike key authorizes every protocol surface. Switching protocols means switching the path, not the credential.
+
+## Channel-vs-channel for one platform
+
+For Anthropic and Gemini specifically, ByteSpike maintains multiple **channels per platform**:
+
+- **Anthropic**: Anthropic API direct, AWS Bedrock (multiple regions)
+- **Gemini**: Google AI Studio upstream is the primary channel; admin-configured Vertex / Workspace OAuth channels can sit alongside in the same group when wired up
+
+These channels speak the same protocol but differ on pricing, region, audit-trail integration, and quota structure. See [channels](/concepts/channels) for the routing model and [platforms vs channels](/concepts/platforms-vs-channels) for the term disambiguation.
+
+## What this comparison does NOT cover
+
+- **Latency tiers** — production p50 / p90 / p99 latency profiles vary per channel per region. The Console latency dashboard is the source of truth.
+- **Rate-limit defaults** — every platform has its own RPM / TPM ceilings on free / paid tiers; ByteSpike's own per-plan limits sit on top. See the [pricing footer](https://bytespike.ai/pricing).
+- **Per-model quirks** — fine-grained capability differences between Sonnet 4.5 vs 4.6, or GPT-5.4 vs 5.4-pro, live on the per-model pages under [/models](/models).
+
+## Next
+
+- [Channels](/concepts/channels) — N:M model-to-channel mapping
+- [Endpoint types](/concepts/endpoints) — five real request shapes ByteSpike accepts
+- [Models index](/models) — per-model deep dives
+- [Providers](/providers/anthropic) — per-platform admin documentation

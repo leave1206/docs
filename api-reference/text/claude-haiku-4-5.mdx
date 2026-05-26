@@ -1,0 +1,195 @@
+---
+title: "Claude Haiku 4.5"
+description: "Anthropic's smallest, fastest 4-series model. The default for production agents that have to chain dozens of LLM calls without choking on latency."
+---
+
+**Vendor:** Anthropic
+**Model ID:** `claude-haiku-4-5`
+**Capability:** 200K context · tool use · vision · prompt caching · streaming
+**Pricing:** per-token, Haiku tier ([live rate](https://bytespike.ai/pricing#text))
+
+Haiku 4.5 is the model you reach for when the *plan* is to make a lot of
+LLM calls — agent loops, tool-heavy workflows, sub-LLM judges, embeddings
+pipelines that need a quick rewrite step. It's not the model you ship
+when one shot has to be perfect; for that use Sonnet or Opus. But its
+latency floor is low enough that you can chain four or five Haiku calls
+in the time Sonnet takes for one, and the quality holds for routine
+classification, extraction, and routing tasks.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Classify this support ticket: My order is late."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `claude-haiku-4-5` |
+| `messages` | array | yes | — | Conversation history. |
+| `max_tokens` | integer | yes | — | Hard cap on response length. Max for this model: 8192. |
+| `system` | string \| array | no | — | System prompt. Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Supported. |
+| `tool_choice` | object | no | `{"type":"auto"}` | `auto` / `any` / `tool` (named). |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "msg_haiku_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5",
+  "content": [
+    {"type": "text", "text": "Logistics — delivery delay."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 18,
+    "output_tokens": 6
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | ByteSpike-issued message ID. |
+| `model` | string | Echoes the request `model`. |
+| `content` | array | Text in `{"type": "text"}`; tool calls in `{"type": "tool_use"}`. |
+| `stop_reason` | string | `end_turn` / `max_tokens` / `tool_use` / `stop_sequence`. |
+| `usage.input_tokens` | integer | Prompt tokens billed. |
+| `usage.output_tokens` | integer | Generated tokens billed. |
+| `usage.cache_read_input_tokens` | integer | Present when a `cache_control` block hits. |
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Classify this ticket: My order is late."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Classify this ticket: My order is late."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-haiku-4-5",
+  max_tokens: 1024,
+  messages: [
+    { role: "user", content: "Classify this ticket: My order is late." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## Streaming
+
+Set `"stream": true`. Response is SSE in the standard Anthropic format.
+Estimated credits ship in the HTTP response before the first SSE event,
+so you can short-circuit a long completion before paying for it.
+
+## Cache control
+
+`cache_control` blocks reduce cost on repeated prompts. Cache reads at
+the discounted rate visible in the
+[pricing table](https://bytespike.ai/pricing#text) under "cache read".
+Cost-effective on Haiku for retrieval-heavy agent loops where the
+system prompt and tool definitions are stable across calls.
+
+```json
+{
+  "model": "claude-haiku-4-5",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 422 | Param not supported (rare on Haiku) | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+See [Error Handling](/concepts/error-handling) for the full enum.
+
+## When to use
+
+- Production agent loops where you make 3+ LLM calls per user action.
+- Routing / triage / classification ahead of a heavier model.
+- Embedding pipelines that need a quick rewrite or cleanup step.
+- For one-shot quality where latency is secondary, see [Sonnet 4.6](/api-reference/text/claude-sonnet-4-6).
+- For long-context reasoning, see [Opus 4.7](/api-reference/text/claude-opus-4-7).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 8192 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Yes |

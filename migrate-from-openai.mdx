@@ -1,0 +1,200 @@
+---
+title: "Migrate from OpenAI"
+description: "Switch from OpenAI's API to ByteSpike with three changes: base URL, API key, model id. Same OpenAI SDK, same code, every model in our catalog."
+---
+
+If you're already on OpenAI's API, switching to ByteSpike means
+**changing three things and shipping**. The OpenAI SDK works
+unchanged; the request shape is identical; only the endpoint, key,
+and model id differ.
+
+## The three changes
+
+```diff
+- client = OpenAI(api_key="sk-...")
++ client = OpenAI(
++   base_url="https://llm.bytespike.ai/v1",
++   api_key="sk-byts-...",
++ )
+```
+
+That's it. The rest of your code — tool definitions, structured
+outputs, streaming, retries — runs untouched.
+
+## Model id mapping
+
+ByteSpike's catalog uses model ids that mostly match OpenAI's, plus
+ids for non-OpenAI providers:
+
+| OpenAI id you were using | ByteSpike id (drop-in) |
+|---|---|
+| `gpt-4o` | `gpt-4o` |
+| `gpt-4o-mini` | `gpt-4o-mini` |
+| `gpt-5` (latest) | `gpt-5-5` |
+| `gpt-5-nano` | `gpt-5-nano` |
+| `gpt-5-mini` | `gpt-5-mini` |
+| `o1-preview` / `o1` | `gpt-5-4-mini` (closest reasoning capability) — pin to a specific id for repeatability |
+| `gpt-image-1` | `gpt-image-2` |
+
+The full live catalog is at `GET /v1/models` or
+[bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+## What you gain
+
+| OpenAI direct | ByteSpike |
+|---|---|
+| Only OpenAI models | Every frontier model under one key (Claude, Gemini, DeepSeek, …) |
+| Per-vendor billing | One wallet, one invoice |
+| Per-vendor rate limits | One rate-limit envelope, set per-key |
+| Failures bill | Failures don't bill |
+| Stripe + invoice manual | Console + Stripe handled |
+
+## What stays the same
+
+- **OpenAI SDK** — Python, TypeScript, Go, every official client. Just change `base_url`.
+- **Request body shape** — `messages`, `tools`, `tool_choice`, `response_format`, `stream`, etc. — identical.
+- **Response shape** — `choices[].message.content`, `tool_calls`, `usage` — identical.
+- **Streaming protocol** — SSE with `data: {json}` + `data: [DONE]` — byte-for-byte compatible.
+- **Tool use** — `tools` array with `function` objects + `tool_choice` — identical.
+- **Structured output** — `response_format: {type: "json_schema", ...}` — identical (on OpenAI-native paths; translated to upstream-native on Claude/Gemini routes).
+
+## Concrete examples
+
+### Chat completion
+
+```python
+# Was:
+from openai import OpenAI
+client = OpenAI()
+r = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "ping"}],
+)
+
+# Now:
+from openai import OpenAI
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="sk-byts-...",
+)
+r = client.chat.completions.create(
+    model="gpt-4o",  # same id; or swap to gpt-5-5 / claude-sonnet-4-6 / gemini-2-5-pro
+    messages=[{"role": "user", "content": "ping"}],
+)
+```
+
+### Tool use
+
+```python
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get current weather",
+        "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"]
+        }
+    }
+}]
+
+# Same call shape — works against gpt-5, claude, gemini, etc.
+r = client.chat.completions.create(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "weather in Tokyo?"}],
+    tools=tools,
+)
+```
+
+### Image generation
+
+```python
+# OpenAI's images.generate works against ByteSpike's catalog:
+r = client.images.generate(
+    model="seedream-4-5",      # or "nano-banana", "gpt-image-2", ...
+    prompt="A timelapse of Tokyo at sunset",
+    size="1024x1024",
+    n=1,
+)
+print(r.data[0].url)
+```
+
+### Responses API (o-series + GPT-5 + agents)
+
+```python
+r = client.responses.create(
+    model="gpt-5-5",
+    input="Summarize the doc at https://example.com/doc",
+    reasoning={"effort": "medium"},
+)
+```
+
+Works against every model in the catalog — ByteSpike translates
+Responses → upstream-native under the hood for non-OpenAI ids.
+
+## Things to double-check
+
+<AccordionGroup>
+  <Accordion title='Model availability per key'>
+    Each ByteSpike key is bound to one **routing group**. Pick the
+    group that includes the models you'll call. If you need GPT-5
+    + Claude in the same client, either create two keys (one per
+    group) or pick a multi-group key tier. See [Channels](/concepts/channels).
+  </Accordion>
+  <Accordion title='Token counts and prices'>
+    Token-count math is identical (OpenAI's tokenizer for OpenAI
+    models). Prices may differ — usually lower at ByteSpike for
+    non-OpenAI providers, identical for OpenAI passthroughs. Live
+    rates: [bytespike.ai/pricing](https://bytespike.ai/pricing).
+  </Accordion>
+  <Accordion title='Organization / project IDs'>
+    OpenAI's `organization` and `project` headers are accepted but
+    ignored — ByteSpike has its own org model. To attribute spend
+    per project, create one key per project with its own `quota`
+    cap.
+  </Accordion>
+  <Accordion title='Files / Assistants / Vector store APIs'>
+    ByteSpike doesn't expose OpenAI's stateful APIs (`/files`,
+    `/assistants`, `/vector_stores`). If you depend on them, run
+    them direct against OpenAI; chat completions can still be on
+    ByteSpike. The two clients coexist fine.
+  </Accordion>
+  <Accordion title='Fine-tuning'>
+    Same as above — no fine-tuning surface on ByteSpike. Fine-tune
+    direct, deploy direct, do chat through ByteSpike.
+  </Accordion>
+</AccordionGroup>
+
+## Step-by-step
+
+1. **Sign up** at [console.bytespike.ai](https://console.bytespike.ai) — see [Register](/register).
+2. **Top up** $5+ for a real test — see [Top up](/top-up).
+3. **Create a key** in the group matching your model needs (`default` / `claude-default` / etc).
+4. **Change `base_url` + `api_key`** in one file in your codebase.
+5. **Test against `gpt-4o` first** (drop-in) to confirm wiring before changing models.
+6. **Swap in non-OpenAI ids** (`claude-sonnet-4-6`, `gemini-2-5-pro`, `deepseek-v4-pro`) one at a time.
+7. **Compare token counts + latency** on a representative sample. ByteSpike usually wins on the non-OpenAI ids; OpenAI passthrough is at parity.
+
+## Reverse migration
+
+If you want to move back to OpenAI direct, the same three changes
+flip the other way. Keep both clients in your codebase if you want
+A/B routing — the SDK constructor is the only point of divergence.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Migrate from Anthropic" icon="arrow-right-arrow-left" href="/migrate-from-anthropic">
+    Same idea, Anthropic side.
+  </Card>
+  <Card title="Configure your client" icon="terminal" href="/configure-client">
+    Full per-SDK setup details.
+  </Card>
+  <Card title="/chat/completions reference" icon="code" href="/api-reference/text/openai-chat-completions">
+    Request / response / streaming protocol.
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/models">
+    Full catalog you can call after migrating.
+  </Card>
+</CardGroup>

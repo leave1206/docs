@@ -1,0 +1,305 @@
+---
+title: "POST /v1beta/models/{model}:generateContent"
+description: "Gemini-native protocol — drop-in for the Google Generative AI SDKs."
+---
+
+The Google-native protocol. Speaks the Gemini `generateContent` REST
+contract verbatim, so the `google-generativeai` Python SDK and the
+`@google/generative-ai` JS SDK work unchanged — flip the base URL and
+your `apiKey`. Cross-vendor models (Claude, GPT, DeepSeek, Doubao) are
+translated to Gemini shape under the hood.
+
+## When to use
+
+Pick this endpoint when you want:
+
+- **Drop-in for `google-generativeai`** / Gemini SDK clients
+- **Gemini-only features** like `responseSchema` with the Gemini-flavoured JSON schema, or `safetySettings`
+- **Code paths already structured around `contents[].parts[]`** (different from OpenAI / Anthropic `messages`)
+
+For the same model via the Anthropic shape, use [`/v1/messages`](./claude-messages); for OpenAI shape, [`/chat/completions`](./openai-chat-completions).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1beta/models/gemini-3-1-pro:generateContent \
+  -H "x-goog-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [
+      {"role": "user", "parts": [{"text": "Summarize the first chapter of Moby Dick."}]}
+    ],
+    "generationConfig": {"maxOutputTokens": 1024}
+  }'
+```
+
+The `{model}` in the path is the model slug (e.g. `gemini-3-1-pro`). For streaming, use the sibling `:streamGenerateContent` path — see [Streaming](#streaming) below.
+
+### Headers
+
+| Header | Required | Notes |
+|---|---|---|
+| `x-goog-api-key` | yes | Your ByteSpike key. (`Authorization: Bearer …` also accepted.) |
+| `content-type` | yes | `application/json`. |
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `contents` | array | yes | Conversation turns. Each item has `role` (`user` / `model`) + `parts[]`. |
+| `systemInstruction` | object | no | `{"parts":[{"text": "…"}]}` — Gemini's system prompt slot. |
+| `generationConfig.maxOutputTokens` | integer | no | Hard cap on response length. |
+| `generationConfig.temperature` | number | no | 0.0–2.0. |
+| `generationConfig.topP` | number | no | Nucleus sampling. |
+| `generationConfig.topK` | integer | no | Top-K sampling. |
+| `generationConfig.stopSequences` | string[] | no | Custom stop tokens. |
+| `generationConfig.responseMimeType` | string | no | `application/json` to force JSON. |
+| `generationConfig.responseSchema` | object | no | Gemini-shape JSON schema constraint. |
+| `tools` | array | no | Function declarations — see [Tool calling](#tool-calling). |
+| `toolConfig` | object | no | `{"functionCallingConfig": {"mode": "ANY"\|"AUTO"\|"NONE"}}`. |
+| `safetySettings` | array | no | Per-category thresholds (HARM_CATEGORY_HARASSMENT, etc.). Forwarded to upstream Gemini. |
+
+## Response
+
+```json
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {"text": "Ishmael, the narrator, signs onto a whaling ship..."}
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0,
+      "safetyRatings": [/* … */]
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 23,
+    "candidatesTokenCount": 87,
+    "totalTokenCount": 110
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `candidates[].content.parts[]` | array | Text and/or `functionCall` parts. |
+| `candidates[].finishReason` | string | `STOP`, `MAX_TOKENS`, `SAFETY`, `RECITATION`. |
+| `candidates[].safetyRatings` | array | Gemini's content-safety scores. |
+| `usageMetadata.promptTokenCount` | integer | Tokens billed for input. |
+| `usageMetadata.candidatesTokenCount` | integer | Tokens billed for output. |
+
+### Accounting headers
+
+Same envelope as every other endpoint:
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+Full breakdown in the [API Reference overview](/api-reference/overview#conventions).
+
+## Streaming
+
+Use the sibling path `:streamGenerateContent`:
+
+```bash
+curl 'https://llm.bytespike.ai/v1beta/models/gemini-3-1-pro:streamGenerateContent?alt=sse' \
+  -H "x-goog-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"role": "user", "parts": [{"text": "Tell me a joke."}]}]
+  }'
+```
+
+Response is SSE (`alt=sse`) with each frame carrying a partial `candidates` payload:
+
+```
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Why"}]}}]}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":" did"}]}}]}
+
+…
+
+data: {"candidates":[{"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":21}}
+```
+
+(Without `alt=sse`, the response is a JSON array of frames — the SDK default.)
+
+## Tool calling
+
+Gemini's `tools[].functionDeclarations[]` shape. Round-trip via two requests:
+
+### Round 1 — tool offered
+
+```json
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "What's the weather in Tokyo?"}]}
+  ],
+  "tools": [
+    {
+      "functionDeclarations": [
+        {
+          "name": "get_weather",
+          "description": "Get current weather for a city.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Response includes a `functionCall` part:
+
+```json
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "functionCall": {
+              "name": "get_weather",
+              "args": {"city": "Tokyo"}
+            }
+          }
+        ]
+      },
+      "finishReason": "STOP"
+    }
+  ]
+}
+```
+
+Note `args` is a **structured object** here, not a JSON string (unlike OpenAI's `tool_calls.arguments`).
+
+### Round 2 — tool result returned
+
+```json
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "What's the weather in Tokyo?"}]},
+    {
+      "role": "model",
+      "parts": [{"functionCall": {"name": "get_weather", "args": {"city": "Tokyo"}}}]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "get_weather",
+            "response": {"temperature": "18°C", "conditions": "partly cloudy"}
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [ /* same schema */ ]
+}
+```
+
+## Multimodal (image / audio parts)
+
+Inline a base64-encoded image as a part on the user message:
+
+```json
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "inlineData": {
+            "mimeType": "image/jpeg",
+            "data": "/9j/4AAQSkZJRg..."
+          }
+        },
+        {"text": "What's in this image?"}
+      ]
+    }
+  ]
+}
+```
+
+For files stored externally, use `fileData.fileUri` (requires the file to be reachable from upstream Gemini's network). Audio (`audio/wav`, `audio/mp3`) and video (`video/mp4`) parts work the same way on multimodal-capable models.
+
+## Cross-model routing
+
+The `{model}` path segment accepts **any** ByteSpike catalog model — the gateway translates Gemini shape to the upstream protocol:
+
+```
+POST /v1beta/models/gemini-3-1-pro:generateContent       → Google native
+POST /v1beta/models/claude-sonnet-4-6:generateContent    → Anthropic (Gemini→Anthropic shape)
+POST /v1beta/models/gpt-5-4:generateContent              → OpenAI
+POST /v1beta/models/deepseek-v4-pro:generateContent      → DeepSeek
+```
+
+Caveats:
+
+- `responseSchema` constraint requires upstream support; otherwise returns 400 `unsupported_feature`.
+- `safetySettings` only honored on Gemini upstream — silently ignored on Anthropic/OpenAI/DeepSeek (those have their own safety stacks).
+- `usageMetadata` field names are Gemini-shape regardless of upstream.
+
+Full catalog: [`GET /v1/models`](../utility/v1-models). Pricing per model: [bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+## Errors
+
+All non-2xx responses are **free**. Body shape matches Gemini's error envelope:
+
+```json
+{
+  "error": {
+    "code": 429,
+    "message": "You exceeded your current requests-per-minute budget.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}
+```
+
+| Status | `error.status` | Trigger |
+|---|---|---|
+| 400 | `INVALID_ARGUMENT` | Body validation failed. Message identifies the field. |
+| 400 | `INVALID_ARGUMENT` (msg `unsupported_model`) | Model slug not in scope. |
+| 400 | `INVALID_ARGUMENT` (msg `unsupported_feature`) | E.g. `responseSchema` on a non-structured-output model. |
+| 401 | `UNAUTHENTICATED` | Missing / revoked key. |
+| 402 | `FAILED_PRECONDITION` (msg `insufficient_credits`) | Wallet exhausted. |
+| 403 | `PERMISSION_DENIED` | Scope denied, IP allowlist, model gated. |
+| 404 | `NOT_FOUND` | Path typo or unknown model id. |
+| 429 | `RESOURCE_EXHAUSTED` | Tier rate-limit. Backoff per `x-ratelimit-reset-*`. |
+| 5xx | `INTERNAL` / `UNAVAILABLE` | Upstream provider issue. Free + automatic retry envelope. |
+
+## SDK example
+
+`google-generativeai` Python SDK, base URL pointed at ByteSpike:
+
+```python
+import google.generativeai as genai
+
+genai.configure(
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+    client_options={"api_endpoint": "api.bytespike.ai"},
+    transport="rest",
+)
+
+model = genai.GenerativeModel("gemini-3-1-pro")
+r = model.generate_content("Hello!")
+print(r.text)
+```

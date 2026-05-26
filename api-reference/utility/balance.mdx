@@ -1,0 +1,84 @@
+---
+title: "Reading your balance"
+description: "How to check remaining credits, rate-limit budgets, and per-call spend — there's no separate /v1/balance endpoint; the data lives on every response and in /api/v1/me/*."
+---
+
+ByteSpike doesn't expose a dedicated `GET /v1/balance` endpoint. The
+same information is available on **every** response via headers, and
+in finer detail via the management API. This page documents the three
+canonical paths.
+
+## 1. Inline on every response (cheapest)
+
+Every gateway response (success **and** failure) carries the quota
+envelope:
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+X-Org-Quota-Remaining-Credits: 8420.65
+```
+
+| Header | What it means |
+|---|---|
+| `X-RateLimit-Limit` / `Remaining` / `Reset` | The rate-limit bucket closest to constraining you (in USD; reset is Unix). |
+| `X-Quota-Remaining-Credits` | Lifetime remaining on this key (USD). |
+| `X-Org-Quota-Remaining-Credits` | Org wallet balance (org-owned keys only). |
+
+Failed requests don't move `X-Quota-Remaining-Credits`. Polling
+purely for balance is wasteful — just read these headers off the
+real traffic.
+
+## 2. Just my account: `GET /api/v1/me/account`
+
+A free read-only management call that returns your user / org context
+including current balance.
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/account \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+See [`/api/v1/me/account`](/api-reference/account/me-account) for the
+full response shape.
+
+## 3. Per-call cost: `GET /api/v1/me/usage`
+
+If you need exact `credits` charged per request, query the usage log:
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/usage?limit=20' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+Each row carries `prompt_tokens`, `completion_tokens`, `credits`, the
+serving `upstream_provider`, and timestamps. See
+[`/api/v1/me/usage`](/api-reference/account/me-usage) for filters +
+pagination.
+
+## 4. Billing history: `GET /api/v1/me/billing/transactions`
+
+Top-ups, refunds, and adjustments — every wallet movement that wasn't
+an API request. See
+[`/api/v1/me/billing/transactions`](/api-reference/account/me-billing-transactions).
+
+## When to use which
+
+| Need | Use |
+|---|---|
+| "Do I have budget for this call?" | The `X-Quota-Remaining-Credits` header from a recent response — already free, no extra request. |
+| "Show org balance in my dashboard" | `/api/v1/me/account` — single call, includes org context. |
+| "Reconcile billing for a request id" | `/api/v1/me/usage?request_id=...` — exact `credits` per call. |
+| "What top-ups happened this month?" | `/api/v1/me/billing/transactions`. |
+
+## Why no `/v1/balance`?
+
+Two reasons:
+1. Every response already carries the data you'd put in a balance endpoint. A dedicated endpoint would be a duplicate read against the same backend.
+2. The management API (`/api/v1/me/*`) lives behind cookie-or-key auth and gives a richer picture than a raw balance number — org context, per-key spend, billing history.
+
+If your client framework absolutely needs an endpoint to call for a
+balance number, hit `/api/v1/me/account` and read `.balance` from the
+response.

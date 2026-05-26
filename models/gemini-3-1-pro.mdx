@@ -1,0 +1,74 @@
+---
+title: "gemini-3-1-pro"
+description: "Google's Gemini 3.1 Pro — current flagship Gemini. Native vision-on-image and vision-on-video input, 1M context, broad tool support. The default Google-stack vision model and DOSIA `analyze_video` companion."
+---
+
+`gemini-3-1-pro` is Google's current flagship Gemini model. Native vision input on **both images and video**, 1M-token context, parallel tool use, JSON mode. On the gateway, it's the default Google-stack landing spot for DOSIA's vision tools — when the main brain calls `analyze_image` or (once the endpoint ships) `analyze_video` with a Google preference, this is where the request lands.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **Google AI** | Google direct | `aiplatform.googleapis.com` | see [/pricing](/pricing) | see [/pricing](/pricing) | ~850ms | global edge |
+
+Failures don't bill. Pricing sits at the top of the Gemini family rate tier.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions (shim) | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-3-1-pro",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "How many people are in this image?" },
+          { "type": "image_url", "image_url": { "url": "https://example.com/scene.jpg" } }
+        ]
+      }
+    ]
+  }'
+```
+
+Python and TypeScript invocations match [`gpt-5-5`](/models/gpt-5-5#quickstart) — swap the `model` field.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| **Vision on video input** | ✅ (native, no separate analyze_video endpoint needed) |
+| Tools / function calling | ✅ parallel |
+| JSON mode | ✅ |
+| Context window | **1M tokens** |
+| Modality | chat + vision + video-vision |
+| Capability bucket | `vision` + `external_chat` |
+
+## When to use
+
+- **Long-context vision** — analyzing a slide deck, a multi-page screenshot, a video that won't fit in shorter context windows.
+- **Google-stack default** — when the main brain prefers Google for cost or compliance, this is the vision endpoint.
+- **DOSIA `analyze_image` / `analyze_video`** — main brain resolves to this when permissioned and the prompt prefers Gemini.
+
+When **not** to use:
+
+- Pure text reasoning (no vision needed) — [`gpt-5-5`](/models/gpt-5-5) or [`claude-sonnet-4-6`](/models/claude-sonnet-4-6) per stack preference.
+- Cost-sensitive vision at volume — [`gemini-2-5-flash`](/models/gemini-2-5-flash) gives basic vision at a fraction of the cost.
+
+## Next
+
+- [`gemini-2-5-pro`](/models/gemini-2-5-pro) — previous Gemini flagship
+- [`gemini-2-5-flash`](/models/gemini-2-5-flash) — cost-sensitive Gemini tier
+- [`gpt-5-5`](/models/gpt-5-5) — OpenAI alternative
+- [DOSIA MCP integration](/concepts/mcp-integration) — vision-tool surface

@@ -1,0 +1,176 @@
+---
+title: "GPT-4o Image"
+description: "GPT-4o's image-output mode — vision model that generates images directly inside the chat completions response."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-4o-image`
+**Capability:** 1024² – 2048² · multi-turn image generation · in-conversation editing
+**Pricing:** per image, conversational tier ([live rate](https://bytespike.ai/pricing#image))
+
+GPT-4o Image is the conversational image generator — instead of a
+one-shot `/images/generations` call, you send a chat completions
+request and the model returns image content inside the response. This
+matters when the workflow is multi-turn: "generate this", "now make
+the background blue", "now add a dog". The conversation memory
+preserves the underlying image so subsequent turns are edits, not
+fresh generations.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-image",
+    "messages": [
+      {"role": "user", "content": "Generate an image of a koi pond at dusk."}
+    ],
+    "image_output": {"size": "1024x1024", "quality": "high"}
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-4o-image` |
+| `messages` | array | yes | — | Standard chat shape. The model returns images as `image_url` content blocks. |
+| `image_output.size` | string | no | `1024x1024` | Supported: `1024x1024`, `1024x1536`, `1536x1024`, `2048x2048`. |
+| `image_output.quality` | string | no | `"medium"` | `"low"` / `"medium"` / `"high"`. |
+| `image_output.n` | integer | no | 1 | 1–2 images per turn. |
+| `tools` | array | no | — | Function calling supported alongside image output. |
+| `stream` | boolean | no | false | Streaming partial-image deltas supported. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-4o-image",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "Here's the koi pond at dusk:"},
+        {"type": "image_url", "image_url": {"url": "https://cdn.bytespike.ai/img/..."}}
+      ]
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {"prompt_tokens": 18, "completion_tokens": 14, "image_tokens": 1024, "total_tokens": 1056}
+}
+```
+
+URLs pre-signed, 24h expiry. Pass the conversation back in `messages`
+to edit the same image on subsequent turns.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-image",
+    "messages": [{"role": "user", "content": "Generate an image of a koi pond at dusk."}],
+    "image_output": {"size": "1024x1024", "quality": "high"}
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-4o-image",
+    messages=[{"role": "user", "content": "Generate an image of a koi pond at dusk."}],
+    extra_body={"image_output": {"size": "1024x1024", "quality": "high"}},
+)
+for block in resp.choices[0].message.content:
+    if block["type"] == "image_url":
+        print(block["image_url"]["url"])
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-4o-image",
+  messages: [
+    { role: "user", content: "Generate an image of a koi pond at dusk." },
+  ],
+  // @ts-expect-error — gateway extension
+  image_output: { size: "1024x1024", quality: "high" },
+})
+const blocks = resp.choices[0].message.content
+for (const b of blocks) {
+  if (b.type === "image_url") console.log(b.image_url.url)
+}
+```
+
+</CodeGroup>
+
+## Multi-turn edit workflow
+
+Pass the assistant's response (image url and all) back in the next
+`messages` array. The model treats the image in conversation context
+as the canvas to edit:
+
+```python
+# Turn 1 — generate
+turn1 = client.chat.completions.create(
+    model="gpt-4o-image",
+    messages=[{"role": "user", "content": "Generate a koi pond at dusk."}],
+    extra_body={"image_output": {"size": "1024x1024"}},
+)
+
+# Turn 2 — edit
+turn2 = client.chat.completions.create(
+    model="gpt-4o-image",
+    messages=[
+        {"role": "user", "content": "Generate a koi pond at dusk."},
+        turn1.choices[0].message,
+        {"role": "user", "content": "Make it dawn instead, with mist on the water."},
+    ],
+    extra_body={"image_output": {"size": "1024x1024"}},
+)
+```
+
+Each turn bills as a separate image generation.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Multi-turn image editing where conversation context matters.
+- Workflows that mix text reasoning with image output (the model can
+  describe what it generated, ask clarifying questions).
+- For one-shot / batch image generation, see [GPT-Image 2](/api-reference/image/gpt-image-2).
+- For pure photorealism, see [Nano Banana Pro](/api-reference/image/nano-banana-pro) or [Nano Banana 2](/api-reference/image/nano-banana-v2).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 2048×2048 |
+| Max images per turn (`n`) | 2 |
+| Multi-turn editing | Yes |
+| Supports `quality` modifier | Yes |
+| Sync? | Yes (≤30s typical) |
+| Avg latency for 1024² | 10-16s |

@@ -1,0 +1,178 @@
+---
+title: "Volcengine CodePlan on ByteSpike"
+description: "One Volcengine subscription, ten-plus models — Doubao, GLM, Kimi, MiniMax, plus DeepSeek-V3.2 — at a fixed monthly cost amortized across the team. The recommended bundle for teams that want broad Chinese-LLM coverage without per-token billing."
+---
+
+Volcengine CodePlan is **one subscription that grants access to ten-plus models simultaneously**: Doubao, GLM, Kimi, MiniMax, plus DeepSeek-V3.2. The billing model is fundamentally different from per-token providers — you pay a monthly subscription rate that gets amortized across your team, regardless of how much each model is called.
+
+For Chinese-LLM-heavy workflows where the team uses several model families interchangeably, CodePlan is usually the most economical channel on ByteSpike.
+
+## Why CodePlan
+
+- **One credential, many models.** The admin configures one Volcengine subscription account; ByteSpike routes Doubao, GLM, Kimi, MiniMax, and DeepSeek-V3.2 requests through it.
+- **Subscription, not per-token.** Cost is predictable: a flat monthly fee, no surprises from a chatty user. See [channels](/concepts/channels) for how the subscription billing rate flows into ByteSpike's credit ledger.
+- **Recommended for teams.** Per-user per-token billing on Chinese LLMs is high-overhead; CodePlan is the bulk-buy SKU that makes team-wide use affordable.
+- **One protocol surface.** All CodePlan models speak the OpenAI Chat Completions shape (`/v1/chat/completions`).
+
+## Endpoint coverage
+
+| Endpoint | Path | Notes |
+|---|---|---|
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | Primary chat surface for CodePlan models. |
+| **Anthropic Messages** | `POST https://llm.bytespike.ai/v1/messages` | Available for selected CodePlan models that have anthropic-compat upstream aliases — confirm per-model on the [/models](/models) page. |
+
+Both endpoints accept the same ByteSpike key. Switch by path, not by credential.
+
+### Upstream base URL by protocol
+
+For admins configuring the upstream channel record, the Volcengine CodePlan service exposes two base paths against the same subscription credential:
+
+| Protocol | Upstream base URL |
+|---|---|
+| OpenAI-compatible | `https://ark.cn-beijing.volces.com/api/coding/v3` |
+| Anthropic-compatible | `https://ark.cn-beijing.volces.com/api/coding` |
+
+Customers never see these — ByteSpike resolves the right base URL based on which gateway endpoint the request hits.
+
+## Authentication
+
+Issue a ByteSpike key from the [Console](https://console.bytespike.ai). Send it as `Authorization: Bearer $BYTESPIKE_API_KEY` on every CodePlan request. The CodePlan subscription credentials sit admin-side and are never exposed to clients.
+
+## Models in the bundle
+
+The CodePlan subscription serves the following model IDs as of today. Pricing is **subscription-based** — there is no per-token rate on these channels; the monthly subscription fee is amortized across the org's members.
+
+| Model ID | Family | Capabilities |
+|---|---|---|
+| `doubao-seed-2-0-pro` | ByteDance Doubao | chat · vision · tools · long context |
+| `deepseek-v3-2` | DeepSeek | chat · reasoning (older V3 series) |
+| `glm-5` | Zhipu GLM | chat · vision |
+| `glm-5-1` | Zhipu GLM | chat · newer GLM-5 variant |
+| `kimi-k2-6` | Moonshot Kimi | chat · long context |
+| `kimi-k2-5` | Moonshot Kimi | chat · long context |
+| `minimax-m2-7` | MiniMax | chat |
+| `minimax-m2-5` | MiniMax | chat |
+
+The exact list may evolve as Volcengine adds models to CodePlan — the per-model docs at [/models](/models) (coming soon) are the live source of truth.
+
+<Note>
+  DeepSeek V3.2 is the **CodePlan version**. For the latest DeepSeek V4 family on per-token billing, see [/providers/deepseek](/providers/deepseek).
+</Note>
+
+## Quickstart
+
+All three examples call `doubao-seed-2.0-pro`, the most capable Doubao in the bundle. Swap `model` for any of the others above.
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "doubao-seed-2.0-pro",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="doubao-seed-2.0-pro",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```javascript Node (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "doubao-seed-2.0-pro",
+  messages: [
+    { role: "user", content: "Hello, ByteSpike." },
+  ],
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Subscription billing model
+
+Customer-side billing on CodePlan channels is different from per-token billing:
+
+- The Volcengine subscription is a **monthly upstream commitment** ByteSpike pays Volcengine.
+- ByteSpike charges the customer's account either as a flat monthly fee (DOSIA Cloud Enterprise plan tier) or amortizes against credits on per-request usage (Pro / Max tier).
+- The exact billing flow per plan lives on the [pricing page](https://bytespike.ai/pricing) and [credits-and-billing](/concepts/credits-and-billing).
+
+For a customer comparing CodePlan with per-token DeepSeek, the rule of thumb: if your team makes >100K requests/month across the bundled models, CodePlan is cheaper. Below that threshold, per-token providers (DeepSeek API, Moonshot direct) win.
+
+### How the monthly subscription gets amortized
+
+Admin sets the upstream subscription fee on the channel record (e.g. `subscription_monthly_fee_cny=299`). ByteSpike then distributes that fee across consuming accounts:
+
+- **Per-team flat allocation** — every account bound to the channel pays a fixed share (typical for DOSIA Cloud Enterprise's per-user quota model).
+- **Usage-weighted** — share proportional to per-account request count over the billing period.
+- **Org-absorbed** — the org pays the full subscription centrally; consuming accounts see zero per-request charge on this channel.
+
+Which mode applies is set per-account in the admin console. The exact `channel_model_pricing` matrix that backs this is part of the W5-led billing schema (`PR-W5-CLOUD-SCHEMA`). Customers reading this page just need to know that **per-token cost on a CodePlan channel is zero on the request line item** — the cost sits at the subscription level.
+
+## Streaming, tools, vision
+
+Per-model capability — most CodePlan models support streaming and tools; vision support is uneven. The per-model pages at [/models](/models) (coming soon) have the precise capability matrix. The summary:
+
+| Capability | doubao-2.0-pro | deepseek-v3.2 | glm-5 | kimi-k2-6 | minimax-m2-7 |
+|---|---|---|---|---|---|
+| Chat Completions | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Streaming (SSE) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tools / function calling | ✅ | ✅ | ✅ | ✅ | — |
+| JSON mode | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Vision (image input) | ✅ | ❌ | ✅ | — | — |
+| Long context (≥ 200K) | ✅ | — | — | ✅ | — |
+
+## Errors and rate limits
+
+Standard contract — see [credits and billing](/concepts/credits-and-billing) and [error handling](/concepts/error-handling).
+
+| Status | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 500 / 502 / 503 / 504 | Upstream | No (auto-retried 2×) |
+
+Note: a 429 on a CodePlan channel typically reflects Volcengine's per-subscription RPM ceiling, not a ByteSpike-account rate limit. Admins can raise the subscription tier upstream; ByteSpike does not throttle CodePlan traffic on top.
+
+## When to use CodePlan
+
+- **Chinese-LLM-heavy teams** running mixed Doubao / GLM / Kimi / MiniMax workloads — one bill, broad coverage.
+- **Predictable monthly cost** — when finance wants a flat number, not a usage curve.
+- **DeepSeek V3.2 nostalgia** — if you have prompts tuned for V3.2 and don't want to migrate to V4 yet.
+
+When **not** to use CodePlan:
+
+- You only call one model family — pay-as-you-go on that family's direct API is cheaper.
+- You need DeepSeek V4 or reasoning chain — go to [/providers/deepseek](/providers/deepseek).
+- You need Claude or GPT — CodePlan does not serve those.
+
+## Next
+
+- [DeepSeek on ByteSpike](/providers/deepseek) — V4 family on per-token billing
+- [Channels](/concepts/channels) — N:M model-to-channel, including the CodePlan single-channel-many-models case
+- [Credits and billing](/concepts/credits-and-billing) — how subscription rates flow into the ledger

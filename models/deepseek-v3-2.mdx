@@ -1,0 +1,94 @@
+---
+title: "deepseek-v3-2"
+description: "DeepSeek V3.2 via the Volcengine CodePlan subscription. Older V3 series, but bundled into the multi-model CodePlan subscription alongside Doubao, GLM, Kimi, and MiniMax — subscription-priced, not per-token."
+---
+
+`deepseek-v3-2` is the **older V3** DeepSeek series, available on ByteSpike only as part of the **Volcengine CodePlan subscription**. The trade-off is clear:
+
+- ✅ Subscription pricing — predictable monthly cost amortized across the team, regardless of usage.
+- ✅ Comes bundled with Doubao, GLM, Kimi, MiniMax — one credential, ten-plus models.
+- ❌ V3, not V4 — the V4 family is newer, smarter, and supports reasoning chain.
+
+If you want the latest reasoning capability, go to [`deepseek-v4-pro`](/models/deepseek-v4-pro) (per-token DeepSeek API).
+If you have a team running mixed Chinese-LLM workloads and want one flat bill, this is the channel.
+
+## Channels
+
+| Channel | Base URL | Billing | Latency p50 | Region |
+|---|---|---|---|---|
+| **Volcengine CodePlan** | `ark.cn-beijing.volces.com` | Subscription (monthly, admin-amortized) | ~600ms | CN |
+
+This is a **subscription-billed** channel — there is no per-token rate on this entry. ByteSpike's account-level pricing wraps the upstream subscription; see [pricing](/concepts/credits-and-billing) and the [Volcengine CodePlan provider page](/providers/volcengine-codeplan) for the billing curve.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+Anthropic Messages is **not** supported on this channel — the Volcengine CodePlan upstream does not expose an anthropic-compat shim for V3.2. For Anthropic Messages with DeepSeek, route through [`deepseek-v4-pro`](/models/deepseek-v4-pro).
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v3-2",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v3-2",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Anthropic Messages | — (use deepseek-v4-pro for Anthropic) |
+| Streaming (SSE) | ✅ |
+| Tool use | ✅ |
+| JSON mode | ✅ |
+| Reasoning chain | — (V3 series; V4 has reasoning) |
+| Vision (HTTP API) | ❌ |
+| Context window | 64K tokens |
+
+## When to use
+
+- **CodePlan-subscribed teams** — already paying for the bundle, no reason to also pay per-token on V4.
+- **Predictable cost workloads** — when finance wants a flat number.
+- **V3-tuned prompts** — if you've optimized prompts against V3 and don't want to migrate to V4 yet.
+
+When **not** to use:
+
+- Latest DeepSeek capabilities — go to [`deepseek-v4-pro`](/models/deepseek-v4-pro).
+- Anthropic Messages required — same.
+- Long context — 64K is the ceiling here.
+
+## Next
+
+- [deepseek-v4-pro](/models/deepseek-v4-pro) — V4 flagship per-token
+- [Volcengine CodePlan provider page](/providers/volcengine-codeplan) — subscription mechanics + other bundled models (Doubao, GLM, Kimi, MiniMax)
+- [Channels](/concepts/channels) — subscription vs per-token billing models side-by-side

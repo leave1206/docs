@@ -1,0 +1,64 @@
+---
+title: "Seedream V4"
+description: "ByteDance flagship aesthetic image generator — 1024² text-to-image with native CJK prompt understanding."
+---
+
+ByteDance's flagship aesthetic image generator. Strong on illustration,
+packaging, and editorial stills with native CJK prompt understanding.
+Synchronous — no async polling needed.
+
+**Slug:** `seedream-v4` · **Capability:** 1024² text-to-image · **Pricing:** $0.024 / image
+([live rate](https://bytespike.ai/pricing#image))
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v4",
+    "prompt": "A koi pond at dusk, ink-wash style, soft purple sky",
+    "size": "1024x1024",
+    "n": 1
+  }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | `seedream-v4` |
+| `prompt` | string | yes | Text prompt. CJK accepted natively. |
+| `size` | string | no | `1024x1024` (default), `1024x1536`, `1536x1024` |
+| `n` | integer | no | 1–4 images per call. Each image billed separately. |
+| `seed` | integer | no | Reproducibility. |
+| `negative_prompt` | string | no | Standard SD-style negation. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/...",
+      "revised_prompt": "..."
+    }
+  ]
+}
+```
+
+Image URLs are pre-signed, valid for 24 hours. Download and rehost if you
+need long-term storage.
+
+## When to use
+
+Reach for Seedream v4 when:
+- Your prompt is in Chinese / Japanese / Korean
+- Aesthetic / illustrative style matters more than photorealism
+- You want predictable 1024² output without aspect-ratio gymnastics
+
+For 2048² or refined edges, see [Seedream V4.5](/api-reference/image/seedream-v4-5).
+For lightweight / cheaper iteration, see [Seedream V5lite](/api-reference/image/seedream-v5lite).
+For photorealism at higher cost, see [Nano-Banana Pro](/api-reference/image/nano-banana-pro).

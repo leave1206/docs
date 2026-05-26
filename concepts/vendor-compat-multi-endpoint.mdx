@@ -1,0 +1,120 @@
+---
+title: "Vendor compat · multi-endpoint architecture"
+description: "How ByteSpike wraps a single upstream credential to serve multiple protocol surfaces (OpenAI Chat Completions, Anthropic Messages) on one account. Covers the admin UX for configuring base_url + base_url_anthropic, the routing logic, and the SOP for onboarding the next vendor."
+---
+
+Some upstream vendors quietly expose **multiple protocol surfaces from the same API key**. DeepSeek does this; so does Moonshot, Zhipu, and the Volcengine CodePlan bundle. One credential → two base URLs → two protocol contracts (OpenAI Chat Completions on one path, Anthropic Messages on another).
+
+ByteSpike consolidates this into a **single account** with multiple endpoint fields. Customers see one ByteSpike key; admins fill in one credential; the routing layer dispatches by request path. This page is the architecture reference for that pattern — useful if you're a ByteSpike admin configuring a new vendor, or a curious developer reading the docs to understand how the same model name can route through two protocol shapes.
+
+For the customer-side experience, see the [DeepSeek dual-protocol blog post](/blog/one-key-two-protocols-deepseek). For the protocol contracts themselves, see [endpoint types](/concepts/endpoints).
+
+## The vendor truth
+
+Upstreams like DeepSeek serve **two HTTP base URLs from one credential**:
+
+| Surface | Path | Contract |
+|---|---|---|
+| OpenAI Chat Completions | `https://api.deepseek.com/v1/chat/completions` | OpenAI shape |
+| Anthropic Messages | `https://api.deepseek.com/anthropic/v1/messages` | Anthropic shape |
+
+Both routes accept the same `sk-...` key. Both share the **same quota and the same billing** upstream — splitting them at the consumer side gains nothing because the upstream already treats them as one identity.
+
+Moonshot, Zhipu, and Volcengine CodePlan follow the same pattern. The base URL paths differ; the principle is identical.
+
+## The ByteSpike model: one account, multiple base URLs
+
+A vendor-compat account record stores both endpoints in the same `credentials` object:
+
+```jsonc
+{
+  "name": "deepseek-01",
+  "platform": "deepseek",
+  "type": "apikey",
+  "credentials": {
+    "api_key": "sk-deepseek-...",
+    "base_url":           "https://api.deepseek.com",
+    "base_url_anthropic": "https://api.deepseek.com/anthropic"
+  },
+  "group_ids": [11]
+}
+```
+
+`base_url` is required (it's the OpenAI-compatible endpoint, the lowest common denominator). `base_url_anthropic` is **optional** — present only when the vendor exposes a parallel anthropic-compat surface. If a vendor never ships an anthropic alias, the field stays empty and the gateway routes only OpenAI-shape requests to that account.
+
+A future `base_url_gemini` slot is reserved for vendors that gain a Gemini-compatible endpoint; the schema is purely additive.
+
+## How requests resolve
+
+A request flows through the gateway in five steps:
+
+1. **Endpoint matches** — `POST /v1/messages` matches the Anthropic Messages handler; `POST /v1/chat/completions` matches the OpenAI Chat handler.
+2. **Group lookup** — the customer's ByteSpike key resolves to a group; the group's platform decides whether vendor-compat dispatch is eligible.
+3. **Account selection** — for vendor-compat groups, the scheduler picks an account, applying sticky-session logic on `(api_key, sessionHash)` — the same sticky key for both protocols, because the upstream identity is one.
+4. **Base URL pick** — the dispatcher reads the request path to decide which `base_url` to use:
+   - `/v1/chat/completions` → `account.base_url`
+   - `/v1/messages` → `account.base_url_anthropic` (falling back to `account.base_url + "/anthropic"` for legacy accounts)
+5. **Forward** — the request goes upstream with the matching base URL and the same `api_key`. The response comes back, gets translated where needed, and lands at the customer.
+
+The customer never sees this. From the API, the key works against both `/v1/chat/completions` and `/v1/messages` — what differs is the request body shape they wrote on their side.
+
+## Admin UX
+
+In the ByteSpike admin Console, the account form for vendor-compat platforms (DeepSeek, Moonshot, Zhipu, Volcengine CodePlan) exposes both fields:
+
+| Field | Label | Required | Example |
+|---|---|---|---|
+| `api_key` | Upstream API key | ✅ | `sk-deepseek-...` |
+| `base_url` | Base URL (OpenAI-compatible) | ✅ | `https://api.deepseek.com` |
+| `base_url_anthropic` | Anthropic Base URL (optional) | — | `https://api.deepseek.com/anthropic` |
+
+Admins fill the api_key once. If the vendor also exposes an anthropic-compat endpoint and the admin wants that protocol available, they fill `base_url_anthropic` with the alternative path. Empty means "don't expose Anthropic Messages on this channel" — the account still handles OpenAI Chat Completions normally.
+
+No second account is needed; no second credential is needed.
+
+## Why not "one account per protocol"?
+
+ByteSpike's earlier implementation did exactly that — split DeepSeek into two account records (`#4` with `base_url=api.deepseek.com`, `#5` with `base_url=api.deepseek.com/anthropic`). It worked, but it violated two sub2api invariants:
+
+- **One account = one upstream identity** (1 credential, 1 quota pool). Two accounts sharing a key broke this.
+- **Accounts within the same group are protocol-interchangeable.** The scheduler is allowed to move sticky sessions across accounts in a group; with protocol-split accounts, that move caused cross-protocol pollution (HTTP 504s + 404s in late-night e2e tests, May 13).
+
+The current multi-endpoint design fixes both. The scheduler treats `deepseek-01` as one account; sticky sessions stay bound to it; the protocol picked is a property of the request path, not the account choice.
+
+## Onboarding the next vendor — SOP
+
+When a new vendor exposes both an OpenAI-compat and an Anthropic-compat endpoint on the same credential, the steps are:
+
+1. **Add the platform name** to the sub2api platform registry (`deepseek`, `moonshot`, `zhipu`, `volcengine_codeplan` are the four that exist today).
+2. **Mark it `IsVendorOpenAICompat() == true`** in the platform metadata.
+3. **Create one account** in admin with the two base URL fields filled.
+4. **Bind a group** to the account; the group's `platform` field carries the platform name.
+5. **Add a channel** mapping the platform's model IDs to the group. Both protocols are served immediately; no separate channel record is needed.
+
+That's it. No schema migration, no per-protocol routing wiring. The four sub2api code touch-points (the dispatcher reads `base_url_anthropic`, the sticky lookup stays unchanged) are reused for every vendor that follows the pattern.
+
+## Today's coverage
+
+| Vendor | OpenAI endpoint | Anthropic endpoint | Status |
+|---|---|---|---|
+| DeepSeek | `api.deepseek.com` | `api.deepseek.com/anthropic` | ✅ live |
+| Moonshot (Kimi anthropic-compat alias) | `api.moonshot.cn` | `api.moonshot.cn/anthropic` | ⏳ planned |
+| Zhipu (GLM anthropic-compat alias) | `open.bigmodel.cn/api/paas/v4` | (TBD) | ⏳ planned |
+| Volcengine CodePlan | `ark.cn-beijing.volces.com/api/coding/v3` | `ark.cn-beijing.volces.com/api/coding` | ⏳ planned (W2 routing fix in flight) |
+
+As more vendors expose the second protocol surface, this matrix fills in. Customer code never changes — the same ByteSpike key gains access to the new endpoint as soon as the channel record updates admin-side.
+
+## Trade-offs the design accepts
+
+- **No per-protocol quota isolation.** The upstream itself doesn't separate quota between `/v1/chat/completions` and `/v1/messages` — they share one rate limit. ByteSpike does not synthesize quota separation that the upstream doesn't enforce.
+- **No per-protocol health gating.** If the vendor's OpenAI endpoint is healthy but its Anthropic endpoint 502s, ByteSpike will retry; persistent failure surfaces as a channel-level alert, not a per-protocol disable. This is acceptable because the upstream never breaks one protocol while keeping the other up — they live in the same service.
+- **No per-protocol pricing tier.** The channel record carries one `cost_per_million_input` / `cost_per_million_output` — the upstream itself doesn't price the two paths differently.
+
+These are all consequences of the upstream's shared-quota reality, not invented limitations. If a future vendor does enforce per-protocol distinctions, the channel record schema gains a `protocol → cost` map at that time.
+
+## Next
+
+- [DeepSeek provider page](/providers/deepseek) — the dual-protocol model in customer-facing form
+- [Channels](/concepts/channels) — N:M model-to-channel routing model
+- [Endpoint types](/concepts/endpoints) — full protocol catalog
+- [Blog: "One key, two protocols"](/blog/one-key-two-protocols-deepseek) — customer narrative version

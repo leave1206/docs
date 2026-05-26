@@ -1,0 +1,324 @@
+---
+title: "POST /chat/completions"
+description: "OpenAI Chat Completions shim — every model behind a single OpenAI-shape request."
+---
+
+The OpenAI-native protocol. Speaks Chat Completions verbatim, so any
+client that talks to `api.openai.com/v1/chat/completions` (the OpenAI
+Python / Node SDKs, LangChain default, LlamaIndex, etc.) works
+unchanged — just swap the base URL and key. Cross-vendor models
+(Claude, Gemini, DeepSeek, Doubao) are translated under the hood.
+
+## When to use
+
+Pick this endpoint when you want:
+
+- **Drop-in replacement** for `openai` SDK calls (`OpenAI(base_url=…, api_key=…)`)
+- **OpenAI-only features** like `response_format: {"type": "json_schema"}` or `logprobs`
+- **Frameworks** that hard-code the OpenAI shape
+
+For tool calling, the OpenAI `tool_calls` shape works as-is. For prompt caching on Claude, prefer [`/v1/messages`](./claude-messages) — the OpenAI shape can't carry `cache_control`.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Summarize the first chapter of Moby Dick."}
+    ],
+    "max_tokens": 1024
+  }'
+```
+
+### Headers
+
+| Header | Required | Notes |
+|---|---|---|
+| `Authorization` | yes | `Bearer sk-byts-…`. (`x-api-key` is also accepted for symmetry with `/messages`.) |
+| `content-type` | yes | `application/json`. |
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | Model slug. Any catalog model — see [Cross-model routing](#cross-model-routing). |
+| `messages` | array | yes | Conversation history. Roles: `system`, `user`, `assistant`, `tool`. |
+| `max_tokens` | integer | no | Hard cap on response length. Default uppers vary per model. |
+| `temperature` | number | no | Default 1.0. |
+| `top_p` | number | no | Nucleus sampling. |
+| `n` | integer | no | Generations to return. Default 1. |
+| `stream` | boolean | no | Server-sent events. See [Streaming](#streaming). |
+| `stop` | string \| string[] | no | Custom stop tokens. |
+| `presence_penalty` | number | no | -2.0 to 2.0. |
+| `frequency_penalty` | number | no | -2.0 to 2.0. |
+| `response_format` | object | no | `{"type": "json_object"}` / `{"type": "json_schema", "json_schema": {...}}`. |
+| `tools` | array | no | Function / tool definitions (see [Tool calling](#tool-calling)). |
+| `tool_choice` | string \| object | no | `"none"` / `"auto"` / `{"type": "function", "function": {"name": "…"}}`. |
+| `seed` | integer | no | Deterministic sampling (best-effort). |
+| `user` | string | no | Stable end-user id — forwarded upstream + logged for abuse tracing. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-9aBc…",
+  "object": "chat.completion",
+  "created": 1716393600,
+  "model": "gpt-5-4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Ishmael, the narrator, signs onto a whaling ship..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 23,
+    "completion_tokens": 87,
+    "total_tokens": 110
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Server-generated id, prefix `chatcmpl-`. |
+| `choices[].message.role` | string | Always `"assistant"` on a non-error response. |
+| `choices[].message.content` | string \| null | `null` when the model emits tool calls instead of text. |
+| `choices[].message.tool_calls` | array | Present when the model wants to invoke a tool. |
+| `choices[].finish_reason` | string | `stop`, `length`, `tool_calls`, `content_filter`. |
+| `usage.prompt_tokens` | integer | Tokens billed for input. |
+| `usage.completion_tokens` | integer | Tokens billed for output. |
+| `usage.total_tokens` | integer | Sum. |
+
+### Accounting headers
+
+Same envelope as every other endpoint:
+
+```
+X-RateLimit-Limit: 50.00
+X-RateLimit-Remaining: 42.18
+X-RateLimit-Reset: 1716705600
+X-Quota-Remaining-Credits: 192.40
+```
+
+Full breakdown in the [API Reference overview](/api-reference/overview#conventions).
+
+## Streaming
+
+Set `"stream": true`. The response is SSE with `data: {json}` lines and a terminating `data: [DONE]`:
+
+```
+data: {"id":"chatcmpl-…","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-…","choices":[{"index":0,"delta":{"content":"Ishmael"},"finish_reason":null}]}
+
+…
+
+data: {"id":"chatcmpl-…","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+Token usage is shipped on the final non-`[DONE]` frame when `stream_options: {"include_usage": true}` is set.
+
+## Tool calling
+
+Tools follow OpenAI's `function` shape. Round-trip via two requests:
+
+### Round 1 — tool offered
+
+```json
+{
+  "model": "gpt-5-4",
+  "messages": [
+    {"role": "user", "content": "What's the weather in Tokyo?"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a city.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {"type": "string"}
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_abc",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Tokyo\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
+}
+```
+
+Note `arguments` is a **JSON string**, not an object — that's the OpenAI convention.
+
+### Round 2 — tool result returned
+
+```json
+{
+  "model": "gpt-5-4",
+  "messages": [
+    {"role": "user", "content": "What's the weather in Tokyo?"},
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_abc",
+          "type": "function",
+          "function": {"name": "get_weather", "arguments": "{\"city\":\"Tokyo\"}"}
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_abc",
+      "content": "18°C, partly cloudy"
+    }
+  ],
+  "tools": [ /* same schema */ ]
+}
+```
+
+## Vision (image_url content)
+
+Send images via `image_url` content blocks. Both data URLs and HTTPS URLs work; the gateway forwards bytes to vision-capable upstream models (GPT-5-x, Claude Sonnet/Opus 4.x, Gemini, Doubao Vision).
+
+```json
+{
+  "model": "gpt-5-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "What's in this image?"},
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+The `detail` field (`"low"` / `"high"` / `"auto"`) is honored on models that support it.
+
+## Cross-model routing
+
+This endpoint accepts **any** ByteSpike catalog model in the `model` field — the gateway translates OpenAI shape to the upstream protocol transparently:
+
+```json
+{"model": "gpt-5-4", "messages": [...]}              // → OpenAI native
+{"model": "claude-sonnet-4-6", "messages": [...]}    // → Anthropic (OpenAI→Anthropic shape)
+{"model": "gemini-3-1-pro", "messages": [...]}       // → Google
+{"model": "deepseek-v4-pro", "messages": [...]}      // → DeepSeek
+{"model": "kimi-k2-6", "messages": [...]}            // → Moonshot
+```
+
+Caveats:
+
+- `response_format: {"type": "json_schema"}` requires an upstream that supports structured outputs natively (OpenAI 4.x+, some Gemini Pro variants). Other upstreams return a 400 `unsupported_feature`.
+- `seed` is best-effort; cross-vendor determinism isn't guaranteed.
+- `tool_calls.arguments` always returns a JSON string regardless of upstream — even on Anthropic models internally returning structured input.
+
+Full catalog: [`GET /v1/models`](../utility/v1-models). Pricing per model: [bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+## Rate limiting & quota headers
+
+| Header | Notes |
+|---|---|
+| `x-ratelimit-limit-requests` | Requests/min cap for your tier. |
+| `x-ratelimit-remaining-requests` | Remaining in the current window. |
+| `x-ratelimit-reset-requests` | Seconds until the bucket refills. |
+| `x-ratelimit-limit-tokens` | Tokens/min cap. |
+| `x-ratelimit-remaining-tokens` | Tokens remaining in this window. |
+
+## Errors
+
+All non-2xx responses are **free** — failures don't bill. Body shape matches OpenAI's error envelope:
+
+```json
+{
+  "error": {
+    "type": "rate_limit_error",
+    "code": "rate_limit_exceeded",
+    "message": "You exceeded your current requests-per-minute budget.",
+    "param": null
+  }
+}
+```
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 400 | `invalid_request_error` | Body validation failed. Message identifies the field. |
+| 400 | `invalid_request_error` (code `unsupported_model`) | Model slug not in scope or retired. |
+| 400 | `invalid_request_error` (code `unsupported_feature`) | E.g. `response_format: json_schema` on a non-structured-output model. |
+| 401 | `authentication_error` | Missing / revoked key. |
+| 402 | `insufficient_credits` | Wallet exhausted — top up at [console.bytespike.ai/billing](https://console.bytespike.ai/billing). |
+| 403 | `permission_error` | Scope denied, IP not allowlisted, or model gated. |
+| 404 | `not_found_error` | Path typo or unknown model id. |
+| 429 | `rate_limit_error` | Tier rate-limit. Backoff per `x-ratelimit-reset-*`. |
+| 5xx | `api_error` / `overloaded_error` | Upstream provider issue. Free + automatic retry envelope. |
+
+## SDK example
+
+OpenAI Python SDK, base URL flipped:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+    base_url="https://llm.bytespike.ai/v1",
+)
+
+r = client.chat.completions.create(
+    model="claude-sonnet-4-6",   # Claude through the OpenAI shape
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(r.choices[0].message.content)
+```
+
+No SDK fork needed — the upstream `openai` package is the one we test against.

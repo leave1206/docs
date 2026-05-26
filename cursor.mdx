@@ -1,0 +1,126 @@
+---
+title: "Cursor IDE"
+description: "Add ByteSpike as an OpenAI-compatible provider in Cursor — works with the editor's chat, agent, and tab-complete features."
+---
+
+Cursor uses OpenAI-shape clients under the hood for its model
+providers. Adding ByteSpike means you get every model in the catalog
+(Claude, GPT-5, Gemini, DeepSeek, etc.) inside the editor's chat
+panel and the inline edit / agent features.
+
+## Prerequisites
+
+- A ByteSpike account + a key. Choose the group based on which
+  models you want inside Cursor — `claude-default` for Claude,
+  `volcengine-default` for DeepSeek family, etc. See
+  [Channels](/concepts/channels).
+- Cursor `0.42+` (older versions don't have the custom provider UI).
+
+## Configure
+
+1. Open **Cursor → Settings → Models** (`Cmd/Ctrl + ,`)
+2. Scroll to **OpenAI API Key** section
+3. Click **Override OpenAI Base URL** and paste:
+   ```
+   https://llm.bytespike.ai/v1
+   ```
+4. Set **OpenAI API Key** to your ByteSpike key (`sk-byts-...`)
+5. Click **Verify** — Cursor pings `/v1/chat/completions` to confirm
+
+That's the whole config. Cursor's chat panel + agent + inline edit
+all start routing through ByteSpike from the next request.
+
+## Enable specific models
+
+Cursor lets you toggle which model ids show up in the picker:
+
+1. Same **Models** settings page
+2. Scroll to **Models** list
+3. Click **Add model** for each ByteSpike id you want exposed:
+   - `claude-sonnet-4-6`
+   - `claude-opus-4-7`
+   - `claude-haiku-4-5`
+   - `gpt-5-5`
+   - `gpt-5-3-codex`
+   - `gemini-2-5-pro`
+   - `deepseek-v4-pro`
+   - …add any other id from [Models](/models)
+
+The dropdown for each Cursor surface (chat, edit, agent) gets the
+new id. Pick per task.
+
+<Warning>
+Cursor's built-in `gpt-4`, `claude-3.5-sonnet`, etc. picker entries
+will still hit OpenAI / Anthropic directly **unless** you've toggled
+off "Use my own API key". With ByteSpike configured + that toggle on,
+every model — built-in or custom — goes through ByteSpike.
+</Warning>
+
+## Cursor Agent + ByteSpike
+
+Cursor's **Agent** feature runs as multi-turn tool-use loops. The
+ByteSpike gateway preserves tool definitions across protocols, so
+Agent works the same against translated routes (Claude via OpenAI
+shape, Gemini via OpenAI shape) as it does against native paths.
+
+If you see "tool calls returning malformed json", that's typically
+the upstream provider's tool format mapping to OpenAI's strict
+schema. Switch the Agent's model to a native OpenAI id (`gpt-5-5`,
+`gpt-5-4`) — those have the cleanest schema fidelity.
+
+## Streaming, image inputs, vision
+
+All three work via ByteSpike — the gateway forwards streaming events
+1:1 and proxies image inputs (data URLs or http URLs) without
+re-encoding. Cursor's vision features against `claude-sonnet-4-6` or
+`gemini-2-5-pro` work identically to going direct.
+
+## Tab-complete
+
+Cursor's tab-complete is a separate, lighter request shape that
+typically uses a smaller / faster model. Pin a low-latency model
+(`claude-haiku-4-5`, `gpt-5-4-mini`, `gemini-2-5-flash`) for that
+slot — the chat panel can stay on a bigger model.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Verify returns 401 | Wrong key | Copy a fresh value from console |
+| Verify returns 402 | Key has $0 budget | Top up |
+| Models dropdown empty | Cursor version doesn't have custom-provider support | Upgrade Cursor to 0.42+ |
+| Inline edit returns "model unavailable" | Cursor uses a built-in model name not in your group | Add a working ByteSpike id to the Models list and select it explicitly |
+| Slow first token | Cold start on cross-protocol translation routes | Warm with a small request first, or pin to a native id for hot-path features |
+
+## Other editor integrations
+
+The same `https://llm.bytespike.ai/v1` + `sk-byts-...` recipe works
+for any OpenAI-compatible editor:
+
+| Editor / IDE | Config path |
+|---|---|
+| Continue.dev (VS Code) | `~/.continue/config.json` → `"apiBase": "https://llm.bytespike.ai/v1"` |
+| Cline (VS Code) | Settings → API Provider → OpenAI Compatible → Base URL |
+| Aider (CLI) | `aider --openai-api-base https://llm.bytespike.ai/v1 --openai-api-key sk-byts-...` |
+| Zed | Settings → AI → custom OpenAI endpoint |
+| JetBrains AI Assistant | Settings → Tools → AI Assistant → custom endpoint |
+
+Whatever the editor, the gist is the same: an OpenAI-compatible
+`base_url` + your ByteSpike key.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Claude Code CLI" icon="terminal" href="/claude-code-cli">
+    The terminal-side alternative.
+  </Card>
+  <Card title="Codex CLI" icon="terminal" href="/codex-cli">
+    OpenAI's CLI — works with the same key.
+  </Card>
+  <Card title="/chat/completions reference" icon="code" href="/api-reference/text/openai-chat-completions">
+    The protocol Cursor speaks.
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/models">
+    Catalog Cursor can pick from.
+  </Card>
+</CardGroup>

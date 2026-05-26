@@ -1,0 +1,65 @@
+---
+title: "seedance-2.0-fast"
+description: "Seedance 2.0 Fast — the lightest Seedance tier. Lower fidelity than [`seedance-2.0-pro`](/models/seedance-2-0-pro), materially lower per-second cost, fastest wall-clock in the Seedance family. The default volume-tier choice on the ByteDance video stack."
+---
+
+`seedance-2.0-fast` is the lightest tier in the Seedance 2.0 family. The trade-off vs [`seedance-2.0-pro`](/models/seedance-2-0-pro): noticeably lower fidelity on hard motion / complex subjects, materially lower per-second cost, faster wall-clock to first frame. The right call for high-volume programmatic video work where good-enough beats expensive — social cards, A/B variants, internal-facing creative.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance Fast** | Volcengine | `ark.cn-beijing.volces.com` | per-second (see [/pricing](/pricing) — lowest Seedance tier) | ~35s wall-clock for 5s clip | cn-beijing |
+
+Failures don't bill.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-fast",
+    "prompt": "Quick demo loop: a cup of tea steaming, top-down, 3 seconds",
+    "duration_seconds": 3,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# Poll pattern — see /models/sora2#quickstart
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ basic |
+| `duration_seconds` 3 / 5 | ✅ |
+| `size` 1280×720 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Volume programmatic video** — social cards, A/B variants, demo loops.
+- **Domestic-region speed** — cn-beijing serving + fastest wall-clock in Seedance = quickest "click → see clip" loop for mainland users.
+- **Internal-facing creative** — design review mockups, pitch decks, anywhere "good enough" beats "expensive flagship".
+
+When **not** to use:
+
+- Customer-facing marketing creative — go up a tier to [`seedance-2.0-pro`](/models/seedance-2-0-pro).
+- Sora-grade physics required — [`sora2`](/models/sora2) or [`sora2-pro`](/models/sora2-pro).
+
+## Next
+
+- [`seedance-2.0-pro`](/models/seedance-2-0-pro) — Seedance flagship
+- [`veo3.1-fast`](/models/veo3-1-fast) — Google fast tier
+- [Multimodal endpoints](/concepts/multimodal) — overview

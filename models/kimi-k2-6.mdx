@@ -1,0 +1,54 @@
+---
+title: "kimi-k2-6"
+description: "Moonshot's Kimi K2.6 — long-context Chinese-LLM with 1M-token context. Available on ByteSpike through the Volcengine CodePlan subscription bundle."
+---
+
+`kimi-k2-6` is Moonshot's long-context flagship — strong on Chinese tasks with a **1M-token context window**, second only to Gemini 2.5 Pro on ByteSpike. On ByteSpike, it is served through the **Volcengine CodePlan subscription channel**.
+
+## Channels
+
+| Channel | Provider | Base URL | Billing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Volcengine CodePlan** | Volcengine subscription | `ark.cn-beijing.volces.com/api/coding/v3` | Subscription (monthly, admin-amortized) | ~600ms | CN |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "kimi-k2-6",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | — |
+| Long context | ✅ 1M tokens |
+| Context window | 1M tokens |
+
+## When to use
+
+- **Long-document Chinese-language QA** — 1M context for codebase-scale or full-document review.
+- **CN-region multi-doc synthesis** — Kimi's strongest dimension.
+- **Cost-predictable long-context** — without per-token billing, you can throw 500K-token prompts at it without watching the meter.
+
+## Next
+
+- [kimi-k2-5](/models/kimi-k2-5) — older but still long-context
+- [Volcengine CodePlan provider page](/providers/volcengine-codeplan)
+- [claude-opus-4-7](/models/claude-opus-4-7) — 1M context per-token alternative

@@ -1,0 +1,63 @@
+---
+title: "gpt-4o"
+description: "OpenAI's GPT-4o — the multimodal mid-tier with audio input support. The right default when you need vision + audio in / out without paying for GPT-5-family reasoning."
+---
+
+`gpt-4o` is OpenAI's multimodal mid-tier — vision, audio input, tools, JSON mode. The one differentiator from the GPT-5 family is **native audio input**, making it the default for accessibility, call-center, and voice-pipeline workloads.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI direct | `api.openai.com` | $2.50 / 1M | $10.00 / 1M | ~600ms | global edge |
+
+Azure OpenAI and OpenAI-compatible domestic-proxy channels are admin-configurable; see [/providers/openai](/providers/openai) for the multi-channel rate variance note.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| **Audio input** | ✅ |
+| Tools / function calling | ✅ parallel |
+| JSON mode | ✅ |
+| Structured outputs | ✅ |
+| Reasoning effort | — (GPT-5 family only) |
+| Context window | 128K tokens |
+
+## When to use
+
+- **Audio input pipelines** — call summarization, voice assistants, accessibility. `gpt-4o` is the only GPT model that takes audio directly today.
+- **Multimodal mid-tier** — when vision is required and reasoning is not.
+- **Drop-in for legacy `gpt-4o`-pinned code** — keep your existing SDK calls; ByteSpike routes them.
+
+When **not** to use:
+
+- Reasoning-heavy tasks — go to [gpt-5-4](/models/gpt-5-4) or higher.
+- Cost-sensitive high volume — [gpt-4o-mini](/models/gpt-4o-mini) is one-sixteenth the price.
+
+## Next
+
+- [gpt-4o-mini](/models/gpt-4o-mini) — small + cheap
+- [gpt-5-4](/models/gpt-5-4) — production GPT-5 workhorse
+- [OpenAI provider page](/providers/openai)

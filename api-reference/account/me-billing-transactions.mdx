@@ -1,0 +1,111 @@
+---
+title: "GET /me/billing/transactions"
+description: "Wallet ledger — every top-up, refund, and balance adjustment, paginated."
+---
+
+The wallet ledger. Every credit or debit that touched the balance,
+ordered by `created_at` desc. Mirrors the table at
+[console.bytespike.ai/billing](https://console.bytespike.ai/billing).
+Free.
+
+## When to use
+
+- **Reconcile a Stripe receipt** against the balance change
+- **Export a CSV** of transactions for accounting
+- **Detect platform-admin adjustments** (`admin_credit` / `admin_debit`)
+
+For per-call spend (vs balance movement), use [`GET /me/usage`](./me-usage). For per-key roll-up, use [`GET /balance`](../utility/balance).
+
+## Request
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/billing/transactions?page=1&page_size=50' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### Query parameters
+
+| Param | Type | Notes |
+|---|---|---|
+| `page` | integer | Default `1`. |
+| `page_size` | integer | Default `50`, max `200`. |
+| `kind` | string | Filter: `topup` / `refund` / `admin_credit` / `admin_debit` / `subscription_renew`. |
+| `since` | string | ISO timestamp — only entries on/after this moment. |
+| `until` | string | ISO timestamp — only entries strictly before this moment. |
+
+## Response
+
+```json
+{
+  "items": [
+    {
+      "id": 901234,
+      "created_at": "2026-05-21T14:08:11Z",
+      "kind": "topup",
+      "amount_usd": 50.00,
+      "balance_after_usd": 81.40,
+      "source": {
+        "provider": "stripe",
+        "receipt_id": "ch_3PYj...mock-49",
+        "method": "card_visa_4242"
+      },
+      "note": null
+    },
+    {
+      "id": 901188,
+      "created_at": "2026-05-15T08:14:02Z",
+      "kind": "admin_credit",
+      "amount_usd": 5.00,
+      "balance_after_usd": 31.40,
+      "source": {"actor": "ops@bytespike.ai"},
+      "note": "Goodwill credit — failed Doubao call burst, ticket #312"
+    }
+  ],
+  "total": 47,
+  "page": 1,
+  "page_size": 50
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `items[].kind` | string | `topup` (card / wire), `refund` (failed-call rebate), `admin_credit` / `admin_debit`, `subscription_renew`. |
+| `items[].amount_usd` | number | Signed: positive for credits, negative for debits. |
+| `items[].balance_after_usd` | number | Snapshot of the wallet after this entry posted. Useful for reconciliation. |
+| `items[].source` | object | Per-kind shape — `provider` + `receipt_id` for `topup`; `actor` for admin entries. |
+| `items[].note` | string \| null | Free-form note attached at write time (admin entries only). |
+| `total` | integer | Total rows matching the filter (page-independent). |
+
+## Errors
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 400 | `invalid_request_error` | `page` / `page_size` out of range, or `since` not parseable. |
+| 401 | `authentication_error` | Missing / revoked key. |
+
+## Example — CSV export
+
+```python
+import csv, requests, os, sys
+
+headers = {"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"}
+page, all_rows = 1, []
+while True:
+    r = requests.get(
+        "https://llm.bytespike.ai/api/v1/me/billing/transactions",
+        params={"page": page, "page_size": 200},
+        headers=headers,
+        timeout=10,
+    ).json()
+    all_rows.extend(r["items"])
+    if page * r["page_size"] >= r["total"]:
+        break
+    page += 1
+
+w = csv.DictWriter(sys.stdout, fieldnames=["created_at", "kind", "amount_usd", "balance_after_usd"])
+w.writeheader()
+for row in all_rows:
+    w.writerow({k: row[k] for k in w.fieldnames})
+```

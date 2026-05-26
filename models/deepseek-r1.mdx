@@ -1,0 +1,69 @@
+---
+title: "deepseek-r1"
+description: "DeepSeek R1 reasoning model. Explicit chain-of-thought output, structured for downstream consumers. Best paired with `reasoning_effort` to control depth vs latency."
+---
+
+`deepseek-r1` is DeepSeek's R1-series reasoning model — explicit chain-of-thought output formatted so downstream consumers can show, hide, or summarize the reasoning track separately from the final answer. The right pick for math, multi-step deduction, code analysis, and anywhere a model's *reasoning trace* needs to be auditable rather than implicit.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **DeepSeek** | DeepSeek direct | `api.deepseek.com` | see [/pricing](/pricing) | see [/pricing](/pricing) | ~1200ms | global edge |
+
+Failures don't bill. R1 reasoning runs at a small premium over standard DeepSeek chat — see [/pricing](/pricing) for the breakdown.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-r1",
+    "messages": [
+      { "role": "user", "content": "If a train leaves Beijing at 8:00 traveling 200 km/h, and another leaves Shanghai at 9:00 at 250 km/h on the same track, when do they meet? Beijing-Shanghai = 1200 km." }
+    ],
+    "reasoning_effort": "high"
+  }'
+```
+
+The response includes the reasoning chain alongside the final answer; clients can render them separately or fold the chain into a collapsible UI.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| **Explicit reasoning chain** | ✅ |
+| `reasoning_effort` low / medium / high | ✅ |
+| Tools / function calling | ✅ |
+| JSON mode | ✅ |
+| Vision (image input) | — |
+| Context window | 128K tokens |
+| Modality | chat |
+| Capability bucket | `external_chat` |
+
+## When to use
+
+- **Math / multi-step deduction** — where the chain matters for verification.
+- **Code analysis** — bug-trace style problems where intermediate reasoning helps the user (or another agent) audit the conclusion.
+- **DOSIA `chat_with`** — main brain calls this when the user asks "reason through" or "step by step" prompts.
+
+When **not** to use:
+
+- Simple chat or summarization — [`deepseek-v3-2`](/models/deepseek-v3-2) is faster and cheaper without the reasoning premium.
+- Vision tasks — use [`gpt-4o`](/models/gpt-4o) or [`gemini-3-1-pro`](/models/gemini-3-1-pro).
+
+## Next
+
+- [`deepseek-v3-2`](/models/deepseek-v3-2) — standard DeepSeek chat
+- [`deepseek-v3-anthropic`](/models/deepseek-v3-anthropic) — same V3 via Anthropic protocol
+- [`gpt-5-5`](/models/gpt-5-5) — alternative reasoning model

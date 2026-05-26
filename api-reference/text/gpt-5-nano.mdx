@@ -1,0 +1,131 @@
+---
+title: "GPT-5 nano"
+description: "OpenAI's smallest 5-series model — sub-second latency for routing, classification, and high-throughput agent loops."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-nano`
+**Capability:** 128K context · tool use · vision · streaming
+**Pricing:** per-token, nano tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5-nano is the latency floor of the 5-series. Reach for it when the
+plan is to make many cheap LLM calls — sub-LLM judges, classifier
+chains, agent loops where each step is a routing decision rather than
+an answer. The quality gap to mini is small for bounded prompts and
+the latency win is significant.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-nano",
+    "messages": [
+      {"role": "user", "content": "Route to: support / billing / sales. Input: My card was charged twice."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-nano` |
+| `messages` | array | yes | — | OpenAI chat shape. |
+| `max_tokens` | integer | no | model max | Max: 8192. |
+| `temperature` | number | no | 1.0 | Range 0.0–2.0. |
+| `tools` | array | no | — | Function calling supported. |
+| `response_format` | object | no | — | JSON mode + structured output supported. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-nano",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "billing"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 28, "completion_tokens": 1, "total_tokens": 29}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-nano",
+    "messages": [{"role": "user", "content": "Route to: support / billing / sales. Input: My card was charged twice."}]
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+
+resp = client.chat.completions.create(
+    model="gpt-5-nano",
+    messages=[{"role": "user", "content": "Route to: support / billing / sales. Input: My card was charged twice."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-5-nano",
+  messages: [{ role: "user", content: "Route to: support / billing / sales. Input: My card was charged twice." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching on stable prefixes.
+On nano, cache hits matter less than on larger models because the
+input rate is already low — but they still help on long system prompts.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 422 | Param not supported | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No |
+
+## When to use
+
+- Routing / triage / classification at the head of an agent pipeline.
+- High-volume sub-LLM judges.
+- For more capability at slightly higher latency, see [GPT-5-mini](/api-reference/text/gpt-5-mini).
+- For 5.4-tier routing, see [GPT-5.4-nano](/api-reference/text/gpt-5-4-nano).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 8192 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

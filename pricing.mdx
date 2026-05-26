@@ -1,0 +1,234 @@
+---
+title: "Pricing"
+description: "Per-model rate card across the 45-model catalog — chat, image, video. Refreshed nightly from the production gateway."
+---
+
+ByteSpike publishes one per-model rate per surface. No tiers, no markup
+paragraphs. Failed requests don't bill.
+
+<Note>
+**1 USD = 1,000,000 credits** (micro-USD precision). Token rates are
+quoted per million tokens. Per-call rates are quoted in dollars.
+</Note>
+
+## How rates are sourced
+
+Every row in this document is sourced from the production gateway's
+admin export and refreshed nightly. The build pipeline reads the latest
+seed of `channel_model_pricing` and emits this page; if you need
+programmatic access to the same data, hit `GET /api/pricing` directly
+(returns a JSON array matching the table rows below).
+
+Cache pricing convention:
+- **Cache write**: most providers bill at the input rate; Anthropic bills at 1.25× input.
+- **Cache read**: 90% off the input rate (10% billed) across all providers.
+- **Web search tool** (where supported): per-1k-uses surcharge, billed separately.
+
+For subscription / top-up pricing, see [bytespike.ai/pricing](https://bytespike.ai/pricing).
+
+---
+
+## Text models (28)
+
+### OpenAI (11)
+
+| Model | Input / 1M | Cache write | Cache read | Output / 1M |
+|---|---|---|---|---|
+| `gpt-4o-mini` | $0.15 | $0.15 | $0.075 | $0.60 |
+| `gpt-4o` | $2.50 | $2.50 | $1.25 | $10.00 |
+| `gpt-5-nano` | $0.05 | $0.05 | $0.025 | $0.40 |
+| `gpt-5-mini` | $0.25 | $0.25 | $0.125 | $2.00 |
+| `gpt-5-2` | $1.25 | $1.25 | $0.625 | $10.00 |
+| `gpt-5-4-nano` | $0.05 | $0.05 | $0.025 | $0.40 |
+| `gpt-5-4-mini` | $0.25 | $0.25 | $0.125 | $2.00 |
+| `gpt-5-4` | $1.25 | $1.25 | $0.625 | $10.00 |
+| `gpt-5-4-pro` | $3.00 | $3.00 | $1.50 | $15.00 |
+| `gpt-5-5-instant` | $2.50 | $2.50 | $1.25 | $20.00 |
+| `gpt-5-5` | $5.00 | $5.00 | $0.50 | $30.00 |
+
+GPT-5.5 web-search tool: $10 / 1k uses (billed separately).
+
+### Anthropic (6)
+
+| Model | Input / 1M | Cache write (1.25×) | Cache read | Output / 1M |
+|---|---|---|---|---|
+| `claude-haiku-4-5` | $1.00 | $1.25 | $0.10 | $5.00 |
+| `claude-sonnet-4-5` | $3.00 | $3.75 | $0.30 | $15.00 |
+| `claude-sonnet-4-6` | $3.00 | $3.75 | $0.30 | $15.00 |
+| `claude-opus-4-5` | $15.00 | $18.75 | $1.50 | $75.00 |
+| `claude-opus-4-6` | $15.00 | $18.75 | $1.50 | $75.00 |
+| `claude-opus-4-7` | $5.00 | $6.25 | $0.50 | $25.00 |
+
+Claude Opus 4.7 web-search tool: $10 / 1k uses (billed separately).
+
+### Google (2)
+
+| Model | Input / 1M | Cache write | Cache read | Output / 1M |
+|---|---|---|---|---|
+| `gemini-3-flash` | $0.30 | $0.30 | $0.075 | $2.50 |
+| `gemini-3-1-pro` | $3.50 | $3.50 | $0.875 | $25.00 |
+
+Gemini 3.1 Pro grounding tool (Google Search): $35 / 1k uses.
+
+### National LLMs (9)
+
+#### DeepSeek (3)
+
+| Model | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `deepseek-v3-2` | $0.27 | $0.027 | $1.10 |
+| `deepseek-v4-flash` | $0.20 | $0.02 | $0.80 |
+| `deepseek-v4-pro` | $0.55 | $0.055 | $2.20 |
+
+#### Moonshot (2)
+
+| Model | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `kimi-k2-5` | $0.60 | $0.06 | $2.50 |
+| `kimi-k2-6` | $0.60 | $0.06 | $2.50 |
+
+#### Zhipu (2)
+
+| Model | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `glm-5` | $0.50 | $0.05 | $1.50 |
+| `glm-5-1` | $0.50 | $0.05 | $1.50 |
+
+#### MiniMax (2)
+
+| Model | Input / 1M | Cache read | Output / 1M |
+|---|---|---|---|
+| `minimax-m2.5` | $0.40 | $0.04 | $1.20 |
+| `minimax-m2.7` | $0.40 | $0.04 | $1.20 |
+
+---
+
+## Image models (9)
+
+Sync endpoints. Pricing is per generated image. `n>1` bills each image
+separately.
+
+### ByteDance (3)
+
+| Model | Resolution | Per image |
+|---|---|---|
+| `seedream-v4` | 1024² | $0.024 |
+| `seedream-v4.5` | 2048² | $0.030 |
+| `seedream-v5lite` | 1024² | $0.012 |
+
+### Google (3)
+
+| Model | Resolution | Per image |
+|---|---|---|
+| `nano-banana` | 1024² | $0.020 |
+| `nano-banana-pro` (standard) | 2048² | $0.040 |
+| `nano-banana-pro` (hd) | 2048² | $0.080 |
+| `nano-banana-v2` | 2048² | $0.040 |
+
+### OpenAI (3)
+
+| Model | Resolution | Per image |
+|---|---|---|
+| `gpt-image-2` (medium) | 1024² | $0.030 |
+| `gpt-image-2` (high) | 1024² | $0.080 |
+| `gpt-image-2` (high) | 2048² | $0.250 |
+| `gpt-image-2-official` | same as gpt-image-2 + 25% | premium tier |
+| `gpt-4o-image` (per turn) | 1024² | $0.080 |
+
+GPT-Image 2 quality tiers (`low` / `medium` / `high`) bill at fixed
+multipliers; resolutions ≥ 2048² use the `high` rate. GPT-4o Image is
+billed per conversation turn — multi-turn editing cost = N × per-turn
+rate where N is the number of turns that produced an image.
+
+---
+
+## Video models (8)
+
+Async via `/tasks/submit` → `/tasks/query`. Pricing is per-second of
+output plus a fixed submit fee. Cancellations during `queued` are free;
+cancellations after `running` partial-bill the seconds rendered.
+
+### OpenAI (2)
+
+| Model | Resolution | Per second | Submit fee |
+|---|---|---|---|
+| `sora-2` | 1080p | $0.30 | $0.05 |
+| `sora-2-pro` | 1080p | $0.45 | $0.05 |
+
+### Google (2)
+
+| Model | Resolution | Per second | Submit fee |
+|---|---|---|---|
+| `veo-3.1` | 1080p | $0.10 | $0.05 |
+| `veo-3.1-fast` | 720p | $0.04 | $0.05 |
+
+### ByteDance (5)
+
+| Model | Resolution | Per second | Submit fee |
+|---|---|---|---|
+| `seedance-1.5-pro` | 1080p | $0.08 | $0.05 |
+| `seedance-2.0` | 1080p | $0.06 | $0.05 |
+| `seedance-2.0-pro` | 1080p | $0.15 | $0.05 |
+| `seedance-2.0-pro-fast` | 1080p | $0.12 | $0.05 |
+| `seedance-fast` | 720p | $0.03 | $0.05 |
+
+---
+
+## Utility endpoints
+
+| Endpoint | Cost |
+|---|---|
+| `GET /balance` | Free |
+| `POST /tasks/submit` | Cost = underlying model rate × duration |
+| `GET /tasks/query` | Free |
+| `POST /tasks/cancel` | Free if status=queued; partial-billed if running |
+
+---
+
+## Pricing notes
+
+- **Failures don't bill.** Any non-2xx response is free. The narrow
+  exception: video tasks cancelled after `running` — partial GPU
+  seconds are charged.
+- **Cache write rate**: most providers bill cache writes at the input
+  rate. Anthropic bills cache writes at 1.25× input.
+- **Cache read rate**: 90% discount across all providers (10% billed).
+- **Web search / grounding tools** (where supported): per-1k-uses
+  surcharge, billed separately from token usage.
+- **Image / video task failures**: 100% refund at the task level.
+- **Chat 5xx**: not billed; auto-retried at the gateway envelope.
+
+## Programmatic access
+
+```bash
+curl https://llm.bytespike.ai/api/pricing \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+Returns a JSON array with one entry per model:
+
+```json
+{
+  "model": "gpt-5-5",
+  "category": "text",
+  "vendor": "openai",
+  "rates": {
+    "input_per_1m": 5.00,
+    "cache_write_per_1m": 5.00,
+    "cache_read_per_1m": 0.50,
+    "output_per_1m": 30.00,
+    "currency": "USD"
+  },
+  "updated_at": "2026-05-08T04:30:00Z"
+}
+```
+
+Refresh cadence is daily at 04:30 UTC. Cache the response client-side
+for at least 24 hours; the `updated_at` field tells you when the
+underlying gateway data last refreshed.
+
+## See also
+
+- [Subscription plans + top-up tiers](https://bytespike.ai/pricing)
+- [API Reference overview](/api-reference/overview)
+- [Credits & Billing concept](/concepts/credits-and-billing)

@@ -1,0 +1,130 @@
+---
+title: "Seedream V4.5"
+description: "ByteDance's 2048² aesthetic image generator — refined edges around text and packaging, native CJK prompt understanding."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedream-v4.5`
+**Capability:** 2048² · refined edges · CJK prompts · text-in-image
+**Pricing:** per image, refined tier ([live rate](https://bytespike.ai/pricing#image))
+
+Seedream V4.5 is the right call when you need 2048² output with clean
+edges around text and packaging. V4 softens those edges; V5 lite
+produces them at the wrong scale. Reach for V4.5 specifically when
+your brief calls for typography that has to render correctly inside
+the image — product mockups, packaging stills, editorial layouts with
+inline copy.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-v4.5",
+    "prompt": "Minimalist product packaging on a teal background, brand name LUMEN in serif type",
+    "size": "2048x2048",
+    "n": 1
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `seedream-v4.5` |
+| `prompt` | string | yes | — | CJK accepted natively. |
+| `size` | string | no | `2048x2048` | Supported: `1024x1024`, `2048x2048`, `1024x2048`, `2048x1024`. |
+| `n` | integer | no | 1 | 1–4 images. Each billed separately. |
+| `seed` | integer | no | — | Reproducibility supported. |
+| `negative_prompt` | string | no | — | Standard SD-style negation. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/...",
+      "revised_prompt": "..."
+    }
+  ]
+}
+```
+
+URLs pre-signed, valid 24 hours.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedream-v4.5", "prompt": "Product packaging mockup", "size": "2048x2048"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="seedream-v4.5",
+    prompt="Minimalist product packaging on a teal background, brand name LUMEN in serif type",
+    size="2048x2048",
+    n=1,
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "seedream-v4.5",
+  prompt: "Minimalist product packaging on a teal background, brand name LUMEN in serif type",
+  size: "2048x2048",
+  n: 1,
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation (size unsupported, prompt empty) | No |
+| 401 / 402 / 403 | Auth / wallet / scope | No |
+| 413 | Prompt too long | No |
+| 429 | Rate-limited | No |
+| 451 | Prompt blocked by upstream safety filter | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Packaging / product mockups where text edges matter.
+- Editorial stills with inline typography.
+- For 1024² aesthetic output, see [Seedream V4](/api-reference/image/seedream-v4).
+- For cheap iteration at lower resolution, see [Seedream V5 lite](/api-reference/image/seedream-v5lite).
+- For photorealism, see [Nano-Banana Pro](/api-reference/image/nano-banana-pro).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 2048×2048 |
+| Max images per call (`n`) | 4 |
+| Supports init image (img2img) | No |
+| Supports negative prompt | Yes |
+| Supports seed reproduction | Yes |
+| Sync? | Yes (≤30s typical) |
+| Avg latency for 2048² | 12-18s |

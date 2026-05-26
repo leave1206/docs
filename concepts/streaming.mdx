@@ -1,0 +1,234 @@
+---
+title: "Streaming"
+description: "Server-Sent Events across the three protocols. How to enable, parse, abort, and handle mid-stream failures."
+---
+
+Every text endpoint supports streaming. The format is **Server-Sent
+Events (SSE)** — the gateway pipes the upstream's native stream
+1:1 so your SDK's existing parser works unchanged.
+
+## Per-protocol shape
+
+<Tabs>
+  <Tab title="Anthropic Messages">
+    Pass `"stream": true` in the body. Event names match Anthropic's
+    native protocol:
+
+    ```bash
+    curl -N https://llm.bytespike.ai/v1/messages \
+      -H "x-api-key: $BYTESPIKE_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 256,
+        "messages": [{"role": "user", "content": "explain SSE briefly"}],
+        "stream": true
+      }'
+    ```
+
+    ```
+    event: message_start
+    data: {"type":"message_start","message":{...}}
+
+    event: content_block_start
+    data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    event: content_block_delta
+    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"SSE"}}
+
+    event: content_block_delta
+    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" is"}}
+
+    …
+
+    event: message_delta
+    data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":42}}
+
+    event: message_stop
+    data: {"type":"message_stop"}
+    ```
+  </Tab>
+  <Tab title="OpenAI Chat Completions">
+    Pass `"stream": true`. Lines are `data: {json}` terminated by `data: [DONE]`:
+
+    ```bash
+    curl -N https://llm.bytespike.ai/v1/chat/completions \
+      -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-5",
+        "messages": [{"role": "user", "content": "explain SSE briefly"}],
+        "stream": true,
+        "stream_options": {"include_usage": true}
+      }'
+    ```
+
+    ```
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{"content":"SSE"},"finish_reason":null}]}
+
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{"content":" is"},"finish_reason":null}]}
+
+    …
+
+    data: {"id":"chatcmpl-...","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":42,"total_tokens":54}}
+
+    data: [DONE]
+    ```
+
+    `stream_options.include_usage: true` is how you get usage tokens on the final frame — otherwise OpenAI omits `usage` from streamed responses.
+  </Tab>
+  <Tab title="OpenAI Responses">
+    Pass `"stream": true`. Event names follow OpenAI's Responses streaming protocol:
+
+    ```bash
+    curl -N https://llm.bytespike.ai/v1/responses \
+      -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "model": "gpt-5-5",
+        "input": "explain SSE briefly",
+        "stream": true
+      }'
+    ```
+
+    ```
+    event: response.created
+    data: {"type":"response.created","response":{...}}
+
+    event: response.output_text.delta
+    data: {"type":"response.output_text.delta","delta":"SSE"}
+
+    event: response.output_text.delta
+    data: {"type":"response.output_text.delta","delta":" is"}
+
+    …
+
+    event: response.completed
+    data: {"type":"response.completed","response":{"usage":{...}}}
+    ```
+  </Tab>
+  <Tab title="Gemini Native">
+    Switch the method to `:streamGenerateContent` and pass `alt=sse`:
+
+    ```bash
+    curl -N "https://llm.bytespike.ai/v1beta/models/gemini-2-5-pro:streamGenerateContent?alt=sse&key=$BYTESPIKE_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{
+        "contents": [{"parts": [{"text": "explain SSE briefly"}]}]
+      }'
+    ```
+
+    ```
+    data: {"candidates":[{"content":{"parts":[{"text":"SSE"}],"role":"model"}}]}
+
+    data: {"candidates":[{"content":{"parts":[{"text":" is"}],"role":"model"}}]}
+
+    …
+
+    data: {"candidates":[{"content":{"parts":[{"text":"."}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{...}}
+    ```
+
+    No `[DONE]` marker — stream ends when the connection closes.
+  </Tab>
+</Tabs>
+
+## Headers ship before the first SSE frame
+
+Quota + rate-limit headers are sent in the HTTP response headers,
+*before* the first event. You can short-circuit a too-expensive
+stream by closing the connection after reading headers:
+
+```python
+import requests
+
+with requests.post(URL, json=payload, headers=HEADERS, stream=True) as r:
+    remaining = float(r.headers.get("X-Quota-Remaining-Credits", "0"))
+    if remaining < 5:
+        # not enough budget — close before consuming any tokens
+        r.close()
+        raise RuntimeError("Low credits, top up first")
+    for line in r.iter_lines():
+        # parse SSE frames...
+        pass
+```
+
+Closing the connection mid-stream is a hard abort — the upstream
+sees a client disconnect, billing settles on the partial output.
+For Anthropic / OpenAI text streams, that's all the
+`output_tokens` consumed up to the abort point.
+
+## Aborting cleanly
+
+If you have a long-running stream you want to cut off (user clicked
+*stop*), just close the HTTP connection — there's no separate
+"abort" call. The gateway propagates the disconnect to the
+upstream, billing settles on partial output.
+
+For **video** generation (async via `/v1/tasks/submit`), use
+[`POST /v1/tasks/cancel`](/api-reference/utility/tasks-cancel)
+instead — closing the submit response doesn't cancel the in-flight
+render.
+
+## Mid-stream errors
+
+If the upstream fails partway through, the gateway emits a final
+`event: error` (Anthropic) or terminal frame with `error` field
+(OpenAI) and closes the connection. The partial output you've
+already received is yours — but the request **does not bill** in
+the mid-stream-error case. Failures don't bill ever, full stop.
+
+## Reconnecting
+
+SSE supports the `Last-Event-ID` header for reconnects, but ByteSpike
+does **not** stage streams server-side — there's nothing to replay.
+If your connection drops mid-stream, you'll need to resend the
+request from scratch.
+
+For long completions where flakiness is a concern, prefer non-streaming
+mode with a generous client timeout, or use Anthropic's prompt
+caching to make retries cheap.
+
+## SDK behaviour
+
+All three official SDKs handle streaming automatically:
+
+```python
+# Anthropic SDK
+with client.messages.stream(model="claude-sonnet-4-6", messages=[...], max_tokens=256) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+
+# OpenAI SDK
+stream = client.chat.completions.create(model="gpt-5-5", messages=[...], stream=True)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="", flush=True)
+
+# Google Generative AI SDK
+for chunk in model.generate_content("...", stream=True):
+    print(chunk.text, end="", flush=True)
+```
+
+The base URL override on each SDK (covered in
+[Configure your client](/configure-client)) routes all three to
+ByteSpike transparently.
+
+## Common gotchas
+
+| Issue | Cause | Fix |
+|---|---|---|
+| Stream stalls after first chunk | Corporate proxy buffering / non-passthrough | Add `llm.bytespike.ai` to `NO_PROXY` |
+| Lines arrive in chunks of N | Default HTTP buffering — purely cosmetic | Use SDK or `iter_lines()` — semantic chunks always frame correctly |
+| `event:` lines missing | Your parser only reads `data:` lines | Use a real SSE parser — event names matter for Anthropic-shape and Responses-shape |
+| Usage not in final frame (OpenAI) | Missing `stream_options.include_usage: true` | Set it |
+| Final frame missing on Gemini | No `[DONE]` marker — stream ends on connection close | Treat connection-close as end-of-stream |
+
+## Related
+
+- [`/v1/messages` reference](/api-reference/text/claude-messages)
+- [`/v1/chat/completions` reference](/api-reference/text/openai-chat-completions)
+- [`/v1/responses` reference](/api-reference/text/openai-responses)
+- [`/v1beta/...generateContent` reference](/api-reference/text/gemini-generate-content)
+- [Error handling](/concepts/error-handling)

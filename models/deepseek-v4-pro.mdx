@@ -1,0 +1,109 @@
+---
+title: "deepseek-v4-pro"
+description: "DeepSeek V4 Pro — the cost-effective reasoning flagship. ~10–15× cheaper than gpt-5-4 at comparable quality on most benchmarks. Dual endpoint (Chat Completions + Anthropic Messages). Reasoning chain exposed. Vision not on HTTP API."
+---
+
+`deepseek-v4-pro` is DeepSeek's reasoning flagship and the most cost-effective high-capability model on ByteSpike. ~10–15× cheaper than `gpt-5-4` at **comparable quality on most benchmarks**, with the same dual-protocol surface that DeepSeek exposes natively.
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **DeepSeek API** | `api.deepseek.com` | $0.55 / 1M | $2.19 / 1M | ~700ms | CN + global |
+
+DeepSeek V4 series is **not** part of the Volcengine CodePlan subscription bundle — only V3.2 is. For V3.2 see [`deepseek-v3-2`](/models/deepseek-v3-2).
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Anthropic Messages | `POST https://llm.bytespike.ai/v1/messages` |
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+Both protocols are first-class. The same ByteSpike key works on either; pick whichever shape your client already speaks.
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (OpenAI shape)
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```bash cURL (Anthropic shape)
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "max_tokens": 1024,
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="deepseek-v4-pro",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Anthropic Messages | ✅ |
+| Streaming (SSE) | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| JSON mode | ✅ |
+| **Reasoning chain** | ✅ (`reasoning_content` field / `thinking` block) |
+| Vision (HTTP API) | ❌ (see provider page) |
+| Context window | 128K tokens |
+
+The reasoning chain ("thinking output") appears as:
+
+- On the OpenAI endpoint: `reasoning_content` field on the choice.
+- On the Anthropic endpoint: a `thinking` block ahead of the `text` block in `content[]`.
+
+Reasoning tokens count toward output billing.
+
+## When to use
+
+- **Cost-sensitive reasoning** — when you'd reach for `gpt-5-4` but want one-tenth the cost.
+- **Agents on a budget** — `tool_use` blocks pass through transparently via the Anthropic endpoint; DOSIA Agent uses this model heavily.
+- **DOSIA Agent mode** — must use the Anthropic Messages endpoint.
+
+When **not** to use:
+
+- Vision-required tasks — not on HTTP API today.
+- Web search — DeepSeek does not expose a grounding tool.
+- 200K+ context — 128K is the ceiling here; go to `claude-opus-4-7` for 1M or `gemini-2-5-pro` for 2M.
+
+## Next
+
+- [deepseek-v4-flash](/models/deepseek-v4-flash) — small-mid
+- [deepseek-v3.2](/models/deepseek-v3-2) — older V3 series via CodePlan subscription
+- [DeepSeek provider page](/providers/deepseek) — full channel context including vision details

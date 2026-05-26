@@ -1,0 +1,66 @@
+---
+title: "sora2-pro"
+description: "OpenAI Sora 2 Pro — longer clips (up to 30s), 1080p, richer motion dynamics and subject persistence over [`sora2`](/models/sora2). Highest per-second cost in the video lineup; the choice when clip duration and consistency matter more than budget."
+---
+
+`sora2-pro` is the Pro tier of OpenAI's Sora 2. The increments over [`sora2`](/models/sora2): up to **30 seconds** per clip, 1080p as default, stronger subject persistence across the clip (less character drift), better long-take camera dynamics. Per-second cost is the highest in the video lineup. The right pick when clip *duration* and *consistency* matter — a 30-second product story rather than a 5-second loop.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI Video Pro** | OpenAI direct | `api.openai.com` | per-second (see [/pricing](/pricing) — top tier in the video rate card) | ~3 min wall-clock for 10s clip | global edge |
+
+Failures don't bill. Per-second pricing applies to the generated footage length.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` when ready |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora2-pro",
+    "prompt": "A product unboxing sequence: hands carefully open a wooden box, reveal a ceramic teacup, set it on a marble counter",
+    "duration_seconds": 15,
+    "size": "1920x1080"
+  }' | jq -r .task_id)
+
+# Poll pattern matches sora2 — see /models/sora2#quickstart for the loop
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| `duration_seconds` up to 30 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| Subject persistence across clip | ✅ stronger than `sora2` |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Hero clips ≥ 10s** — product story, brand reel, anywhere clip *duration* shows up in the brief.
+- **Subject consistency required** — a character that has to stay recognizable for the whole shot.
+- **Final marketing-spend creative** — budget per clip is a smaller line than the model fee on a one-off campaign asset.
+
+When **not** to use:
+
+- ≤ 5 second clips — [`sora2`](/models/sora2) is meaningfully cheaper at that length.
+- High-volume programmatic — [`seedance-2.0-fast`](/models/seedance-2-0-fast) or [`veo3.1-fast`](/models/veo3-1-fast).
+
+## Next
+
+- [`sora2`](/models/sora2) — base tier, 5-15s clips
+- [`veo3.1`](/models/veo3-1) — Google flagship video
+- [Multimodal endpoints](/concepts/multimodal) — overview

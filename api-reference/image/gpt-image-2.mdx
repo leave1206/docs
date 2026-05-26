@@ -1,0 +1,130 @@
+---
+title: "GPT-Image 2"
+description: "OpenAI's photorealistic image generator — strong on prompts that mix description with explicit composition rules."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-image-2`
+**Capability:** 1024² – 4096² · photorealism · prompt-following · text-in-image
+**Pricing:** per image, photoreal tier ([live rate](https://bytespike.ai/pricing#image))
+
+GPT-Image 2 is OpenAI's photoreal generator. The thing that
+distinguishes it from Nano Banana is *prompt following* — when your
+brief reads "the kettle on the LEFT, mug on the RIGHT, steam rising
+from both", GPT-Image 2 respects spatial relationships better than
+most photoreal alternatives. For pure material fidelity, Nano Banana
+Pro and 2 still have an edge; for instruction adherence, this is
+usually the right call.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "A kettle on the left and a mug on the right, both steaming, on a marble counter",
+    "size": "1024x1024",
+    "quality": "high"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-image-2` |
+| `prompt` | string | yes | — | English-tuned. |
+| `size` | string | no | `1024x1024` | Supported: `1024x1024`, `1024x1536`, `1536x1024`, `2048x2048`, `4096x4096`. |
+| `n` | integer | no | 1 | 1–4 images. |
+| `quality` | string | no | `"medium"` | `"low"` / `"medium"` / `"high"` / `"auto"`. |
+| `style` | string | no | `"natural"` | `"natural"` / `"vivid"`. |
+| `output_format` | string | no | `"png"` | `"png"` / `"webp"` / `"jpeg"`. |
+| `output_compression` | integer | no | — | 0–100, only for `webp` / `jpeg`. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/...",
+      "revised_prompt": "..."
+    }
+  ]
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-image-2", "prompt": "Kettle and mug...", "quality": "high"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="gpt-image-2",
+    prompt="A kettle on the left and a mug on the right, both steaming, on a marble counter",
+    size="1024x1024",
+    quality="high",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "gpt-image-2",
+  prompt: "A kettle on the left and a mug on the right, both steaming, on a marble counter",
+  size: "1024x1024",
+  quality: "high",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Prompts that specify spatial relationships, counts, or composition.
+- Briefs that mix text descriptions with explicit constraints.
+- For more material / lighting fidelity, see [Nano Banana 2](/api-reference/image/nano-banana-v2) or [Nano Banana Pro](/api-reference/image/nano-banana-pro).
+- For the official OpenAI variant, see [GPT-Image 2 Official](/api-reference/image/gpt-image-2-official).
+- For aesthetic / illustration, see [Seedream V4.5](/api-reference/image/seedream-v4-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 4096×4096 |
+| Max images per call (`n`) | 4 |
+| Supports init image (img2img) | No |
+| Supports `quality` modifier | Yes |
+| Supports `style` modifier | Yes |
+| Sync? | Yes (≤30s typical, longer at high quality) |
+| Avg latency for 1024² high | 12-18s |

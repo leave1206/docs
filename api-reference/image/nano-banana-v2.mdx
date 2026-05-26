@@ -1,0 +1,121 @@
+---
+title: "Nano Banana 2"
+description: "Latest Nano Banana iteration — sharper in-image text rendering and improved hand / face anatomy."
+---
+
+**Vendor:** Google
+**Model ID:** `nano-banana-v2`
+**Capability:** 2048² · photorealism · sharp text rendering · improved anatomy
+**Pricing:** per image, photoreal flagship tier ([live rate](https://bytespike.ai/pricing#image))
+
+Nano Banana 2 is the current iteration of Google's photoreal family.
+The two areas where it visibly improves over Pro: text rendering
+inside the image (book covers, signage, screen content) and the
+notorious anatomy edge cases (hand counts, face proportion at small
+scale). For pure material / lighting fidelity, Pro and 2 are
+comparable; for any brief that involves *legible* in-image text or
+human subjects, 2 is the safer pick.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana-v2",
+    "prompt": "A cafe storefront with a chalk-board menu reading PASTEL DE NATA and AMERICANO",
+    "size": "2048x2048"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `nano-banana-v2` |
+| `prompt` | string | yes | — | English-tuned. |
+| `size` | string | no | `2048x2048` | Supported: `1024x1024`, `2048x2048`, `2048x1536`, `1536x2048`. |
+| `n` | integer | no | 1 | 1–2 images. |
+| `seed` | integer | no | — | Reproducibility. |
+| `aspect_ratio` | string | no | — | `1:1` / `9:16` / `16:9` / `4:3` / `3:4`. |
+| `quality` | string | no | `"standard"` | `"standard"` / `"hd"`. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "nano-banana-v2", "prompt": "A cafe storefront chalk-board menu", "size": "2048x2048"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="nano-banana-v2",
+    prompt="A cafe storefront with a chalk-board menu reading PASTEL DE NATA and AMERICANO",
+    size="2048x2048",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "nano-banana-v2",
+  prompt: "A cafe storefront with a chalk-board menu reading PASTEL DE NATA and AMERICANO",
+  size: "2048x2048",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- In-image text (signage, packaging, book covers, UI mockups).
+- Human subjects where hand / face anatomy must hold up at scale.
+- For prior generation hero photography, see [Nano Banana Pro](/api-reference/image/nano-banana-pro).
+- For lower cost iteration, see [Nano Banana](/api-reference/image/nano-banana).
+- For 2048² aesthetic / illustration, see [Seedream V4.5](/api-reference/image/seedream-v4-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 2048×2048 |
+| Max images per call (`n`) | 2 |
+| Supports init image (img2img) | No |
+| Supports `quality` modifier | Yes (`standard` / `hd`) |
+| Supports seed reproduction | Yes |
+| Sync? | Yes (≤45s) |
+| Avg latency for 2048² standard | 14-22s |

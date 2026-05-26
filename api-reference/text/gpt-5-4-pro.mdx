@@ -1,0 +1,146 @@
+---
+title: "GPT-5.4 pro"
+description: "GPT-5.4 with reasoning_effort dial — the right call for multi-step problems where the first draft has to compose, not just answer."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-4-pro`
+**Capability:** 200K context · tool use · vision · streaming · structured output · reasoning_effort
+**Pricing:** per-token, pro tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5.4-pro takes the standard 5.4 base and exposes a `reasoning_effort`
+dial for OpenAI's reasoning chain. Reach for it when the problem is
+multi-step — code generation in an existing codebase with conventions,
+math / proof tasks, planning across many sub-goals — and the first
+draft has to compose, not just answer. The latency cost rises with
+reasoning effort but the answer quality on hard problems jumps further
+than the latency suggests.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-pro",
+    "reasoning_effort": "high",
+    "messages": [{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-4-pro` |
+| `messages` | array | yes | — | — |
+| `reasoning_effort` | string | no | `"medium"` | `"low"` / `"medium"` / `"high"` — higher = longer reasoning chain, higher latency, higher quality on hard problems. |
+| `max_tokens` | integer | no | model max | Max: 32768. |
+| `tools` | array | no | — | Parallel function calling. |
+| `response_format` | object | no | — | JSON / structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-4-pro",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "use std::sync::..."}, "finish_reason": "stop"}],
+  "usage": {
+    "prompt_tokens": 32,
+    "completion_tokens": 1248,
+    "reasoning_tokens": 4032,
+    "total_tokens": 5312
+  }
+}
+```
+
+`reasoning_tokens` are billed at the input-token rate, not output.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-4-pro", "reasoning_effort": "high", "messages": [{"role": "user", "content": "..."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-4-pro",
+    reasoning_effort="high",
+    messages=[{"role": "user", "content": "Implement a thread-safe LRU cache in Rust."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4-pro",
+  reasoning_effort: "high",
+  messages: [
+    { role: "user", content: "Implement a thread-safe LRU cache in Rust." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Reasoning effort guide
+
+| Setting | Use for |
+|---|---|
+| `"low"` | Fast structured output, light reasoning |
+| `"medium"` | Default — most multi-step tasks |
+| `"high"` | Hard math / proof / multi-goal planning where you can wait |
+
+Higher settings monotonically improve quality on hard problems; the
+marginal return falls off above `"high"` for most tasks.
+
+## Streaming + caching
+
+`"stream": true` for SSE. With reasoning enabled, the first response
+chunk lands after the reasoning chain completes — there's a longer
+HTTP TTFB than non-reasoning models. Automatic prompt caching applies.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Multi-step coding in an existing codebase.
+- Hard math / proof / planning tasks.
+- For non-reasoning 5.4 at lower latency, see [GPT-5.4](/api-reference/text/gpt-5-4).
+- For the latest reasoning-capable flagship, see [GPT-5.5](/api-reference/text/gpt-5-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 32768 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |
+| Supports reasoning_effort | Yes |

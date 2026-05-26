@@ -1,0 +1,153 @@
+---
+title: "GPT-4o mini"
+description: "OpenAI's small 4o-tier model — vision capable, low latency, the legacy default for high-volume routing and extraction tasks."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-4o-mini`
+**Capability:** 128K context · vision · tool use · streaming
+**Pricing:** per-token, mini tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-4o mini is the small model from the legacy 4o-series. It's still
+the right pick for high-volume classification, extraction, and routing
+where the prompt is bounded and you'd rather make a hundred cheap calls
+than ten expensive ones. For new work that doesn't need vision, the
+5-series mini variants are usually a better starting point — see
+[GPT-5-mini](/api-reference/text/gpt-5-mini) and
+[GPT-5.4-mini](/api-reference/text/gpt-5-4-mini).
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "Classify the sentiment: Service was great."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-4o-mini` |
+| `messages` | array | yes | — | OpenAI chat shape. |
+| `max_tokens` | integer | no | model max | Hard cap. Max for this model: 16384. |
+| `temperature` | number | no | 1.0 | Range 0.0–2.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Function calling supported. |
+| `tool_choice` | string \| object | no | `"auto"` | `"none"` / `"auto"` / `"required"` / `{"type":"function","function":{"name":"…"}}`. |
+| `response_format` | object | no | — | `{"type":"json_object"}` for JSON mode, `{"type":"json_schema",...}` for structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-4o-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "positive"},
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 18, "completion_tokens": 1, "total_tokens": 19}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Classify the sentiment: Service was great."}]
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Classify the sentiment: Service was great."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [{ role: "user", content: "Classify the sentiment: Service was great." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming
+
+Set `"stream": true` for SSE in the standard OpenAI delta format.
+Estimated credits ship in HTTP headers before the first chunk.
+
+## Prompt caching
+
+OpenAI does **automatic prompt caching** — there's no `cache_control`
+param. Repeated prefixes (system prompt, tool definitions) hit the
+cache transparently and bill at the discounted rate visible in the
+[pricing table](https://bytespike.ai/pricing#text). Keep your system
+prompt and tool schema stable across calls in an agent loop to maximise
+cache hits.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 422 | Param not supported | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+## When to use
+
+- High-volume classification, extraction, or routing on legacy code.
+- For new work, prefer [GPT-5-mini](/api-reference/text/gpt-5-mini) or [GPT-5.4-mini](/api-reference/text/gpt-5-4-mini).
+- For higher quality at higher cost, see [GPT-4o](/api-reference/text/gpt-4o).
+- For fastest 5-series at the lowest tier, see [GPT-5-nano](/api-reference/text/gpt-5-nano).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

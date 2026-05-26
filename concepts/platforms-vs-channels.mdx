@@ -1,0 +1,104 @@
+---
+title: "Platforms vs. channels"
+description: "A platform is a protocol contract — the request shape and auth scheme exposed by an upstream. A channel is the specific account behind a platform that ByteSpike calls on a given request. The two terms get conflated in casual conversation; the gateway distinguishes them and so should your mental model."
+---
+
+These two terms — **platform** and **channel** — get conflated all the time. They name different things, and the difference matters once you start reasoning about pricing, routing, and admin configuration. This page is a short disambiguation.
+
+## The one-line answer
+
+- **Platform** = a protocol contract. A way of speaking to an upstream — the request shape, the auth scheme, the base URL template.
+- **Channel** = a specific upstream account. One credential, one base URL instance, mapped to a set of models the routing layer can pick.
+
+A platform is a class; a channel is an instance. There can be many channels per platform.
+
+## A concrete example
+
+Take the Anthropic platform. The contract is fixed:
+
+- Base URL pattern: `https://api.anthropic.com` or a Bedrock equivalent
+- Auth header: `x-api-key: <token>` (or AWS SigV4 for Bedrock)
+- Request shape: Anthropic Messages (`/v1/messages` with `model`, `max_tokens`, `messages`, `tool_use`, `cache_control`, `thinking`)
+- Streaming: SSE
+- Error semantics: 4xx / 5xx pass through
+
+That's the platform. It does not tell you which Claude models you can call, what they cost, or which account ByteSpike will use.
+
+The platform gets concrete when it becomes a **channel**. A channel record adds:
+
+- Which credential to use (`acme_anthropic_key_prod`)
+- Which actual base URL to call (`https://api.anthropic.com` vs. `https://bedrock-runtime.us-east-1.amazonaws.com`)
+- Which models this credential can serve
+- Per-model pricing on this channel
+- Priority, rate limits, region tags
+
+ByteSpike can have many channels for the Anthropic platform — `anthropic-api`, `bedrock-us-east-1`, `bedrock-eu-west-1`, `vertex-anthropic-claude` (if Anthropic ever appears on Vertex). They all speak the Anthropic Messages contract; they differ in price, latency, region, and capacity.
+
+## Why both concepts exist
+
+If only "channel" existed, every routing decision would have to re-derive the protocol shape from each upstream — duplicate code, brittle. If only "platform" existed, the gateway couldn't represent multi-region, multi-account, or partner-specific upstreams.
+
+Splitting them gives the routing layer a clean separation:
+
+- **Platform** answers "what wire protocol do I speak to this upstream?"
+- **Channel** answers "which account, which region, which rate, which keys?"
+
+The same Anthropic Messages request you send to ByteSpike could land on any of the Anthropic platform's channels. The protocol it speaks doesn't change. The price it bills does.
+
+## How the two show up in admin config
+
+For an account administrator, the workflow is:
+
+1. **Choose a platform** when adding a new upstream. ByteSpike has a fixed set: anthropic, openai, gemini, deepseek, moonshot, zhipu, volcengine. The platform determines what credential fields and auth scheme the form asks for.
+2. **Create a channel** by filling in the platform-specific credential fields plus channel-level fields like name, region, priority, default cost overrides.
+3. **Bind models to the channel** — pick which model IDs this channel can serve.
+
+The Console doesn't ask "which channel do you want?" because that's the routing layer's job. It asks "which models, which credentials, which priority" — channel as a record.
+
+## How customers see the difference
+
+For a customer calling `POST /v1/messages` against ByteSpike:
+
+- The **platform** is implicit in the endpoint you call (`/v1/messages` ≡ Anthropic Messages platform). Switching the endpoint to `/v1/chat/completions` switches the platform to OpenAI Chat Completions.
+- The **channel** is opaque on the request side — chosen by the routing layer based on which group your API key is bound to. To see which channel actually served a given call, query [`GET /api/v1/usage`](/api-reference/account/me-usage); the `upstream_provider` field on each usage row names the channel that ran the request.
+
+You never name a channel in your request. The default is "let the gateway decide based on the key's group binding."
+
+## A mental model summary
+
+A request flows like this:
+
+```
+You send:        POST /v1/messages { model: "claude-sonnet-4-6", ... }
+Endpoint shape:  /v1/messages  -> Anthropic Messages platform
+Key carries:     group_id = 1 (e.g. "claude-default")
+Routing picks:   the highest-priority channel in group 1 that serves
+                 "claude-sonnet-4-6"  (e.g. claude-default channel #3)
+Channel pulls:   credential, base_url, per-model rate
+Gateway calls:   the upstream at that base_url with that credential
+You receive:     response body + X-RateLimit + X-Quota headers
+                 (which channel served you: visible in /api/v1/usage)
+```
+
+Two layers, doing two different jobs. Conflating them makes pricing confusing; separating them makes multi-region, multi-account routing tractable.
+
+## What about Volcengine CodePlan?
+
+CodePlan is a useful edge case for clarity. Volcengine sells a single subscription that grants access to several models simultaneously — DeepSeek-V3.2, Doubao, GLM, MiniMax, Kimi all under one credential.
+
+In ByteSpike's representation:
+
+- The **platform** is `volcengine-codeplan` (its own protocol + auth scheme entry).
+- A single **channel** wraps that one subscription credential.
+- The channel's `serves[]` lists every model in the subscription.
+
+When you request `deepseek-v3-2` and routing picks the `volcengine-codeplan` channel, billing is per-channel: a monthly subscription rate amortized across the org's CodePlan members, not per-token. This is what the [channels page](/concepts/channels) calls "channel rate" — and the rate model on a CodePlan channel is fundamentally different from a per-token Anthropic channel.
+
+Two channels, same model, two completely different billing curves. That's the layered structure earning its keep.
+
+## Next
+
+- [Channels](/concepts/channels) — the deeper page on routing, per-channel pricing, admin levers
+- [Endpoint types](/concepts/endpoints) — the eight request shapes that map to platform contracts
+- [Models index](/models) (coming soon) — per-model pages, each listing every channel that serves it
+- [Providers](/providers) (coming soon) — per-platform admin-side configuration docs

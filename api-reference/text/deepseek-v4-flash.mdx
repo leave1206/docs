@@ -1,0 +1,118 @@
+---
+title: "DeepSeek V4 Flash"
+description: "Latency-optimised V4 — DeepSeek Pro quality on bounded prompts at sub-second TTFB."
+---
+
+**Vendor:** DeepSeek
+**Model ID:** `deepseek-v4-flash`
+**Capability:** 128K context · tool use · streaming · structured output
+**Pricing:** per-token, flash tier ([live rate](https://bytespike.ai/pricing#text))
+
+DeepSeek V4 Flash takes the V4 base and tunes for latency. Same
+strong code generation on bounded prompts, half the wait of V4 Pro
+on short inputs. Right pick for inline code suggestions, lint-style
+fixes, and any agent step where one or two seconds matters.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "deepseek-v4-flash",
+    "messages": [{"role": "user", "content": "Add type hints to this Python function."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `deepseek-v4-flash` |
+| `messages` | array | yes | — | — |
+| `max_tokens` | integer | no | model max | Max: 8192. |
+| `tools` | array | no | — | Function calling supported. |
+| `response_format` | object | no | — | JSON / structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "deepseek-v4-flash",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 64, "completion_tokens": 142, "total_tokens": 206}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "Add type hints."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "Add type hints to this Python function."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "deepseek-v4-flash",
+  messages: [
+    { role: "user", content: "Add type hints to this Python function." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Inline code suggestions, lint-style fixes, IDE-integrated agents.
+- Latency-bound code routing.
+- For full V4 Pro quality on hard problems, see [DeepSeek V4 Pro](/api-reference/text/deepseek-v4-pro).
+- For prior generation, see [DeepSeek V3.2](/api-reference/text/deepseek-v3-2).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 8192 tokens |
+| Supports tool use | Yes |
+| Supports vision | No |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

@@ -1,0 +1,176 @@
+---
+title: "Claude Sonnet 4.5"
+description: "The mid-tier Sonnet that displaced 3.5 — strong on tool use and structured output without the Opus latency."
+---
+
+**Vendor:** Anthropic
+**Model ID:** `claude-sonnet-4-5`
+**Capability:** 200K context · tool use · vision · prompt caching · streaming
+**Pricing:** per-token, Sonnet tier ([live rate](https://bytespike.ai/pricing#text))
+
+Sonnet 4.5 is the workhorse model of the 4-series. If your prompt fits
+in 200K tokens, you want native tool use, and you'd rather spend money
+on more calls than wait for one Opus round-trip, this is the default.
+For most production agent flows, swapping Opus 4.7 → Sonnet 4.5 is a
+~3× cost reduction with a much smaller quality drop than the price gap
+suggests — measure both before assuming Opus.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 4096,
+    "messages": [
+      {"role": "user", "content": "Refactor this Python function for readability."}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `claude-sonnet-4-5` |
+| `messages` | array | yes | — | Conversation history. |
+| `max_tokens` | integer | yes | — | Hard cap. Max for this model: 16384. |
+| `system` | string \| array | no | — | Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | Supported, including parallel tool calls. |
+| `tool_choice` | object | no | `{"type":"auto"}` | `auto` / `any` / `tool` (named). |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "msg_sonnet_…",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-5",
+  "content": [
+    {"type": "text", "text": "Here's the refactor..."}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 142,
+    "output_tokens": 318
+  }
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 4096,
+    "messages": [{"role": "user", "content": "Refactor this Python function for readability."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=4096,
+    messages=[
+        {"role": "user", "content": "Refactor this Python function for readability."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "claude-sonnet-4-5",
+  max_tokens: 4096,
+  messages: [
+    { role: "user", content: "Refactor this Python function for readability." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## Streaming
+
+Set `"stream": true` for SSE in the standard Anthropic format. Estimated
+credits ship in the HTTP headers before the first event.
+
+## Cache control
+
+`cache_control` blocks pay for themselves on Sonnet within ~3 repeated
+calls of the same system prompt. Cache reads bill at the discounted rate
+visible in the [pricing table](https://bytespike.ai/pricing#text).
+
+```json
+{
+  "model": "claude-sonnet-4-5",
+  "system": [
+    {
+      "type": "text",
+      "text": "<long static system prompt>",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+## When to use
+
+- Production agent loops where one-shot quality matters and you can wait 1–2s.
+- Code review / refactoring / structured output where Haiku starts skipping steps.
+- For higher throughput at lower quality, see [Haiku 4.5](/api-reference/text/claude-haiku-4-5).
+- For deeper reasoning across long contexts, see [Opus 4.7](/api-reference/text/claude-opus-4-7).
+- The newer [Sonnet 4.6](/api-reference/text/claude-sonnet-4-6) is now the recommended Sonnet — keep 4.5 only if you've benchmark-verified the older version on your task.
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Yes |

@@ -1,0 +1,119 @@
+---
+title: "Top up credits"
+description: "Buy ByteSpike credits via Stripe — minimum $5, up to +11.2% bonus on bigger packs."
+---
+
+ByteSpike bills in **credits**, where `1 USD = 1,000,000 credits`
+(micro-USD precision). You buy credits from
+[Console → Billing](https://console.bytespike.ai/billing); they land
+in the org wallet and any key on the account can spend against them.
+
+## The flow
+
+1. Open [console.bytespike.ai/billing](https://console.bytespike.ai/billing)
+2. Click **Top up**
+3. Pick an amount ($5 minimum, $1,250 max per transaction)
+4. Pay via Stripe (cards / Apple Pay / Google Pay)
+5. Credits appear in the wallet within ~30 seconds of payment confirmation — refresh the page if it doesn't update on its own
+
+You can also subscribe to a tier instead of (or in addition to)
+ad-hoc top-ups — see [Subscriptions](#subscription-tiers) below.
+
+## Bonus ladder
+
+Larger one-time top-ups carry a bonus. Live numbers at
+[bytespike.ai/pricing](https://bytespike.ai/pricing#top-up); the
+current ladder is roughly:
+
+| Top-up | Bonus | Credits delivered |
+|---|---|---|
+| $5 – $19.99 | 0% | what you paid |
+| $20 – $99.99 | +3% | $20 → $20.60 |
+| $100 – $499.99 | +5% | $100 → $105 |
+| $500 – $999.99 | +8% | $500 → $540 |
+| $1,000 – $1,250 | +11.2% | $1,000 → $1,112 |
+
+Bonuses are credited at the same time as the principal — one
+wallet movement, two line items in the billing-transactions log.
+
+## Subscription tiers
+
+If you spend more than ~$80/month on the same usage shape, a
+subscription beats top-ups: bundled credit + higher concurrency +
+priority queue.
+
+| Tier | Cost | What you get |
+|---|---|---|
+| **Free** | $0 | Trial allowance for new accounts. All 40+ models, standard rate limits. |
+| **Pro** | ¥149/month (~$20) | 50–500 messages per 12h window. Priority queue. +5% top-up bonus on top of the ladder above. |
+| **Max** | ¥1,499/month (~$200) | 500–5000 messages per 12h. Higher concurrency. +11.2% top-up bonus. |
+| **Enterprise** | Custom annual | Unlimited + SLA, self-hosted option, SSO/OIDC, audit logs. Email [enterprise@bytespike.ai](mailto:enterprise@bytespike.ai). |
+
+There's also a **CodePlan Bundle** (¥299/month) which packages a
+single subscription across 5 vendors (Doubao, DeepSeek V3.2, GLM,
+Kimi, MiniMax) for shops that mainly use the National-LLM
+catalog — see [bytespike.ai/pricing#codeplan](https://bytespike.ai/pricing).
+
+Manage subscriptions at [Console → Subscriptions](https://console.bytespike.ai/subscriptions).
+
+## Per-key spend caps
+
+Even with a fat org wallet, you can cap individual keys so a runaway
+loop on one client doesn't drain the whole wallet:
+
+- **`quota` (USD)** — lifetime spend cap. Set at key creation or
+  edit later. `0` = unlimited (within the wallet).
+- **`rate_limit_5h` / `_1d` / `_7d` (USD)** — rolling-window caps.
+  Useful for protecting against burst spikes.
+- **`expires_in_days`** — auto-revoke for time-bound work.
+
+See [Authentication](/authentication) for the full per-key control
+list, or the [Console → API keys](https://console.bytespike.ai/keys)
+edit dialog.
+
+## Where the credits go
+
+Once topped up, every API call against your keys debits the wallet.
+You can see the running balance:
+
+- On every response: `X-Quota-Remaining-Credits` (key) / `X-Org-Quota-Remaining-Credits` (org wallet)
+- In the console: [Usage](https://console.bytespike.ai/usage)
+- Programmatically: [`/api/v1/me/account`](/api-reference/account/me-account) — current balance + org context; [`/api/v1/me/usage`](/api-reference/account/me-usage) — per-call cost log
+
+## Refunds
+
+ByteSpike does **not** auto-refund unused credits. They roll forever
+on the wallet — there's no monthly expiry.
+
+If you need a manual refund (account closure, accidental top-up),
+email [support@bytespike.ai](mailto:support@bytespike.ai). Refunds
+go back via the original Stripe charge when possible.
+
+## Failed top-ups
+
+If the Stripe charge succeeded but credits didn't land within 5
+minutes, check [`/api/v1/me/billing/transactions`](/api-reference/account/me-billing-transactions)
+— the transaction will show `status: "pending"` (still processing)
+or `status: "failed"` (problem at the payment processor). For
+failed transactions, the card was usually pre-authorized but not
+captured — your statement will show the auth dropping off in 24-48h.
+
+Persistent issues: email support with the transaction id from
+that endpoint.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Register" icon="user-plus" href="/register">
+    Step before this one.
+  </Card>
+  <Card title="Configure your client" icon="terminal" href="/configure-client">
+    Spend the credits.
+  </Card>
+  <Card title="Pricing reference" icon="coins" href="/pricing">
+    Per-model rates inside the docs.
+  </Card>
+  <Card title="Credits & billing concept" icon="receipt" href="/concepts/credits-and-billing">
+    The deeper mental model.
+  </Card>
+</CardGroup>

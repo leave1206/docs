@@ -1,0 +1,64 @@
+---
+title: "seedance-1.5-pro"
+description: "ByteDance Seedance 1.5 Pro — the previous-generation Seedance flagship, kept on the rate card for compatibility. New work should target [`seedance-2.0-pro`](/models/seedance-2-0-pro)."
+---
+
+`seedance-1.5-pro` is the previous-generation ByteDance Seedance Pro tier. Kept on the rate card for accounts that pinned to it before the 2.0 series shipped — new projects should default to [`seedance-2.0-pro`](/models/seedance-2-0-pro) (better fidelity, similar pricing). Documented here so existing pinned integrations have a clear reference.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance** | Volcengine | `ark.cn-beijing.volces.com` | per-second (see [/pricing](/pricing) for current rate) | ~75s wall-clock for 5s clip | cn-beijing |
+
+Failures don't bill.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-1.5-pro",
+    "prompt": "国潮风短片，少女在敦煌色彩的背景前转身",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# Poll pattern — see /models/sora2#quickstart
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| `duration_seconds` 5 | ✅ |
+| `size` 1280×720 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Existing pinned integration** — your code targets `seedance-1.5-pro` explicitly and a model swap requires regression testing you don't want to do.
+- **Reproducing earlier output** — match an existing reel that was generated on 1.5.
+
+When **not** to use:
+
+- New project — go directly to [`seedance-2.0-pro`](/models/seedance-2-0-pro).
+- Chinese aesthetic + fastest tier — [`seedance-2.0-fast`](/models/seedance-2-0-fast).
+
+## Next
+
+- [`seedance-2.0-pro`](/models/seedance-2-0-pro) — current Seedance flagship
+- [`seedance-2.0-pro-fast`](/models/seedance-2-0-pro-fast) — 2.0 Pro with faster runtime
+- [Multimodal endpoints](/concepts/multimodal) — overview

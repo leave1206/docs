@@ -1,0 +1,117 @@
+---
+title: "POST /tasks/cancel"
+description: "Abort a non-terminal async task. Idempotent — calling on an already-finished task returns the current state."
+---
+
+Stops a task that hasn't finished yet. Idempotent: cancelling a task
+that's already `completed`, `failed`, or `cancelled` returns the
+current state with HTTP 200, not an error. Safe to call from a poller
+that's racing against `/tasks/query`.
+
+## When to use
+
+- **User changed their mind** — they hit "cancel" in your UI mid-render
+- **Cost ceiling tripped** — your account just hit a soft credit cap and you want to stop in-flight work
+- **Stuck `pending`** — the upstream is queued for unusually long; cancel and resubmit with different params
+
+## Request
+
+### By task_id (path-param form, primary)
+
+```bash
+curl -X POST https://llm.bytespike.ai/v1/tasks/cancel/task_01HQX9F2P6Y8VEX3CRZ8GXJVD9 \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+### By out_task_id (body form, fallback)
+
+When you only have the idempotency key handy:
+
+```bash
+curl -X POST https://llm.bytespike.ai/v1/tasks/cancel \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"out_task_id": "my-render-2026-05-25-001"}'
+```
+
+### Body
+
+The body is only required for the out_task_id form.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `task_id` | string | one-of | Same as path-param, accepted as a body field too. |
+| `out_task_id` | string | one-of | The idempotency key supplied on submit. |
+
+Exactly one identifier must resolve. Sending both `task_id` and
+`out_task_id`, or neither, returns `400 invalid_param`. The
+path-param wins over `task_id` in the body if both are present.
+
+## Response
+
+Identical shape to [`/tasks/query`](./tasks-query) — the task in its
+post-cancel state.
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "cancelled",
+  "estimated_credits": 1.50,
+  "estimated_seconds": 35,
+  "upstream_provider": "openai"
+}
+```
+
+If the task was already in a terminal state when cancel arrived, the
+response reflects that state (no field changes):
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "status": "completed",
+  "credits_used": 1.47,
+  "output": [{ "type": "video", "url": "https://cdn.bytespike.ai/..." }]
+}
+```
+
+This lets retry-safe callers treat `200` as "the task is no longer
+in-flight" without branching on race conditions.
+
+## Billing semantics
+
+| Pre-cancel state | What you're charged |
+|---|---|
+| `pending` (upstream not contacted yet) | $0 — free cancel |
+| `running` (upstream actively generating) | depends on the provider — most refund unless past the point of no return; see `credits_used` in the response |
+| `completed` / `failed` (already terminal) | no change — billing for that task is already settled (or not, in the failed case) |
+
+For confidence on the running-state refund, inspect `credits_used`
+after the cancel returns. If absent, no charge; if present, that's
+the final amount.
+
+## Errors
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `invalid_param` | Both `task_id` and `out_task_id` supplied, or neither. |
+| 401 | `invalid_api_key` | Missing / revoked key. |
+| 404 | `task_not_found` | No task matches — or the task belongs to a different API key. |
+
+## Idempotency
+
+Cancel is idempotent on *terminal* tasks: calling cancel on a
+`completed` / `failed` / `cancelled` task returns the current state
+with HTTP 200, not an error. This is intentional — clients polling
+`/tasks/query` in parallel with a cancel button shouldn't have to
+branch on "did the task finish a millisecond before my cancel landed".
+
+## Pricing
+
+The cancel call itself is free. Refund of any `credits_used` happens
+during the cancel, not after.
+
+## Next
+
+- [`POST /tasks/submit`](./tasks-submit)
+- [`POST /tasks/query`](./tasks-query)

@@ -1,0 +1,124 @@
+---
+title: "Nano Banana Pro"
+description: "Nano Banana with extended detail pass and material refinement — the photoreal flagship for hero imagery."
+---
+
+**Vendor:** Google
+**Model ID:** `nano-banana-pro`
+**Capability:** 2048² · photorealism · extended detail pass · material accuracy
+**Pricing:** per image, pro photoreal tier ([live rate](https://bytespike.ai/pricing#image))
+
+Nano Banana Pro adds an extended detail pass and material-refinement
+step to the base Nano Banana renderer. The result is sharper texture
+work, cleaner highlights on glass and metal, and better skin / fabric
+rendering at hero-image scales. The latency cost is real (~2× base
+Nano Banana); reach for Pro when the image is the deliverable, not
+when you're iterating.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana-pro",
+    "prompt": "Hero product shot of a luxury watch on dark velvet, dramatic side lighting",
+    "size": "2048x2048",
+    "n": 1
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `nano-banana-pro` |
+| `prompt` | string | yes | — | English-tuned. |
+| `size` | string | no | `2048x2048` | Supported: `1024x1024`, `2048x2048`, `2048x1536`, `1536x2048`. |
+| `n` | integer | no | 1 | 1–2 images. |
+| `seed` | integer | no | — | Reproducibility supported. |
+| `aspect_ratio` | string | no | — | `1:1` / `9:16` / `16:9` / `4:3` / `3:4`. |
+| `quality` | string | no | `"standard"` | `"standard"` / `"hd"` — `"hd"` adds an additional detail pass. |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "nano-banana-pro", "prompt": "Hero product shot...", "size": "2048x2048", "quality": "hd"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="nano-banana-pro",
+    prompt="Hero product shot of a luxury watch on dark velvet, dramatic side lighting",
+    size="2048x2048",
+    quality="hd",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "nano-banana-pro",
+  prompt: "Hero product shot of a luxury watch on dark velvet, dramatic side lighting",
+  size: "2048x2048",
+  quality: "hd",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Hero / campaign imagery where detail at print scale matters.
+- Product photography where material rendering is the brief.
+- For iteration / lower fidelity, see [Nano Banana](/api-reference/image/nano-banana).
+- For better text rendering inside the image, see [Nano Banana 2](/api-reference/image/nano-banana-v2).
+- For 2048² aesthetic / illustration, see [Seedream V4.5](/api-reference/image/seedream-v4-5).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 2048×2048 |
+| Max images per call (`n`) | 2 |
+| Supports init image (img2img) | No |
+| Supports `quality` modifier | Yes (`standard` / `hd`) |
+| Supports seed reproduction | Yes |
+| Sync? | Yes (≤45s for `hd`) |
+| Avg latency for 2048² standard | 12-18s |
+| Avg latency for 2048² hd | 25-40s |

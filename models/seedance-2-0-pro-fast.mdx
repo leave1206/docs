@@ -1,0 +1,65 @@
+---
+title: "seedance-2.0-pro-fast"
+description: "Seedance 2.0 Pro on a faster runtime — same flagship model, lower wall-clock to first frame, modest per-second premium. The choice when you're iterating Seedance prompts and don't want to wait."
+---
+
+`seedance-2.0-pro-fast` is [`seedance-2.0-pro`](/models/seedance-2-0-pro) on a faster runtime — same model weights and fidelity, just optimized inference path that brings wall-clock down. Per-second cost is slightly higher than the standard Pro tier. The right pick when you're iterating Seedance prompts in a loop and the wait between submit-and-result is your bottleneck.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance Fast** | Volcengine | `ark.cn-beijing.volces.com` | per-second (see [/pricing](/pricing) — small premium over `seedance-2.0-pro`) | ~40s wall-clock for 5s clip | cn-beijing |
+
+Failures don't bill. Per-second pricing applies to generated footage length; the faster runtime is a runtime optimization, not a fidelity downgrade.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro-fast",
+    "prompt": "Same prompt structure as seedance-2.0-pro, just faster runtime",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+```
+
+Poll loop matches the [sora2 quickstart](/models/sora2#quickstart) — model weights and surface are identical to [`seedance-2.0-pro`](/models/seedance-2-0-pro), only inference time differs.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| Fidelity vs `seedance-2.0-pro` | identical |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Prompt iteration loop** — designer or marketer iterating wording / staging in tight loops; the runtime delta adds up over a session.
+- **Demo / pitch playback** — generate-and-show flows where the audience is watching the screen, wall-clock to first frame matters more than the per-second cost.
+
+When **not** to use:
+
+- Batch / overnight pipelines — runtime doesn't matter, drop to [`seedance-2.0-pro`](/models/seedance-2-0-pro) or [`seedance-2.0-fast`](/models/seedance-2-0-fast).
+- Cost-sensitive — the premium isn't worth it for non-interactive workloads.
+
+## Next
+
+- [`seedance-2.0-pro`](/models/seedance-2-0-pro) — standard Pro tier
+- [`seedance-2.0-fast`](/models/seedance-2-0-fast) — cheapest tier
+- [Multimodal endpoints](/concepts/multimodal) — overview

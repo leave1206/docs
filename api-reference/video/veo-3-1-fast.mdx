@@ -1,0 +1,131 @@
+---
+title: "Veo 3.1 Fast"
+description: "Veo 3.1 tuned for ~30s turnaround — lower fidelity, faster iteration on natural-world footage."
+---
+
+**Vendor:** Google
+**Model ID:** `veo-3.1-fast`
+**Capability:** 720p · up to 5s · text + image init · async via tasks API
+**Pricing:** per second + submit fee, fast tier ([live rate](https://bytespike.ai/pricing#video))
+
+Veo 3.1 Fast is the iteration variant. Same Veo motion strengths
+(natural-world footage, coherent physics) capped at 720p / 5s, with
+turnaround typically under 30 seconds. Right pick for prompt design,
+draft passes before committing to Veo 3.1, and any UX where the user
+clicks "generate" and is watching the clock.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo-3.1-fast",
+    "prompt": "Slow zoom into a bowl of ramen, steam rising.",
+    "duration_seconds": 4,
+    "resolution": "720p"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `veo-3.1-fast` |
+| `prompt` | string | yes | — | English-tuned. |
+| `duration_seconds` | integer | yes | — | 1–5. |
+| `resolution` | string | no | `720p` | Only `720p` supported. |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`. |
+| `seed` | integer | no | — | Reproducibility. |
+| `image_init` | string | no | — | URL of init image. |
+
+## Submit + poll
+
+```json
+// Submit response
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.18}
+
+// Completed response
+{"task_id": "task_…", "status": "completed", "result": {"video_url": "https://cdn.bytespike.ai/vid/...", "duration_seconds": 4, "resolution": "720p"}, "credits": 0.18}
+```
+
+Recommended cadence: 1s for first 30s, then 2s up to 60s. Query is free.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "veo-3.1-fast", "prompt": "Slow zoom into ramen", "duration_seconds": 4, "resolution": "720p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(
+    f"{API}/tasks/submit", headers=HEADERS,
+    json={"model": "veo-3.1-fast", "prompt": "Slow zoom into ramen", "duration_seconds": 4, "resolution": "720p"},
+).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(1)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "veo-3.1-fast", prompt: "Slow zoom into ramen", duration_seconds: 4, resolution: "720p" }),
+}).then((r) => r.json())
+
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 1000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Latency-sensitive UX where the user is watching the clock.
+- Prompt iteration before committing to a Veo 3.1 / Sora 2 final render.
+- For full-fidelity 1080p, see [Veo 3.1](/api-reference/video/veo-3-1).
+- For ByteDance fast tier, see [Seedance Fast](/api-reference/video/seedance-fast).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 5s |
+| Min duration | 1s |
+| Resolutions | 720p only |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 4s clip | 20-40s |
+| Async via tasks API | Yes |

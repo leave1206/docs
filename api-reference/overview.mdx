@@ -1,0 +1,79 @@
+---
+title: "API Reference"
+description: "Every endpoint, one base URL, one key."
+---
+
+All endpoints share the same base:
+
+```
+https://llm.bytespike.ai
+```
+
+- `https://llm.bytespike.ai/v1/*` — Anthropic + OpenAI surfaces
+- `https://llm.bytespike.ai/v1beta/*` — Gemini Native surface
+- `https://llm.bytespike.ai/api/v1/*` — management endpoints (keys, usage, billing)
+
+Auth is a single header (see [Authentication](/authentication)).
+Failures don't bill. Every response carries quota + rate-limit headers
+so you don't need a side channel for accounting.
+
+## Endpoint families
+
+<CardGroup cols={2}>
+  <Card title="Text" href="/api-reference/text/claude-messages">
+    Claude Messages, OpenAI Chat Completions, OpenAI Responses, Gemini Native.
+  </Card>
+  <Card title="Image" href="/api-reference/image/seedream-v4">
+    Seedream v4 / 4.5 / v5lite, GPT-Image-2, Nano-Banana family.
+  </Card>
+  <Card title="Video" href="/api-reference/video/sora-2">
+    Sora-2 / Pro, Veo-3.1 family, Seedance family. Async via `/v1/tasks/*`.
+  </Card>
+  <Card title="Utility" href="/api-reference/utility/balance">
+    `/v1/models`, `/v1/usage`, `/v1/balance`, async `/v1/tasks/{submit,query,cancel}`.
+  </Card>
+</CardGroup>
+
+## Live pricing
+
+Per-token / per-call rates come from the production gateway and refresh
+nightly. The authoritative table lives at
+[bytespike.ai/pricing](https://bytespike.ai/pricing) — link directly to
+the section you need:
+
+- [Text models →](https://bytespike.ai/pricing#text)
+- [Image models →](https://bytespike.ai/pricing#image)
+- [Video models →](https://bytespike.ai/pricing#video)
+- [Utility endpoints →](https://bytespike.ai/pricing#utility)
+
+## Conventions
+
+**Async vs sync.** Text endpoints are synchronous. Image is synchronous
+(≤30s for single-image, large batches may use the async tasks API).
+Video is async — `POST /v1/tasks/submit` returns a `task_id`, poll
+`/v1/tasks/query` (free) or stream `/v1/tasks/stream/{task_id}` via
+SSE. The [`tasks` reference](/api-reference/utility/tasks-submit)
+covers the full lifecycle.
+
+**Streaming.** Pass `"stream": true` (or `?stream=true` on Gemini). The
+SSE stream is byte-for-byte compatible with each protocol's native
+streaming format — Anthropic event names on `/v1/messages`, OpenAI
+event names on `/v1/chat/completions` and `/v1/responses`, Gemini's
+chunked `streamGenerateContent` on `/v1beta`.
+
+**Accounting headers.** Every response (success **and** failure)
+carries the gateway's quota envelope:
+
+| Header | What it means |
+|---|---|
+| `X-RateLimit-Limit` | USD cap of the rate-limit bucket closest to constraining you. |
+| `X-RateLimit-Remaining` | Budget left in that bucket. |
+| `X-RateLimit-Reset` | Bucket reset Unix timestamp. |
+| `X-Quota-Remaining-Credits` | Lifetime credits remaining on this key (USD; `1 USD = 1M credits`). |
+| `X-Org-Quota-Remaining-Credits` | Same, at the org wallet level, on org-owned keys. |
+
+For per-request cost, query
+[`GET /api/v1/usage`](/api-reference/account/me-usage) — it returns
+one row per request with `prompt_tokens`, `completion_tokens`, and
+billed `credits`. Non-2xx responses don't bill, so
+`X-Quota-Remaining-Credits` doesn't move on a failure.

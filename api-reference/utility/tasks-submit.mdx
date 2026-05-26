@@ -1,0 +1,144 @@
+---
+title: "POST /tasks/submit"
+description: "Kick off an async multimodal task (image, video, …) and get a task_id back immediately. The wait happens in the background."
+---
+
+The async dispatcher for ByteSpike's multimodal catalog (Sora 2,
+Veo 3.1, Seedance, Seedream, Nano-Banana, GPT-Image, …). Synchronous
+endpoints like `/images/generations` and `/messages` block until the
+upstream returns; tasks endpoints don't — `submit` accepts your
+request, returns a `task_id` in milliseconds, and the actual upstream
+call runs server-side. Poll [`/tasks/query`](./tasks-query) or stream
+state changes over SSE on `/tasks/stream/{task_id}`.
+
+## When to use
+
+- **Video generation** — every video model is long-running (10–60s+), tasks/submit is the only sane shape
+- **Batched image generation** — fire-and-forget; reconcile results minutes later
+- **High-concurrency producers** — keep your worker pool free from HTTP keep-alives
+- **`callback_url` integrations** — register a webhook and skip polling entirely
+
+For real-time chat (`/messages`, `/chat/completions`, `/responses`),
+use the synchronous endpoints. Tasks are only for the multimodal long-tail.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora-2-pro",
+    "out_task_id": "my-render-2026-05-25-001",
+    "params": {
+      "prompt": "A timelapse of a city skyline at sunset, 16:9, 1080p, 8 seconds",
+      "duration_seconds": 8,
+      "aspect_ratio": "16:9"
+    },
+    "callback_url": "https://my-app.example.com/bytespike/webhook"
+  }'
+```
+
+### Headers
+
+| Header | Required | Notes |
+|---|---|---|
+| `Authorization` | yes | `Bearer sk-byts-…` (Anthropic-style `x-api-key` also accepted on this endpoint). |
+| `content-type` | yes | `application/json`. |
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `model` | string | yes | Catalog slug — see [Models](/models). Tasks endpoints only accept multimodal models (image/video). Text models reject with `400 invalid_param`. |
+| `params` | object | yes | Model-specific parameters. The shape mirrors the underlying provider — e.g. for Sora 2 it's `prompt`, `duration_seconds`, `aspect_ratio`; for Seedream it's `prompt`, `n`, `size`. See the per-model page under [API Reference → Image / Video](/api-reference/overview). |
+| `out_task_id` | string | no | Your idempotency key. Submitting the same `out_task_id` twice with identical `model` + `params` returns the existing task (200). Conflicting params on a duplicate `out_task_id` returns `409 duplicate_out_task_id`. |
+| `callback_url` | string | no | Webhook the gateway POSTs to when the task reaches a terminal state. |
+| `stream` | boolean | no | Reserved for `/tasks/stream/{task_id}` SSE delivery. Ignored on this endpoint. |
+
+### Body size cap
+
+`/v1/tasks/*` bodies are capped at **1 MiB**. Generous for any
+reasonable params shape including small `data:image/...;base64,...`
+inline images. Bigger inputs should upload to a URL first and pass the
+URL in `params`.
+
+## Response
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "pending",
+  "estimated_credits": 1.50,
+  "estimated_seconds": 35
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `task_id` | string | Server-generated ULID. Use this for `/tasks/query` and `/tasks/cancel`. |
+| `out_task_id` | string | Echoes back if you supplied one. Omitted otherwise. |
+| `status` | string | One of `pending`, `running`, `completed`, `failed`, `cancelled`. Always `pending` on initial submit. |
+| `estimated_credits` | number | Provider's pre-flight cost estimate in credits. Omitted if the provider doesn't return one. Final billing uses `credits_used` from `/tasks/query`. |
+| `estimated_seconds` | integer | Provider's pre-flight ETA in seconds. Useful for setting a polling cadence. Omitted if unknown. |
+
+### Task lifecycle
+
+```
+pending  →  running  →  completed
+                    ↘
+                       failed
+                    ↘
+                       cancelled (via /tasks/cancel)
+```
+
+- `pending` — dispatcher accepted the request, hasn't sent it upstream yet
+- `running` — upstream is generating
+- `completed` — `output` is populated, billing is final
+- `failed` — `error_code` + `error_message` are populated, **no billing**
+- `cancelled` — user called `/tasks/cancel` before terminal state
+
+## Errors
+
+All errors use the OpenAI envelope shape (even when called with `x-api-key`).
+
+```json
+{
+  "error": {
+    "code": "invalid_param",
+    "message": "model \"claude-sonnet-4-6\" is not a multimodal task model",
+    "type": "invalid_request_error"
+  }
+}
+```
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `invalid_param` | Bad JSON, unsupported model, missing required field. |
+| 401 | `invalid_api_key` | Missing / revoked / disabled key. |
+| 409 | `duplicate_out_task_id` | An existing task has the same `out_task_id` but different `params`. |
+| 413 | `request_entity_too_large` | Body > 1 MiB. Move inline base64 to a URL. |
+| 429 | `rate_limit_exceeded` | See the Rate limits section in [Pricing](/pricing). |
+| 500 | `internal_error` | Provider-side or gateway-side fault. Retry. |
+
+## Idempotency
+
+`out_task_id` is your idempotency key. The dispatcher de-duplicates by
+the tuple `(api_key_id, out_task_id)`. Re-submitting the same combo
+with identical params returns the original `task_id` and current
+status — useful for retry-safe client code where a network blip would
+otherwise create a duplicate render.
+
+## Pricing
+
+Per-second (video) / per-call (image). The full live rate card is at
+[bytespike.ai/pricing](https://bytespike.ai/pricing) — billing only
+happens on `completed`; `failed` and `cancelled` tasks are free.
+
+## Next
+
+- [`POST /tasks/query`](./tasks-query) — read a task's current state
+- [`POST /tasks/cancel`](./tasks-cancel) — abort a non-terminal task

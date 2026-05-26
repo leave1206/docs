@@ -1,0 +1,122 @@
+---
+title: "MCP integration · DOSIA bridge"
+description: "How DOSIA talks to ByteSpike over MCP — one OAuth connect, then your main brain can generate images, write with external LLMs, and produce video without any of that wiring being your problem."
+---
+
+DOSIA connects to ByteSpike through a single OAuth handshake. After that, the main brain you're chatting with picks up tools for image generation, image analysis, video generation, and "use a different LLM to write this" — without you ever pasting an API key, switching panels, or thinking about which provider hosts which model.
+
+This page describes what that integration looks like from a user's perspective, and the architecture underneath it for anyone debugging or building on top.
+
+## The connect flow
+
+```
+DOSIA → Settings → Account → "Connect ByteSpike account"
+   ↓ browser OAuth (PKCE)
+DOSIA receives token → GET /v1/account/capabilities
+   ↓ partition + persist + reloadPlugins()
+toast: "Connected · N main models + M tool capabilities"
+```
+
+One click on the desktop, one allow on the browser, and DOSIA is wired up. The token lives in macOS Keychain. Manual key flows still work for users who prefer them — OAuth is the path of least friction, not a requirement.
+
+## What you can do once connected
+
+The main brain you talk to in DOSIA now has working tools for:
+
+| You say | DOSIA does |
+|---|---|
+| "Draw a red apple in flat style" | `image-tools.generate_image(model=gpt-image-2, prompt=...)` |
+| "Make this image blue-background" + attach | `image-tools.generate_image` with `source_image` |
+| "How many cats are in this photo?" + attach | `image-tools.analyze_image(model=gpt-4o, ...)` |
+| "Make a 5-second product video" | `video-tools.generate_video` → `poll_video` |
+| "Have GPT-5.5 write me a summary of this thread" | `text-writing-tools.chat_with(model=gpt-5-5, ...)` |
+| "Get Gemini to translate this into English" | `text-writing-tools.chat_with(model=gemini-3.1-pro, ...)` |
+
+The main brain decides which tool to call based on your phrasing. You don't switch tabs; you don't pick a panel; you keep typing.
+
+## The plugin / tool surface
+
+Three plugins, three MCP servers, six tools total.
+
+| Plugin | Tools | What it solves |
+|---|---|---|
+| `image-tools` | `generate_image(model, prompt, source_image?)` <br /> `analyze_image(model, image_url, question)` | Text-to-image, image-to-image, vision-on-image |
+| `video-tools` | `generate_video(model, prompt, source_image?) → task_id` <br /> `poll_video(task_id)` <br /> `analyze_video(model, video_url, question)` ⚠️ | Text-to-video, image-to-video, vision-on-video (analyze endpoint behind a feature flag) |
+| `text-writing-tools` | `chat_with(model, prompt, system?)` | Use a non-primary LLM (GPT / Gemini / DeepSeek / Doubao) as a writing co-processor |
+
+⚠️ `analyze_video` is reserved; the corresponding endpoint is not live in the public gateway as of this writing. The tool definition is in place so the main brain can plan around it; calls will surface a clear "not yet available" error until the endpoint ships.
+
+## known-models registry — the four buckets
+
+When DOSIA fetches `/v1/account/capabilities`, ByteSpike returns two model lists:
+
+- `anthropicModels[]` — the set of "main brains" you can chat with (claude-\*, claude-via-channel-X, etc.). Drives the model picker.
+- `otherModels[]` — every other model your account has permission to call (gpt-\*, gemini-\*, deepseek-\*, gpt-image-2, sora-\*, veo-\*, ...).
+
+DOSIA partitions `otherModels[]` against a **known-models registry** that maps each model id to one of four capability buckets:
+
+| Bucket | Members feed into | User-facing meaning |
+|---|---|---|
+| `image_generate` | `generate_image.model.enum` | "I can make pictures" |
+| `video_generate` | `generate_video.model.enum` | "I can make videos" |
+| `vision` | `analyze_image.model.enum`, `analyze_video.model.enum`, **and** `chat_with.model.enum` | "I can look at images / use a vision-capable model to write" |
+| `external_chat` | `chat_with.model.enum` | "I can use a non-Claude LLM to write text" |
+
+Vision-capable models like `gpt-4o` legitimately appear in three tool enums — the SDK allows a single model id in multiple `enum` lists, and the registry treats vision as a cross-cutting capability rather than a single bucket.
+
+The registry lives in DOSIA, not in your account. Adding a new model to ByteSpike doesn't break old DOSIA builds; they'll just ignore the unknown id until the next DOSIA release teaches them which bucket it belongs to.
+
+## Data flow end to end
+
+```
+ByteSpike admin configures account capability
+        ↓
+User signs into DOSIA, clicks Connect
+        ↓
+GET /v1/account/capabilities
+   → { baseUrl, token, anthropicModels[], otherModels[] }
+        ↓
+DOSIA main process:
+  ① anthropicModels → ModelSelector + persisted to local DB
+  ② otherModels partitioned via KNOWN_OTHER_MODELS registry:
+     { imageGenModels, videoGenModels, visionModels, externalChatModels }
+  ③ user_capabilities row updated
+        ↓
+DOSIA registers a userMcpServerProvider callback
+        ↓ called on every createSession()
+Callback returns the appropriate MCP server set:
+  - image-tools         (baseUrl, token, imageGenModels, visionModels)
+  - video-tools         (baseUrl, token, videoGenModels, visionModels)
+  - text-writing-tools  (baseUrl, token, chatModels = external_chat ∪ vision)
+        ↓
+The main brain sees tools whose enum reflects exactly your account's permission set.
+```
+
+A user with no image-generation models in their capability gets no `generate_image` tool — not a greyed-out one, not a "permission denied" call. The tool simply isn't loaded.
+
+## Permission refresh
+
+Permissions can shift mid-session (admin adds you to a model, a quota lifts, a trial expires):
+
+| Trigger | What happens |
+|---|---|
+| User clicks "Refresh permissions" in Settings → AI Models | Re-fetch capabilities → re-partition → persist → `reloadPlugins()` |
+| DOSIA app launch | Silent fetch + reload at startup |
+| ByteSpike webhook (post-P7 stretch) | Server-pushed reload — no user action needed |
+
+After a reload the main brain's tool set updates on the next session. Existing sessions keep their tool set; that's intentional, so a permission change doesn't break an in-flight conversation.
+
+## Where this fits
+
+If you're already familiar with [DOSIA Agent mode](/concepts/dosia-agent-mode), the MCP integration described here is the **other** half of the DOSIA-ByteSpike story: Agent mode is about Anthropic Messages protocol passing through `tool_use` / `cache_control` blocks; MCP integration is about *which tools the main brain has available in the first place*.
+
+Multimodal endpoints — see [Multimodal](/concepts/multimodal) — are the underlying HTTP surface that `image-tools` / `video-tools` call into. The plugin layer is what turns those endpoints into something the chat-driven user never has to think about.
+
+## Setup checklist for new users
+
+1. Install DOSIA (latest signed build for your platform)
+2. Open Settings → Account → **Connect ByteSpike account**
+3. Approve in browser → see the connect toast
+4. Open a fresh chat → ask the main brain to draw something, write with GPT, or generate a clip
+
+If a tool is missing where you expect it, check Settings → AI Models → **Refresh permissions** before opening a ticket. Most "missing tool" reports trace back to a permission grant that didn't propagate yet — a refresh resolves it without involving support.

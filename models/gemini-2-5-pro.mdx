@@ -1,0 +1,65 @@
+---
+title: "gemini-2-5-pro"
+description: "Google's Gemini 2.5 Pro — the 2M-context flagship. The longest context window of any production model on ByteSpike. Native PDF input, grounding (Google Search), vision."
+---
+
+`gemini-2-5-pro` is the flagship of the Gemini family — and the **longest-context production model on ByteSpike** (2M input tokens). Reach for it when 200K Claude or 400K GPT isn't enough: full-codebase audit, hundreds of pages of legal/regulatory text, multi-document synthesis.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **Google AI Studio** | Google direct | `generativelanguage.googleapis.com` | $3.50 / 1M | $14.00 / 1M | ~900ms | global edge |
+
+See [/providers/gemini](/providers/gemini) for the full channel + auth model.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| Gemini Native | `POST https://llm.bytespike.ai/v1beta/models/gemini-2-5-pro:generateContent` |
+| OpenAI Chat Completions (shim) | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| Anthropic Messages (translated) | `POST https://llm.bytespike.ai/v1/messages` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-2-5-pro",
+    "messages": [{ "role": "user", "content": "Hello, ByteSpike." }]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions (shim) | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| **PDF input** | ✅ native |
+| Tools / function calling | ✅ parallel |
+| JSON mode | ✅ |
+| Grounding (web search) | ✅ |
+| Long context | ✅ **2M tokens** |
+| Context window | 2M tokens |
+
+## When to use
+
+- **Anything that overflows 1M** — full codebase, multi-book document review, long-meeting transcript synthesis.
+- **PDF QA** — Pro is the only model on ByteSpike that takes PDF natively (no pre-conversion to image required).
+- **Long-context + grounding** — research-style queries that need both fresh facts and big context.
+
+When **not** to use:
+
+- Default mid-tier chat — Sonnet or GPT-5-4 are more efficient.
+- Hard math/code reasoning — Opus / GPT-5-4-pro have the edge.
+
+## Next
+
+- [gemini-2.5-flash](/models/gemini-2-5-flash) — cheap, also 1M context
+- [claude-opus-4-7](/models/claude-opus-4-7) — alternative 1M-context flagship with thinking
+- [Gemini provider page](/providers/gemini) — channels, Vertex enterprise specifics

@@ -1,0 +1,95 @@
+---
+title: "gpt-5-3-codex"
+description: "OpenAI's code-focused GPT-5 variant, tuned for Codex CLI. Exposed exclusively through the OpenAI Responses API — the agent-style structured-reasoning protocol that Codex's harness requires."
+---
+
+`gpt-5-3-codex` is the **code-tuned** GPT-5 model. It's the model OpenAI Codex CLI sends every request to under the hood, and it's exposed through the **Responses API** specifically — the agent-style structured-reasoning protocol Codex's harness requires.
+
+If you're not using Codex CLI directly, you can still call this model — but most code-related tasks are better served by `gpt-5-4` (more general capability at similar pricing).
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $2.50 / 1M | $10.00 / 1M | ~800ms | global edge |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+Chat Completions is **not** the primary surface here — Codex requires Responses. The model is available via Chat Completions as a fallback, but the structured reasoning + tool-use semantics are designed around Responses.
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (Responses API)
+curl https://llm.bytespike.ai/v1/responses \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-3-codex",
+    "input": "Implement a thread-safe LRU cache in Rust.",
+    "reasoning": { "effort": "medium" }
+  }'
+```
+
+```python Python (openai SDK Responses)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.responses.create(
+    model="gpt-5-3-codex",
+    input="Implement a thread-safe LRU cache in Rust.",
+    reasoning={"effort": "medium"},
+)
+
+print(resp.output_text)
+```
+
+```bash codex CLI (passthrough)
+# Codex CLI honors OPENAI_BASE_URL — point it at ByteSpike, the model
+# routes to gpt-5-3-codex by default.
+export OPENAI_BASE_URL=https://llm.bytespike.ai/v1
+export OPENAI_API_KEY=$BYTESPIKE_API_KEY
+codex "Refactor src/cache.rs to add TTL eviction."
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | (fallback only) |
+| Responses API | ✅ primary |
+| Streaming (SSE) | ✅ |
+| Vision | — |
+| Tool use (function calling) | ✅ parallel |
+| Structured outputs (json_schema) | ✅ |
+| Reasoning effort (low/medium/high) | ✅ |
+| Web search | — |
+| Context window | 256K tokens |
+
+## When to use
+
+- **Codex CLI** — every Codex request lands here by default.
+- **Code-focused agent loops** — implementations of well-defined algorithms, refactors with hard constraints, codebase-style migrations. The Responses API's structured-reasoning shape exposes step-by-step working when `reasoning.effort: "medium"` or higher.
+
+When **not** to use:
+
+- Multimodal — no vision on this model. Use `gpt-5-4`.
+- Hard reasoning beyond code — `gpt-5-4-pro` has more general reasoning headroom.
+
+## Next
+
+- [gpt-5-4](/models/gpt-5-4) — general production workhorse
+- [gpt-5-4-mini](/models/gpt-5-4-mini) — cheaper small-mid
+- [OpenAI provider page](/providers/openai) — full GPT lineup
+- [Endpoint types](/concepts/endpoints) — why Responses vs Chat Completions matters

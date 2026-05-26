@@ -1,0 +1,242 @@
+---
+title: "Errors reference"
+description: "Every HTTP status, error code, and envelope shape you'll see from ByteSpike. Per-status retry policy. No charges on any non-2xx."
+---
+
+ByteSpike returns errors in the envelope shape of whichever protocol
+you called — Anthropic-shape on `/v1/messages`, OpenAI-shape on
+`/v1/chat/completions` + `/v1/responses` + `/v1/tasks/*` + `/v1/images/*`,
+Google-shape on `/v1beta/...`.
+
+**Failures never bill.** This is a hard contract — `X-Quota-Remaining-Credits`
+doesn't move on a non-2xx, no entry appears in `/api/v1/me/usage`,
+no row in `/api/v1/me/billing/transactions`.
+
+## Envelope shapes
+
+<Tabs>
+  <Tab title="Anthropic">
+    ```json
+    {
+      "type": "error",
+      "error": {
+        "type": "authentication_error",
+        "message": "invalid x-api-key"
+      }
+    }
+    ```
+
+    `error.type` values: `invalid_request_error`, `authentication_error`,
+    `permission_error`, `not_found_error`, `request_too_large`,
+    `rate_limit_error`, `api_error`, `overloaded_error`.
+  </Tab>
+  <Tab title="OpenAI">
+    ```json
+    {
+      "error": {
+        "type": "invalid_request_error",
+        "code": "invalid_api_key",
+        "message": "invalid x-api-key"
+      }
+    }
+    ```
+
+    `error.type` values: `invalid_request_error`, `authentication_error`,
+    `permission_error`, `rate_limit_exceeded`, `api_error`.
+
+    `error.code` is a finer-grained machine-readable tag — used for
+    branching client logic.
+  </Tab>
+  <Tab title="Google (Gemini Native)">
+    ```json
+    {
+      "error": {
+        "code": 401,
+        "message": "API key not valid. Please pass a valid API key.",
+        "status": "UNAUTHENTICATED"
+      }
+    }
+    ```
+
+    `error.status` values: `INVALID_ARGUMENT`, `UNAUTHENTICATED`,
+    `PERMISSION_DENIED`, `NOT_FOUND`, `RESOURCE_EXHAUSTED`,
+    `INTERNAL`, `UNAVAILABLE`.
+  </Tab>
+</Tabs>
+
+## Status code matrix
+
+### 400 Bad Request
+
+Bad input. **Never** retry — the request will fail again with the
+same body.
+
+| OpenAI `code` | Anthropic `type` | Meaning |
+|---|---|---|
+| `invalid_param` | `invalid_request_error` | Missing required field, wrong type, malformed JSON |
+| `model_not_found` | `not_found_error` | Model id doesn't exist in the catalog |
+| `context_length_exceeded` | `invalid_request_error` | Prompt + max_tokens > model's context window |
+| `duplicate_out_task_id` | n/a | Re-submitting same `out_task_id` with different `params` (tasks API only) |
+
+### 401 Unauthorized
+
+Auth problem. **Never** retry — fix the credentials first.
+
+| Code | Cause |
+|---|---|
+| `invalid_api_key` | Missing / typo'd / revoked / expired |
+| `authentication_error` (Anthropic) | Same |
+
+### 402 Payment Required
+
+You ran out of money or hit a quota. **Conditional retry** — only
+after topping up or raising the cap.
+
+| Code | Cause |
+|---|---|
+| `insufficient_balance` | Org wallet empty |
+| `quota_exceeded` | Key's `quota` (lifetime) cap reached |
+
+### 403 Forbidden
+
+Authorized but not allowed. **Never** retry — adjust the key, group, or IP.
+
+| Code | Cause |
+|---|---|
+| `permission_denied` | IP not in `ip_whitelist` / matches `ip_blacklist` |
+| `model_not_in_group` | Model isn't reachable from this key's `group_id` — pick a different key or different model |
+
+### 404 Not Found
+
+Endpoint or resource doesn't exist. **Never** retry.
+
+| Code | Cause |
+|---|---|
+| `not_found` | Wrong route — verify the URL |
+| `task_not_found` | `/v1/tasks/query` or `/cancel` with a bad task_id / out_task_id |
+
+### 413 Request Entity Too Large
+
+Body exceeded the route's cap. **Never** retry with the same body.
+
+| Cap | Hit by |
+|---|---|
+| 1 MiB on `/v1/tasks/*` | Inline base64 in `params` — upload to a URL instead |
+| Larger on `/v1/messages` etc | Mostly only by deeply nested tool schemas; shrink the schema |
+
+### 429 Too Many Requests
+
+Rate limit. **Retry** — use `X-RateLimit-Reset` to pick the backoff.
+
+| OpenAI `code` | Cause |
+|---|---|
+| `rate_limit_exceeded` | One of the 5h / 1d / 7d spend buckets is empty |
+| `concurrency_limit` | Too many in-flight requests on your account |
+
+See [Rate limits](/concepts/rate-limits) for the backoff strategy.
+
+### 500 Internal Server Error
+
+Gateway-side fault. **Retry** with exponential backoff (1s, 2s, 4s, 8s, give up at 4 attempts).
+
+| Code | Cause |
+|---|---|
+| `internal_error` | Something blew up inside ByteSpike — should be rare; surfaces in our own logs |
+
+### 502 / 503 / 504 — Upstream errors
+
+The upstream provider failed. **Retry** with backoff; ByteSpike
+already retried internally before surfacing.
+
+| Status | Cause |
+|---|---|
+| 502 `api_error` | Upstream returned a malformed response |
+| 503 `api_error` / `no available accounts` | No channel in the key's group can serve this model right now (all retried, all failed) |
+| 504 `timeout` | Upstream timed out (>30s for text, >5min for image) |
+
+For 503 specifically, click **Test** next to the model in
+[Console → Models](https://console.bytespike.ai/dosia/models) — it
+runs a dial-test that exposes whether the key + group + model
+combination is actually viable, separately from upstream health.
+
+## Retry decision matrix
+
+| HTTP | Retry? | Backoff |
+|---|---|---|
+| 400 / 401 / 403 / 404 / 413 | No | n/a |
+| 402 | No (top up first) | n/a |
+| 429 (rate limit) | Yes | Use `X-RateLimit-Reset` |
+| 429 (concurrency) | Yes | Short jittered, 1-3s |
+| 500 | Yes | Exponential, give up at 4 attempts |
+| 502 / 503 / 504 | Yes | Exponential, give up at 4 attempts |
+| Mid-stream `event: error` | No (request already settled, no charge) | n/a |
+
+## Idempotency on retries
+
+The text endpoints (`/v1/messages`, `/chat/completions`, `/responses`)
+are not idempotent — retrying after a 200 will run the model twice.
+Don't retry unless you got an error.
+
+The tasks API **is** idempotent via `out_task_id`. Send the same
+`out_task_id` on retry and the dispatcher returns the existing
+task instead of starting a new one.
+
+## Anthropic-specific: `error` event in SSE
+
+When a stream fails mid-flight, you'll see a terminal
+`event: error` instead of `event: message_stop`:
+
+```
+event: error
+data: {"type":"error","error":{"type":"overloaded_error","message":"upstream overloaded"}}
+```
+
+The partial output already streamed is yours. No charge. Resend the
+request from scratch — there's no resume semantic.
+
+## OpenAI-specific: `error` field in final frame
+
+```
+data: {"id":"chatcmpl-...","choices":[],"error":{"type":"api_error","message":"upstream error"}}
+
+data: [DONE]
+```
+
+Same semantics — no charge, no resume.
+
+## Reading errors programmatically
+
+```python
+import requests
+
+r = requests.post(URL, json=payload, headers=HEADERS)
+if r.ok:
+    return r.json()
+
+err = r.json().get("error", {})
+
+# Branch on protocol shape
+if "code" in err:        # OpenAI-shape
+    code = err["code"]
+elif "type" in err:      # Anthropic-shape or OpenAI "type" form
+    code = err["type"]
+else:                    # Google-shape
+    code = err.get("status", "")
+
+if r.status_code == 429:
+    sleep_until = int(r.headers.get("X-RateLimit-Reset", time.time() + 60))
+    time.sleep(max(1, sleep_until - int(time.time())))
+    # retry
+elif r.status_code in (500, 502, 503, 504):
+    # exponential backoff + retry
+    pass
+else:
+    raise APIError(r.status_code, code, err.get("message"))
+```
+
+## Related
+
+- [Rate limits](/concepts/rate-limits) — full 429 handling
+- [Authentication](/authentication) — what 401/403 means and how to fix
+- [Credits & billing](/concepts/credits-and-billing) — 402 + the no-charge guarantee
+- [Async tasks](/concepts/multimodal) — mid-task errors via `/tasks/query`

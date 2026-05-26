@@ -1,0 +1,86 @@
+---
+title: "seedream-4"
+description: "ByteDance's Seedream 4 flagship image model. Strong on Chinese aesthetic, poster composition, and East-Asian product photography. Lower per-image cost than OpenAI; richer in-image typography support than nano-banana."
+---
+
+`seedream-4` is ByteDance's flagship text-to-image and image-to-image model. The reason to reach for it over [`gpt-image-2`](/models/gpt-image-2): markedly stronger on Chinese in-image text, poster composition, and East-Asian product photography aesthetics, at meaningfully lower per-image cost. The reason to look elsewhere: Western Mediterranean / Northern European aesthetic still tilts toward the OpenAI / Google models.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedream** | Volcengine | `ark.cn-beijing.volces.com` | per-image (see [/pricing](/pricing) for current rate) | ~5s (1024×1024) | cn-beijing |
+
+Failures don't bill. Pricing sits between `nano-banana` (cheaper) and `gpt-image-2` (pricier).
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-4",
+    "prompt": "中国风海报，水墨意境，远山近水，留白构图，标题：春日新品",
+    "n": 1,
+    "size": "1024x1792"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="seedream-4",
+    prompt="中国风海报，水墨意境，远山近水，留白构图，标题：春日新品",
+    n=1,
+    size="1024x1792",
+)
+
+print(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-image | ✅ |
+| Image-to-image (with `source_image`) | ✅ |
+| `n` ≥ 2 batch generation | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| Chinese in-image typography | ✅ strong |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## When to use
+
+- **Chinese-market marketing** — posters, product cards, social cards where Chinese text rendering and East-Asian aesthetic carry weight.
+- **Mid-tier cost** with image-to-image — better than `nano-banana-v2` on hard prompts, cheaper than `gpt-image-2`.
+- **Domestic-region latency** — Beijing-served, sub-second TTFB for users in mainland.
+
+When **not** to use:
+
+- You need the cheapest tier — try [`seedream-v5lite`](/models/seedream-v5lite).
+- You need the absolute highest fidelity, regardless of price — [`seedream-4.5`](/models/seedream-4-5) or [`gpt-image-2`](/models/gpt-image-2).
+
+## Next
+
+- [`seedream-4.5`](/models/seedream-4-5) — successor with refinements
+- [`seedream-v5lite`](/models/seedream-v5lite) — cheapest tier
+- [`gpt-image-2`](/models/gpt-image-2) — OpenAI alternative

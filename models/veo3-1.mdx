@@ -1,0 +1,68 @@
+---
+title: "veo3.1"
+description: "Google's Veo 3.1 video model. Native audio generation alongside the video track is the key differentiator from sora2 — useful when your clip is the final output rather than a layer that gets sound design pass."
+---
+
+`veo3.1` is Google's Veo 3.1 model. Same two-phase task-based protocol as the other video models, with one differentiator worth knowing about: **native audio generation alongside the video track**. The same `submit → poll` flow produces an MP4 with an audio layer the model invented to match the scene — useful for one-shot deliverables that won't get a separate sound-design pass.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google Veo** | Google direct | `aiplatform.googleapis.com` | per-second (see [/pricing](/pricing) for current rate) | ~80s wall-clock for 5s clip | global edge |
+
+Failures don't bill. Per-second pricing applies to generated footage length; audio doesn't add a separate line item on this tier.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status`, `result_url`, and `audio_url` when ready |
+
+## Quickstart
+
+```bash
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "veo3.1",
+    "prompt": "Rain falling on a quiet street at night, distant car passing",
+    "duration_seconds": 5,
+    "size": "1280x720",
+    "audio": true
+  }' | jq -r .task_id)
+
+# Poll pattern matches sora2 — see /models/sora2#quickstart
+# Response includes both result_url (video) and audio_url (audio track)
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| **Native audio generation** | ✅ (set `audio: true`) |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **One-shot deliverable** — clip is the final output, no sound-design pass coming.
+- **Ambient / atmospheric footage** — rain, wind, city noise, where Veo's native audio is more authentic than dubbing-over-silent footage.
+- **Alternative to Sora** — when Sora's particular motion style isn't the right fit and Google's render feels closer to brand.
+
+When **not** to use:
+
+- You already have your own sound design — audio is a small premium that's wasted in that flow; drop to [`veo3.1-fast`](/models/veo3-1-fast) without audio.
+- Sora-specific motion characteristics — go to [`sora2`](/models/sora2) or [`sora2-pro`](/models/sora2-pro).
+
+## Next
+
+- [`veo3.1-fast`](/models/veo3-1-fast) — cheaper tier
+- [`sora2`](/models/sora2) — OpenAI alternative
+- [Multimodal endpoints](/concepts/multimodal) — overview

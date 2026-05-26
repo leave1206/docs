@@ -1,0 +1,86 @@
+---
+title: "nano-banana"
+description: "Google's lightweight image model. Text-to-image at materially lower per-image cost than gpt-image-2, with the same OpenAI Images protocol. The volume / cost-sensitive default."
+---
+
+`nano-banana` is Google's lightweight image generation model exposed through the same OpenAI Images protocol surface as the rest of the gateway's image tier. The trade-off relative to [`gpt-image-2`](/models/gpt-image-2): materially cheaper per image, with somewhat looser fidelity on in-image typography and complex composition. The right default when you're generating at volume — programmatic thumbnails, A/B test images, internal mockups.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google AI** | Google direct | `aiplatform.googleapis.com` | per-image (see [/pricing](/pricing) for current rate) | ~4s (1024×1024) | global edge |
+
+Failures don't bill. Pricing tier sits below `gpt-image-2` and above the lowest seedream tier — see [/pricing](/pricing) for the live number.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana",
+    "prompt": "Minimalist line drawing of a cat sitting in a window, morning light",
+    "n": 4,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="nano-banana",
+    prompt="Minimalist line drawing of a cat sitting in a window, morning light",
+    n=4,
+    size="1024x1024",
+)
+
+for img in resp.data:
+    print(img.url)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-image | ✅ |
+| `n` ≥ 2 batch generation | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| Image-to-image | — (use [`nano-banana-v2`](/models/nano-banana-v2)) |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## When to use
+
+- **Volume work** — `n=4` batches for A/B testing, thumbnail generation, programmatic asset pipelines.
+- **Cost-sensitive defaults** — when an internal tool needs an illustration and the budget can't carry `gpt-image-2`.
+- **Acceptable for typography-light scenes** — landscapes, abstract, minimalist illustrations.
+
+When **not** to use:
+
+- In-image typography matters — go to [`gpt-image-2`](/models/gpt-image-2).
+- You need image-to-image edits — go to [`nano-banana-v2`](/models/nano-banana-v2).
+
+## Next
+
+- [`nano-banana-v2`](/models/nano-banana-v2) — successor with image-to-image
+- [`gpt-image-2`](/models/gpt-image-2) — OpenAI flagship
+- [`seedream-v5lite`](/models/seedream-v5lite) — cheapest tier for Chinese aesthetic

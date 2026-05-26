@@ -1,0 +1,208 @@
+---
+title: "POST /me/webhooks (+ list / update / delete / deliveries)"
+description: "Subscribe an HTTPS endpoint to your account events. Five endpoints in one round-trip family."
+---
+
+The webhook subscription family. Subscribe an HTTPS URL to a set of
+event types, and ByteSpike POSTs signed payloads at you when those
+events fire. Payloads are signed with HMAC-SHA256 over the body using
+the secret returned at create-time.
+
+The console UI for this family is
+[console.bytespike.ai/webhooks](https://console.bytespike.ai/webhooks).
+For org-scope subscriptions (owner / admin events), use the parallel
+`/orgs/:id/webhooks` family — see [Tier 3 orgs docs](#) when shipped.
+
+## Endpoint family
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/me/webhooks` | List your subscriptions |
+| `POST` | `/api/v1/me/webhooks` | Create a subscription |
+| `PUT` | `/api/v1/me/webhooks/:id` | Update URL / event_types / status |
+| `DELETE` | `/api/v1/me/webhooks/:id` | Remove a subscription |
+| `GET` | `/api/v1/me/webhooks/:id/deliveries?page=&page_size=` | Inspect delivery attempts |
+
+All require a logged-in key (`Authorization: Bearer …` or `x-api-key`). All non-mutating endpoints are free; create/update/delete are free too — webhooks don't burn credits.
+
+## Create
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/webhooks \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "url": "https://hooks.example.com/bytespike",
+    "event_types": [
+      "system.balance.notify.dispatched",
+      "system.payment.received"
+    ]
+  }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `url` | string | yes | Must be HTTPS in production. We POST JSON here on each event. |
+| `event_types` | string[] | yes | At least one event from the [event catalog](#event-catalog). |
+| `secret` | string | no | Provide your own HMAC secret. Omit to have the gateway generate a 32-hex value (recommended). |
+
+### Response — create
+
+The **only** response that includes the raw `secret`. Save it now — every subsequent list/update response omits it.
+
+```json
+{
+  "id": 7001,
+  "owner_user_id": 88,
+  "url": "https://hooks.example.com/bytespike",
+  "event_types": [
+    "system.balance.notify.dispatched",
+    "system.payment.received"
+  ],
+  "status": "active",
+  "fail_count": 0,
+  "created_at": "2026-05-22T08:30:00Z",
+  "updated_at": "2026-05-22T08:30:00Z",
+  "secret": "f2c8b41a9d5e..."
+}
+```
+
+## List
+
+```bash
+curl https://llm.bytespike.ai/api/v1/me/webhooks \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+Returns `{ items: [...], total }`. `secret` is omitted on every row.
+
+## Update
+
+```bash
+curl -X PUT https://llm.bytespike.ai/api/v1/me/webhooks/7001 \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"status": "disabled"}'
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `url` | string | Updates the destination. We keep the secret. |
+| `event_types` | string[] | Replaces the full subscription set. |
+| `status` | string | `active` / `disabled`. Disabled rows don't dispatch but are kept for delivery-history. |
+
+The secret can't be rotated via PUT — delete and re-create if you need a fresh one.
+
+## Delete
+
+```bash
+curl -X DELETE https://llm.bytespike.ai/api/v1/me/webhooks/7001 \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+Returns `204 No Content`. Delivery history for this webhook is kept for 30 days post-delete, then purged.
+
+## Deliveries
+
+```bash
+curl 'https://llm.bytespike.ai/api/v1/me/webhooks/7001/deliveries?page=1&page_size=50' \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY"
+```
+
+```json
+{
+  "items": [
+    {
+      "id": 91003,
+      "webhook_id": 7001,
+      "event_type": "system.balance.notify.dispatched",
+      "attempt": 1,
+      "response_status": 502,
+      "delivered_at": "2026-05-21T22:00:00Z",
+      "duration_ms": 8420,
+      "payload": "{\"event\":\"system.balance.notify.dispatched\",\"balance_usd\":7.80}"
+    },
+    {
+      "id": 91004,
+      "webhook_id": 7001,
+      "event_type": "system.balance.notify.dispatched",
+      "attempt": 2,
+      "response_status": 200,
+      "delivered_at": "2026-05-21T22:00:30Z",
+      "duration_ms": 118,
+      "payload": "{\"event\":\"system.balance.notify.dispatched\",\"balance_usd\":7.80}"
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "page_size": 50
+}
+```
+
+One row per delivery **attempt**. Retries land as `attempt: 2` / `3` under the same `event_type`. `response_status: 0` means a network/timeout failure (no HTTP response received).
+
+## Event catalog
+
+Pass any subset on `event_types`. Grouped by source:
+
+### user.\* — your account self-config writes
+
+- `user.webhook.create` / `user.webhook.update` / `user.webhook.delete`
+
+### system.\* — gateway side
+
+- `system.balance.notify.dispatched` — fired when the low-balance cron pages you
+- `system.payment.received` — fired when a top-up posts
+
+### org.\* — only if your account is an org owner/admin
+
+- `org.settings.update`
+- `org.member.concurrency`
+- `org.member.allowed_models` / `org.member.allowed_models.bulk`
+- `org.api_key.create` / `org.api_key.revoke`
+- `org.webhook.create` / `org.webhook.update` / `org.webhook.delete`
+
+### admin.\* — only if your account has platform-admin role
+
+- `admin.org.create` / `admin.org.update` / `admin.org.delete`
+- `admin.org.member.add` / `admin.org.member.role` / `admin.org.member.remove`
+- `admin.org.member.allowed_models` / `admin.org.member.allotment`
+- `admin.org.allowed_models`
+- `admin.user.create` / `admin.user.update` / `admin.user.delete`
+- `admin.group.create` / `admin.group.update` / `admin.group.delete`
+- `admin.balance.adjust`
+
+Subscribing to an event you don't have permission for returns 403.
+
+## Payload signing
+
+Outgoing POST bodies are signed by the gateway. Verify before trusting:
+
+```python
+import hmac, hashlib
+
+def verify(body_bytes: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(secret.encode(), body_bytes, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+```
+
+The signature lands in the `X-ByteSpike-Signature` header. Reject any payload whose signature doesn't verify — we treat that as the contract.
+
+## Retry & failure model
+
+- **Retry**: up to 3 attempts on 5xx / network failures. Backoff: 30s, then 5min.
+- **fail_count**: cumulative since last successful delivery. Reset on the next 2xx.
+- **Auto-disable**: when `fail_count` reaches `50`, the gateway flips `status` to `disabled` and stops dispatching. The webhook row is preserved so you can inspect deliveries and re-enable via PUT.
+- **No bypass**: 4xx responses count as a delivery (your endpoint rejected the payload); retries don't fire on 4xx.
+
+## Errors
+
+| Status | `error.type` | Trigger |
+|---|---|---|
+| 400 | `invalid_request_error` | URL not HTTPS, `event_types` empty / unknown event, body malformed. |
+| 401 | `authentication_error` | Missing / revoked key. |
+| 403 | `permission_error` | Subscribed to `admin.*` / `org.*` events without the required role. |
+| 404 | `not_found_error` | Webhook `:id` doesn't belong to this caller. |
+| 409 | `conflict_error` | Same URL already subscribed (one URL per user, change events on the existing row instead). |

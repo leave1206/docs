@@ -1,0 +1,66 @@
+---
+title: "seedream-4.5"
+description: "ByteDance Seedream's refined 4.5 release — tighter prompt adherence, cleaner edge fidelity, slightly higher per-image cost than seedream-4. The default upgrade target if seedream-4 was already serving your use case."
+---
+
+`seedream-4.5` is a refinement release over [`seedream-4`](/models/seedream-4). Improvements concentrate on prompt adherence, edge fidelity (less "AI cleanup" on hand-drawn elements), and Chinese in-image text consistency. Per-image cost is slightly higher than `seedream-4`. The right pick when `seedream-4` was already working and you want the increment, not when you're choosing among tiers for the first time.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedream** | Volcengine | `ark.cn-beijing.volces.com` | per-image (see [/pricing](/pricing) for current rate) | ~5s (1024×1024) | cn-beijing |
+
+Failures don't bill.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedream-4.5",
+    "prompt": "国潮风插画，敦煌色彩，飞天主角居中，背景为佛窟纹样",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+Python and TypeScript invocations match the pattern shown on [`seedream-4`](/models/seedream-4#quickstart) — just swap the `model` field.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-image | ✅ |
+| Image-to-image (with `source_image`) | ✅ |
+| `n` ≥ 2 batch generation | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| Chinese in-image typography | ✅ stronger than 4 |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## When to use
+
+- **You're already on `seedream-4`** and want the next iteration's improvements.
+- **Tight prompt adherence required** — campaign work where the prompt specifies layout details that can't drift.
+- **Chinese in-image text** — small per-image quality gain shows up most on text-heavy posters.
+
+When **not** to use:
+
+- You're starting from scratch and not sure between tiers — pick [`seedream-4`](/models/seedream-4) first, upgrade only if you hit a real gap.
+- Cost-sensitive volume — drop to [`seedream-v5lite`](/models/seedream-v5lite).
+
+## Next
+
+- [`seedream-4`](/models/seedream-4) — predecessor
+- [`seedream-v5lite`](/models/seedream-v5lite) — cheapest seedream tier
+- [`gpt-image-2`](/models/gpt-image-2) — OpenAI alternative

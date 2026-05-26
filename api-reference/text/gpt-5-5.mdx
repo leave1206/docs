@@ -1,0 +1,150 @@
+---
+title: "GPT-5.5"
+description: "OpenAI's current production flagship — 200K context, native reasoning, the model to pick for any new project that doesn't have a benchmark for an older version."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-5-5`
+**Capability:** 200K context · tool use · vision · streaming · structured output · reasoning_effort
+**Pricing:** per-token, flagship tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-5.5 is the current OpenAI flagship — the default for any new
+project on the platform. It's the model that put native reasoning
+into the standard chat completions shape: same request body, same
+response shape, with `reasoning_effort` as an optional dial. For most
+production work the default `"medium"` setting is right; lift to
+`"high"` only on hard problems where Sonnet or 5.4-pro have left
+quality on the table.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5",
+    "messages": [{"role": "user", "content": "Design a schema for a multi-tenant audit log."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-5-5` |
+| `messages` | array | yes | — | — |
+| `reasoning_effort` | string | no | `"medium"` | `"low"` / `"medium"` / `"high"`. |
+| `max_tokens` | integer | no | model max | Max: 32768. |
+| `tools` | array | no | — | Parallel function calling. |
+| `response_format` | object | no | — | JSON mode + structured output (recommended for production). |
+| `web_search` | object | no | — | Built-in web search tool — billed per use. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-5-5",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {
+    "prompt_tokens": 64,
+    "completion_tokens": 1842,
+    "reasoning_tokens": 2048,
+    "total_tokens": 3954
+  }
+}
+```
+
+`reasoning_tokens` billed at input-token rate.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-5-5", "messages": [{"role": "user", "content": "Design a schema for a multi-tenant audit log."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gpt-5-5",
+    messages=[{"role": "user", "content": "Design a schema for a multi-tenant audit log."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gpt-5-5",
+  messages: [
+    { role: "user", content: "Design a schema for a multi-tenant audit log." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Reasoning effort
+
+| Setting | Use for |
+|---|---|
+| `"low"` | Fast routing / classification with reasoning kept light |
+| `"medium"` | Default — production code gen, content rewriting, agents |
+| `"high"` | Hard problems where you can wait — proofs, deep refactors, plans |
+
+## Web search
+
+Pass `"web_search": {}` to give the model a built-in web search tool.
+The tool is billed per use (see [pricing](https://bytespike.ai/pricing#text)
+for current rate). Useful for fact-grounded tasks where the model would
+otherwise hallucinate or cite stale information.
+
+## Streaming + caching
+
+`"stream": true` for SSE. With reasoning enabled, expect a longer TTFB.
+Automatic prompt caching on stable prefixes — the highest-leverage cost
+optimisation on this tier.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Default starting point for any new project on OpenAI.
+- Code generation in an existing codebase, schema / API design.
+- Multi-step plans, structured output where mid-tier models drift.
+- For latency-critical responses, see [GPT-5.5-instant](/api-reference/text/gpt-5-5-instant).
+- For mid-tier cost / latency, see [GPT-5.4](/api-reference/text/gpt-5-4).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 200K tokens |
+| Max output | 32768 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |
+| Supports reasoning_effort | Yes |
+| Supports web search tool | Yes |

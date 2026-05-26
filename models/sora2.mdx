@@ -1,0 +1,106 @@
+---
+title: "sora2"
+description: "OpenAI's Sora 2 video model. Text-to-video and image-to-video on a task-based polling endpoint. Billed per second of generated footage. The default choice when you want Sora-grade physics, camera motion, and shot composition."
+---
+
+`sora2` is OpenAI's Sora 2 model — text-to-video and image-to-video on a **two-phase task-based endpoint**: submit returns a `task_id`, the client polls until the result_url is populated. Billed by the second of generated footage. The reason to reach for it: Sora-grade physical motion, camera dynamics, and shot composition; the trade-off vs lighter tiers is per-second cost and longer total wall-clock to first frame.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI Video** | OpenAI direct | `api.openai.com` | per-second (see [/pricing](/pricing) for current rate) | ~90s wall-clock for 5s clip | global edge |
+
+Failures don't bill. Per-second pricing applies to the *generated* footage length, not poll latency.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` when ready |
+
+The DOSIA `video-tools` plugin handles polling automatically — your chat just sees the clip appear when ready.
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (submit + poll)
+# Submit
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "sora2",
+    "prompt": "A red apple rolls slowly across a wooden table, soft window light",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# Poll until ready
+until curl -s https://llm.bytespike.ai/v1/videos/tasks/$TASK_ID \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" | jq -e '.status == "completed"' > /dev/null; do
+  sleep 5
+done
+
+curl -s https://llm.bytespike.ai/v1/videos/tasks/$TASK_ID \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" | jq -r .result_url
+```
+
+```python Python (openai SDK)
+import os, time
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+task = client.videos.generate(
+    model="sora2",
+    prompt="A red apple rolls slowly across a wooden table, soft window light",
+    duration_seconds=5,
+    size="1280x720",
+)
+
+while True:
+    status = client.videos.retrieve(task.task_id)
+    if status.status == "completed":
+        print(status.result_url)
+        break
+    if status.status == "failed":
+        raise RuntimeError(status.error)
+    time.sleep(5)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| `duration_seconds` 5 / 10 / 15 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| Task-based polling | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Sora-grade footage** — physical motion, camera moves, multi-subject scenes.
+- **Marketing video** — hero clip, social-card animation, product story.
+- **DOSIA `generate_video`** — the main brain picks this when permissioned, polls automatically through `video-tools.poll_video`.
+
+When **not** to use:
+
+- Cost-sensitive volume — drop to [`veo3.1-fast`](/models/veo3-1-fast) or [`seedance-2.0-fast`](/models/seedance-2-0-fast).
+- Domestic-China region latency-sensitive — [`seedance-2.0-pro`](/models/seedance-2-0-pro) is served from cn-beijing.
+
+## Next
+
+- [`sora2-pro`](/models/sora2-pro) — higher tier, longer clips, richer dynamics
+- [`veo3.1`](/models/veo3-1) — Google alternative at similar tier
+- [Multimodal endpoints](/concepts/multimodal) — overview

@@ -1,0 +1,136 @@
+---
+title: "Codex CLI"
+description: "Point OpenAI's Codex CLI at ByteSpike. Works against the GPT-5 family, the o-series, and every Claude / Gemini model reachable via Responses-API translation."
+---
+
+OpenAI's Codex CLI speaks the Responses API natively. Redirect its
+base URL at ByteSpike and the CLI works against the GPT-5 / o-series
+catalog directly, plus every other model the gateway translates into
+Responses shape (Claude family, Gemini family).
+
+## Prerequisites
+
+- A ByteSpike account + a key. For GPT-5 / o-series, a key in any
+  group that serves them (typically the OpenAI / `default` group). For
+  reaching Claude or Gemini via Responses translation, the key's group
+  must include those models.
+- Codex CLI installed:
+  ```bash
+  npm install -g @openai/codex-cli
+  ```
+
+## Configure
+
+Codex CLI reads `OPENAI_API_KEY` + `OPENAI_BASE_URL`. Set both:
+
+```bash
+export OPENAI_BASE_URL="https://llm.bytespike.ai/v1"
+export OPENAI_API_KEY="sk-byts-..."
+```
+
+<Tip>
+If Codex CLI in your version uses a Responses-specific base URL
+override flag (some prerelease builds use
+`--responses-base-url`), pass `https://llm.bytespike.ai/v1`
+explicitly:
+```bash
+codex --responses-base-url https://llm.bytespike.ai/v1 "..."
+```
+</Tip>
+
+## Verify
+
+```bash
+codex "list files in this directory"
+```
+
+Codex will run a small Responses-API call against the gateway. You
+should see normal tool-use output (file listing). Errors point you
+at config: `401` = wrong key, `402` = wallet empty,
+`400 model_not_allowed` = the default model isn't in your key's
+group.
+
+## Switching models
+
+Most Codex versions accept `--model`:
+
+```bash
+codex --model gpt-5-5         "refactor this function"
+codex --model gpt-5-3-codex   "explain this commit"
+codex --model claude-opus-4-7 "review my PR description"
+```
+
+All three above work — `gpt-5-*` is the OpenAI-native path; the
+Claude id triggers ByteSpike's Responses→Messages translation
+under the hood. The CLI never knows the difference.
+
+## Common configs
+
+<AccordionGroup>
+  <Accordion title="One key, multi-model session">
+    Pick a key whose group includes the models you want to bounce
+    between (typically the **all-protocols** group if your account
+    has one). The CLI can then `--model` between OpenAI native and
+    Claude/Gemini translated within a single session.
+  </Accordion>
+  <Accordion title="Reasoning mode (o-series + GPT-5)">
+    Pass through Codex's reasoning controls:
+    ```bash
+    codex --model gpt-5-5 --reasoning-effort high "..."
+    ```
+    The gateway forwards the `reasoning.effort` field verbatim. Pricing reflects the higher reasoning-token output — see [pricing](/pricing).
+  </Accordion>
+  <Accordion title="Structured output (JSON Schema)">
+    Codex's `--response-format json_schema=...` flag is forwarded as
+    `response_format` to the gateway, which routes it correctly per
+    upstream (OpenAI native supports the JSON Schema mode directly;
+    Claude path falls back to text + parse).
+  </Accordion>
+  <Accordion title="Tool definitions">
+    Codex's tool definitions (`--tools=...`) are forwarded as the
+    Responses-API `tools` array. On the OpenAI path they're native;
+    on the Claude/Gemini path the gateway translates to the
+    upstream's tool format (`input_schema` for Anthropic,
+    `functionDeclarations` for Gemini).
+  </Accordion>
+</AccordionGroup>
+
+## Codex vs Claude Code — when to use which
+
+| Strength | Claude Code | Codex CLI |
+|---|---|---|
+| **Natural model fit** | Claude family (Anthropic Messages native) | GPT-5 + o-series (OpenAI Responses native) |
+| **Tool-use schema** | Cleaner — Anthropic uses raw JSON Schema | More noise — OpenAI wraps tool_calls in strings |
+| **Reasoning controls** | `thinking` blocks on Opus / Sonnet 4.x | `reasoning.effort: low/medium/high` on GPT-5 |
+| **Cache control** | `cache_control` blocks (Anthropic native) | n/a |
+| **JSON mode** | Both work via response_format | Both work; OpenAI more mature |
+
+Many teams keep **both** installed and pick per task. Use one ByteSpike
+account, generate one key per CLI bound to its preferred group.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `401 invalid x-api-key` | Wrong key | Recopy from console |
+| `402 insufficient_balance` | Wallet empty | Top up |
+| `400 model_not_allowed` | Model not in key's group | Switch group or model |
+| Tool calls returning garbage | Model path doesn't support the tool schema (rare on translated Claude routes) | Switch to GPT-5 native or simplify the tool schema |
+| Stall during streaming | Proxy buffering | Add `llm.bytespike.ai` to `NO_PROXY` |
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Claude Code CLI" icon="terminal" href="/claude-code-cli">
+    Anthropic's coding CLI, same kind of setup.
+  </Card>
+  <Card title="/responses reference" icon="code" href="/api-reference/text/openai-responses">
+    The protocol Codex speaks.
+  </Card>
+  <Card title="Models" icon="boxes-stacked" href="/models">
+    GPT-5 / o-series catalog.
+  </Card>
+  <Card title="Cursor IDE" icon="code-branch" href="/cursor">
+    Editor-level integration.
+  </Card>
+</CardGroup>

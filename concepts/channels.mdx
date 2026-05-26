@@ -1,0 +1,103 @@
+---
+title: "Channels"
+description: "A channel is the actual upstream account ByteSpike uses to serve a model. The same model often has multiple channels — different providers, different prices, different rate limits — and ByteSpike's routing layer picks one per request."
+---
+
+A **channel** is the actual upstream account ByteSpike uses to serve a request. One channel = one credential + one base URL + one upstream provider. The same model often has several channels behind it; the routing layer picks one per request based on policy.
+
+This is the most important concept to internalize when reading ByteSpike pricing: **price is per-channel, not per-model**. The same `claude-sonnet-4-6` may cost one number through one channel and a different number through another. Both are real; both work; the routing layer decides which one you hit.
+
+## The N:M relationship
+
+In a typical naive aggregator, each model is served by exactly one provider. In ByteSpike, the layout is N:M — N models, M channels — and the mapping between them is many-to-many:
+
+- One model can be served by many channels (`claude-sonnet-4-6` via Anthropic API, AWS Bedrock, Google Vertex)
+- One channel can serve many models (a Volcengine CodePlan subscription serves DeepSeek-V3.2, Doubao, GLM, Kimi, MiniMax all at once)
+- The model name you send (`claude-sonnet-4-6`) names the model; the channel that actually runs it is chosen at request time.
+
+This is what enables price arbitrage, regional routing, and graceful failover without making customers write provider-specific code.
+
+## What's in a channel
+
+Every channel record in the gateway carries:
+
+| Field | What it is |
+|---|---|
+| `provider` | The upstream platform name (`anthropic`, `bedrock`, `volcengine-codeplan`, `deepseek`, etc.) |
+| `base_url` | The actual HTTP base the gateway calls out to |
+| `credential` | The API key / OAuth token / cloud IAM principal — never visible to customers |
+| `serves[]` | The list of model IDs this channel can serve |
+| `cost_per_million_input` / `cost_per_million_output` | Per-1M token pricing in USD, set per-model on this channel |
+| `priority` | Default routing weight (higher = preferred) |
+| `rate_limit` | Channel-level RPM / TPM ceiling |
+| `region` | Geographic locator for latency-aware routing |
+| `enabled` | Boolean — whether the routing layer considers this channel today |
+
+The same model may appear in `serves[]` for several channels. When that happens, the routing layer chooses.
+
+## How routing picks a channel
+
+For each incoming request, the gateway runs a short decision pipeline:
+
+1. **Filter**: which channels declare they serve this model and are currently enabled.
+2. **Authorize**: which of those channels belong to the routing group your API key is bound to (`group_id` on the key).
+3. **Sort**: by admin-configured priority within the group.
+4. **Pick**: take the top of the sorted list.
+5. **Fall back**: if the picked channel returns 5xx or a rate-limit error, retry on the next eligible channel in the same group.
+
+The customer side stays opaque — you sent a request for `claude-sonnet-4-6`, you get back a response for `claude-sonnet-4-6`. The channel ID isn't exposed in response headers today; for debugging "which channel served my request?", check the `upstream_provider` field on `/v1/usage` rows.
+
+## How billing maps to channels
+
+Each completed request bills against the **channel's** rate for that model, not a flat model rate.
+
+```
+Request:  POST /v1/messages { model: "claude-sonnet-4-6", ... }
+Routed to channel: bedrock-us-east-1
+Channel rate (cost_per_million_input):  $3.30
+Channel rate (cost_per_million_output): $16.50
+Bill:     prompt_tokens * 3.30 / 1e6 + completion_tokens * 16.50 / 1e6
+```
+
+If a different channel had served the request, the rate could differ — admins set per-channel pricing on each channel record. Customers can see the actual `credits` charged per request via [`/api/v1/me/usage`](/api-reference/account/me-usage).
+
+## How admins steer routing
+
+Channel selection is configured admin-side, not per-request. The two main levers:
+
+### Group binding on the API key
+
+When you create an API key, you pick its `group_id`. That binds the key to a specific routing group — all channels in that group are eligible to serve the key's requests; channels outside are not.
+
+This is how you steer traffic to a particular set of upstreams: bind your key to the right group at creation time. Different keys can bind to different groups. See [Authentication](/authentication#per-key-controls).
+
+### Channel priority within a group
+
+Inside a group, admins set per-channel priority. The routing layer picks the highest-priority eligible channel; if it fails, it tries the next.
+
+Customers don't override routing per-request today — there's no `extra_body.preferred_channel` or similar knob. If you need a specific channel for compliance / cost / latency reasons, that's an admin-side group + priority configuration, not a request-side override.
+
+## Why customers should care
+
+Three reasons:
+
+1. **Predictable pricing** — knowing your key's group + which channels are in it tells you which rates apply. Every channel rate shows up as the billed `credits` on `/api/v1/me/usage` rows.
+2. **Provider risk** — if Anthropic's API has a regional outage and your group has another Claude-serving channel configured, the gateway retries on the next channel automatically; you don't write that code.
+3. **Capability access** — different groups can include different model families. To reach DeepSeek + Claude in one client, you typically need two keys (one per group).
+
+The same model name can be served by different channels in different groups, at different rates. ByteSpike makes them addressable as one logical model with channels + groups as the routing dimension.
+
+## What a channel is not
+
+- **Not** a region, exactly. Multiple regions can be wrapped behind one channel record (e.g. an Anthropic-API channel with a multi-region failover policy inside).
+- **Not** a model variant. `claude-sonnet-4-5` and `claude-sonnet-4-6` are different models, not different channels.
+- **Not** customer-visible by default. A request that hits the wrong channel still returns the right model output; channel identity is observable for debugging via response headers, not part of the request contract.
+
+For the conceptual layer above this — what a *platform* is vs. what a *channel* is — see [platforms vs. channels](/concepts/platforms-vs-channels). For the per-protocol shape your client speaks against ByteSpike (Messages / Chat Completions / Responses / etc.), see [endpoint types](/concepts/endpoints).
+
+## Next
+
+- [Platforms vs. channels](/concepts/platforms-vs-channels) — disambiguating the two terms
+- [Endpoint types](/concepts/endpoints) — the eight request shapes ByteSpike accepts
+- [Credits and billing](/concepts/credits-and-billing) — how per-channel rates flow into the credit ledger
+- [Models index](/models) (coming soon) — per-model pages, each listing every channel that serves it

@@ -1,0 +1,116 @@
+---
+title: "Seedance 2.0"
+description: "ByteDance Seedance 2.0 standard tier — the new mid-tier video generator with improved character consistency and CJK prompt handling."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedance-2.0`
+**Capability:** 1080p · up to 8s · text + image init · CJK prompts · async via tasks API
+**Pricing:** per second + submit fee, mid tier ([live rate](https://bytespike.ai/pricing#video))
+
+Seedance 2.0 is the standard tier of the new ByteDance video family.
+Same character-motion strengths as 1.5 Pro with measurably better
+consistency across long clips (faces don't drift, hand counts stay
+correct over 8 seconds). Native CJK prompt understanding. Default
+ByteDance-family pick when you want 2.0 quality without the Pro
+latency.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "prompt": "一只柴犬在草坪上奔跑追逐飞盘，慢动作",
+    "duration_seconds": 6,
+    "resolution": "1080p"
+  }'
+```
+
+### Body parameters
+
+Same shape as [Seedance 1.5 Pro](/api-reference/video/seedance-1-5-pro);
+`max duration_seconds` is 8 (vs 6).
+
+## Submit + poll
+
+Standard tasks shape. Recommended cadence: 2s for first 60s, then 5s up to 180s.
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.36}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-2.0", "prompt": "柴犬奔跑追飞盘", "duration_seconds": 6, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-2.0",
+    "prompt": "一只柴犬在草坪上奔跑追逐飞盘",
+    "duration_seconds": 6,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-2.0", prompt: "柴犬奔跑追飞盘", duration_seconds: 6, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+Standard — same as [Seedance 1.5 Pro](/api-reference/video/seedance-1-5-pro).
+
+## When to use
+
+- Default ByteDance video tier for new work.
+- Character motion in 5–8s clips, especially with CJK prompts.
+- For higher fidelity, see [Seedance 2.0 Pro](/api-reference/video/seedance-2-0-pro).
+- For latency win at lower fidelity, see [Seedance Fast](/api-reference/video/seedance-fast).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 8s |
+| Resolutions | 720p, 1080p |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 6s clip | 60-90s |
+| Async via tasks API | Yes |

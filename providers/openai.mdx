@@ -1,0 +1,206 @@
+---
+title: "OpenAI on ByteSpike"
+description: "The full GPT family — 4o, 5.2, 5.4, 5.5 — plus GPT-Image-2 for images and Sora 2 for video, behind one ByteSpike key. Both OpenAI Chat Completions and the newer Responses (Codex) shape are supported."
+---
+
+ByteSpike serves the OpenAI lineup — GPT-4o through GPT-5.5, plus
+GPT-Image-2 for image generation and Sora 2 / 2-Pro for video —
+behind a single ByteSpike key. Two chat protocols are wired up:
+the ubiquitous **OpenAI Chat Completions** shape (`/v1/chat/completions`)
+and the newer **Responses** shape (`/v1/responses`) that OpenAI's
+Codex CLI and the Agents SDK now use.
+
+## Endpoint coverage
+
+| Endpoint | Path | Notes |
+|---|---|---|
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | Drop-in for any code already using the openai SDK. |
+| **OpenAI Responses** | `POST https://llm.bytespike.ai/v1/responses` | The newer protocol; [Codex CLI](/codex-cli) and Agents SDK use it. Structured outputs + reasoning combine here. |
+| **Image generation (sync)** | `POST https://llm.bytespike.ai/v1/images/generations` · `/v1/images/edits` | OpenAI-shape; serves GPT-Image-2 (and Nano-Banana via the same shape). |
+| **Image / video generation (async)** | `POST https://llm.bytespike.ai/v1/tasks/submit` | Sora 2 / 2-Pro for video; long-running image batches. See [`/tasks/submit`](/api-reference/utility/tasks-submit). |
+
+The same ByteSpike key works against every endpoint. Switch endpoints by path; the credential does not change.
+
+<Note>
+ByteSpike does **not** currently expose OpenAI's `/v1/embeddings`,
+`/v1/audio/transcriptions`, `/v1/audio/speech`, `/v1/assistants`,
+`/v1/files`, or `/v1/vector_stores` surfaces. If you depend on
+those, call OpenAI direct for them; chat completions can still go
+through ByteSpike.
+</Note>
+
+## Authentication
+
+Issue a key from the [Console](https://console.bytespike.ai), then send it on every request as `Authorization: Bearer $BYTESPIKE_API_KEY`. Same scheme for every OpenAI-shape endpoint above.
+
+The key must be bound to a routing group that includes the GPT
+models. The console's [Test](https://console.bytespike.ai/dosia/models)
+button confirms key + group + model viability before you wire it
+into a client. See [Authentication](/authentication) for the full
+per-key control list (quota, rate limits, IP allowlist).
+
+## Models
+
+The full chat lineup, with public per-1M token rates. See [bytespike.ai/pricing](https://bytespike.ai/pricing) for the live nightly-refreshed authoritative rate card.
+
+| Model ID | Tier | Context | Input | Output | Capabilities |
+|---|---|---|---|---|---|
+| `gpt-4o-mini` | small | 128K | $0.15 | $0.60 | chat · vision · tools · json mode |
+| `gpt-4o` | mid | 128K | $2.50 | $10.00 | chat · vision · tools · json mode |
+| `gpt-4v` | mid | 128K | $5.00 | $15.00 | chat · vision · tools |
+| `gpt-5-nano` | small | 256K | $0.05 | $0.40 | chat · tools · reasoning_effort:low |
+| `gpt-5-mini` | small-mid | 256K | $0.25 | $2.00 | chat · vision · tools · reasoning |
+| `gpt-5-2` | mid | 400K | $1.25 | $10.00 | chat · vision · tools · reasoning · web_search |
+| `gpt-5-3-codex` | mid | 400K | $1.25 | $10.00 | chat · vision · tools · reasoning · code-tuned |
+| `gpt-5-4-mini` | mid | 400K | $0.25 | $2.00 | chat · vision · tools · reasoning |
+| `gpt-5-4-nano` | small | 400K | $0.05 | $0.40 | chat · tools · reasoning |
+| `gpt-5-4` | mid-large | 400K | $1.25 | $10.00 | chat · vision · tools · reasoning · web_search · structured outputs |
+| `gpt-5-4-pro` | large | 400K | $3.00 | $15.00 | chat · vision · tools · extended reasoning · web_search |
+| `gpt-5-5-instant` | mid | 400K | $2.50 | $20.00 | chat · vision · tools · low-latency reasoning |
+| `gpt-5-5` | flagship | 1M | $5.00 | $30.00 | chat · vision · tools · extended reasoning · web_search · 1M context |
+
+Multimodal models published separately: [GPT-Image-2 →](/models/gpt-image-2) · [Sora 2 →](/models/sora2) · [Sora 2 Pro →](/models/sora2-pro).
+
+GPT-5-5 web-search tool: $10 / 1k uses (billed separately when invoked).
+
+## Quickstart
+
+All four examples produce the same completion against `gpt-5-4` via Chat Completions.
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-4",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```javascript Node (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-5-4",
+  messages: [
+    { role: "user", content: "Hello, ByteSpike." },
+  ],
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+```python Responses API (Codex)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.responses.create(
+    model="gpt-5-4",
+    input="Hello, ByteSpike.",
+    reasoning={"effort": "medium"},
+)
+
+print(resp.output_text)
+```
+
+</CodeGroup>
+
+## OpenAI-specific features
+
+### Reasoning
+
+GPT-5 family exposes a `reasoning_effort` parameter (Chat Completions) or `reasoning.effort` (Responses) controlling how many internal tokens the model spends reasoning before producing the answer. Values: `low` / `medium` / `high`.
+
+Reasoning tokens count toward output billing. See [credits and billing](/concepts/credits-and-billing).
+
+### Structured outputs
+
+`response_format: { type: "json_schema", json_schema: {...} }` returns JSON that conforms to your schema, with provider-side validation. Supported on GPT-5-2 and newer. Passed through verbatim — ByteSpike doesn't modify the schema.
+
+### Web search
+
+GPT-5-2 / 5-4 / 5-4-pro / 5-5 support OpenAI's web search tool. Add `tools: [{ "type": "web_search" }]` to your request. Each tool invocation bills as a separate output segment + the per-1k-uses web-search surcharge.
+
+### Function calling
+
+Standard `tools` array plus `tool_choice` work on every chat model. Parallel tool use is supported on the GPT-5 family. Passed through unchanged.
+
+### Streaming
+
+`stream: true` on either chat protocol returns SSE. Mid-stream errors close the connection with an `error` event in the final data frame and bill **zero** credits, even if partial tokens were already streamed. See [Streaming](/concepts/streaming).
+
+## Capabilities matrix
+
+| Capability | gpt-4o-mini | gpt-4o | gpt-5-nano | gpt-5-mini | gpt-5-2 | gpt-5-4 | gpt-5-4-pro | gpt-5-5 |
+|---|---|---|---|---|---|---|---|---|
+| Chat Completions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Responses API | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Streaming | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Vision | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tools / function calling | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Parallel tools | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| JSON mode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Structured outputs | — | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Reasoning | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Web search | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| 1M context | — | — | — | — | — | — | — | ✅ |
+
+## Errors and rate limits
+
+Identical contract to other ByteSpike protocols — see [Errors reference](/concepts/errors-reference) for the full status matrix and [Rate limits](/concepts/rate-limits) for the per-key budget model.
+
+| Status | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 / 429 | Bad input / auth / quota | No |
+| 500 / 502 / 503 / 504 | Upstream | No — gateway retries on next channel in the same group before surfacing |
+
+Per-key rate limits live on every API key (see [Authentication](/authentication)); per-account concurrency lives on the subscription tier (see [pricing](/pricing)).
+
+## When to use which GPT
+
+- **gpt-4o-mini** — classification, routing, structured extraction at scale. Cheap and fast.
+- **gpt-4o** — multimodal workhorse for vision + tool use without reasoning.
+- **gpt-5-nano** / **gpt-5-mini** — when you need reasoning but want to keep latency / cost down.
+- **gpt-5-2** — the default mid-tier for fresh-fact tasks; first GPT-5 with web search.
+- **gpt-5-3-codex** — code-tuned; pair with [Codex CLI](/codex-cli).
+- **gpt-5-4** — production workhorse. Vision, tools, structured outputs, reasoning, web search — together at a Sonnet-like price.
+- **gpt-5-4-pro** — for hard reasoning that warrants the extra compute.
+- **gpt-5-5** — the 1M-context flagship. Codebase-scale refactors, long-document review.
+
+## Next
+
+- [Anthropic on ByteSpike](/providers/anthropic) — the Claude family via `/v1/messages`
+- [Codex CLI](/codex-cli) — Responses-shape coding agent
+- [Migrate from OpenAI](/migrate-from-openai) — drop-in switch guide
+- [Endpoint types](/concepts/endpoints) — the full protocol map

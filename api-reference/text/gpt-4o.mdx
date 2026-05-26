@@ -1,0 +1,137 @@
+---
+title: "GPT-4o"
+description: "OpenAI's legacy 4o flagship — vision-native, high-quality, the model the GPT-5 line replaced for new development."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-4o`
+**Capability:** 128K context · vision · tool use · streaming
+**Pricing:** per-token, 4o tier ([live rate](https://bytespike.ai/pricing#text))
+
+GPT-4o was the model that put native vision into the OpenAI Chat
+Completions shape and held the production flagship spot through 2024.
+It's still a perfectly capable model for vision-heavy workflows and
+existing code that's been validated against this exact version. For
+new work, prefer [GPT-5.5](/api-reference/text/gpt-5-5) — same shape,
+better quality, lower latency.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [
+      {"role": "user", "content": [
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/photo.jpg"}}
+      ]}
+    ]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gpt-4o` |
+| `messages` | array | yes | — | OpenAI chat shape. Vision inputs use `image_url` content blocks. |
+| `max_tokens` | integer | no | model max | Hard cap. Max: 16384. |
+| `temperature` | number | no | 1.0 | Range 0.0–2.0. |
+| `tools` | array | no | — | Function calling supported (parallel). |
+| `response_format` | object | no | — | `{"type":"json_object"}` or `{"type":"json_schema",...}`. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gpt-4o",
+  "choices": [
+    {"index": 0, "message": {"role": "assistant", "content": "A koi pond at dusk..."}, "finish_reason": "stop"}
+  ],
+  "usage": {"prompt_tokens": 1024, "completion_tokens": 87, "total_tokens": 1111}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Refactor this Python function for readability."}]
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+
+resp = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Refactor this Python function for readability."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Refactor this Python function for readability." }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+Streaming via `"stream": true`. Automatic prompt caching on stable
+prefixes — no `cache_control` param needed. Cache rate at the
+discounted tier, see [pricing table](https://bytespike.ai/pricing#text).
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 422 | Param not supported | No |
+| 429 | Rate-limited | No |
+| 5xx | Upstream provider issue | No |
+
+## When to use
+
+- Vision-heavy workflows that depend on GPT-4o's specific visual quality.
+- Existing code validated against this exact version.
+- For new work, prefer [GPT-5.5](/api-reference/text/gpt-5-5).
+- For lower cost, see [GPT-4o-mini](/api-reference/text/gpt-4o-mini) or [GPT-5-mini](/api-reference/text/gpt-5-mini).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

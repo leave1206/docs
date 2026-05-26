@@ -1,0 +1,117 @@
+---
+title: "GLM-5.1"
+description: "Zhipu's current flagship — refined GLM-5 with vision support and tighter tool-call generation."
+---
+
+**Vendor:** Zhipu (智谱)
+**Model ID:** `glm-5-1`
+**Capability:** 128K context · vision · tool use · streaming · structured output · CJK-native
+**Pricing:** per-token, mid tier ([live rate](https://bytespike.ai/pricing#text))
+
+GLM-5.1 is the refinement step on GLM-5 — same context window with
+added vision support, tighter tool-call argument generation, and a
+measurable quality bump on Chinese-market code generation. Default
+starting point for new Chinese-market projects on the gateway.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "glm-5-1",
+    "messages": [{"role": "user", "content": "用中文写一份产品发布公告。"}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `glm-5-1` |
+| `messages` | array | yes | — | CJK accepted natively. Vision via `image_url` blocks. |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `tools` | array | no | — | Function calling supported (parallel). |
+| `response_format` | object | no | — | JSON / structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "glm-5-1",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 28, "completion_tokens": 412, "total_tokens": 440}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "glm-5-1", "messages": [{"role": "user", "content": "写产品发布公告"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="glm-5-1",
+    messages=[{"role": "user", "content": "用中文写一份产品发布公告。"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "glm-5-1",
+  messages: [{ role: "user", content: "用中文写一份产品发布公告。" }],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- New Chinese-market projects with mixed text + vision input.
+- Tool-using agents in CJK languages.
+- For prior version (no vision), see [GLM-5](/api-reference/text/glm-5).
+- For longer context, see [Kimi K2.6](/api-reference/text/kimi-k2-6).
+- For Chinese code-heavy work, see [DeepSeek V4 Pro](/api-reference/text/deepseek-v4-pro).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 128K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

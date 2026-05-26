@@ -1,0 +1,117 @@
+---
+title: "GPT-Image 2 Official"
+description: "OpenAI's official channel of GPT-Image 2 — direct provider routing for compliance-sensitive workflows."
+---
+
+**Vendor:** OpenAI
+**Model ID:** `gpt-image-2-official`
+**Capability:** 1024² – 4096² · photorealism · prompt-following · official OpenAI routing
+**Pricing:** per image, official tier ([live rate](https://bytespike.ai/pricing#image))
+
+GPT-Image 2 Official routes through OpenAI's official endpoint
+directly, with no intermediary providers. Same model weights and
+output as [GPT-Image 2](/api-reference/image/gpt-image-2); the
+difference is the routing path. Use this variant when compliance,
+data-residency contracts, or audit requirements call for
+provider-direct attribution. The price tier reflects the official
+routing premium.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-image-2-official",
+    "prompt": "Studio shot of a teacup on a wooden table, soft natural light",
+    "size": "1024x1024",
+    "quality": "high"
+  }'
+```
+
+### Body parameters
+
+Same as [GPT-Image 2](/api-reference/image/gpt-image-2) — `prompt`,
+`size`, `n`, `quality`, `style`, `output_format`, `output_compression`.
+Only the `model` value changes.
+
+## Response
+
+Same shape as GPT-Image 2.
+
+```json
+{
+  "created": 1715174400,
+  "data": [{"url": "https://cdn.bytespike.ai/img/...", "revised_prompt": "..."}]
+}
+```
+
+URLs pre-signed, 24h expiry.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-image-2-official", "prompt": "Studio teacup", "quality": "high"}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.images.generate(
+    model="gpt-image-2-official",
+    prompt="Studio shot of a teacup on a wooden table, soft natural light",
+    size="1024x1024",
+    quality="high",
+)
+print(resp.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.images.generate({
+  model: "gpt-image-2-official",
+  prompt: "Studio shot of a teacup on a wooden table, soft natural light",
+  size: "1024x1024",
+  quality: "high",
+})
+console.log(resp.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+Same as [GPT-Image 2](/api-reference/image/gpt-image-2). Note the
+official-routing variant is more sensitive to upstream rate limits;
+expect occasional 429 with longer Retry-After during peak hours.
+
+## When to use
+
+- Compliance / data-residency contracts requiring provider-direct
+  routing attribution.
+- Audited workflows where the routing path is part of the spec.
+- For lower cost on identical model output, see [GPT-Image 2](/api-reference/image/gpt-image-2).
+- For text-rendering edge cases, [Nano Banana 2](/api-reference/image/nano-banana-v2) is also strong.
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | 4096×4096 |
+| Max images per call (`n`) | 4 |
+| Routing | OpenAI official direct |
+| Supports `quality` modifier | Yes |
+| Sync? | Yes (≤30s typical) |
+| Avg latency for 1024² high | 14-22s |

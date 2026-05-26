@@ -1,0 +1,57 @@
+---
+title: "Introduction"
+description: "One key, one base URL, every model — Anthropic-compatible by default."
+---
+
+ByteSpike is a multi-model gateway that speaks **Anthropic Messages** as its
+native protocol, with **OpenAI Chat Completions** and **OpenAI Responses**
+shimmed transparently. Behind one key you get text, image, video, embedding,
+and rerank endpoints — billed in transparent credits, not per-vendor SKUs.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Make your first request in under two minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    How API keys, group bindings, and rate limits work.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    23 endpoints, one base URL, one auth header.
+  </Card>
+  <Card title="Pricing" icon="coins" href="https://bytespike.ai/pricing">
+    Per-token / per-call rates, no markup tiers.
+  </Card>
+</CardGroup>
+
+## Why ByteSpike
+
+- **Anthropic-compatible by default** — keep your `tool_use`, `cache_control`, and `thinking` blocks. Same SDK, same retry semantics, every model.
+- **Multimodal under one key** — image, video, text, embedding, rerank — no per-vendor billing surface to assemble.
+- **Failures don't bill** — every non-2xx is free. Estimated credits ship in the response header so you can preview cost before user confirmation.
+- **Per-key controls** — every API key carries its own quota (USD), rate-limit buckets (5h / 1d / 7d), IP allowlist/denylist, and optional expiry. Org wallets roll up across keys.
+
+## What's behind the gateway
+
+Three protocol surfaces, the full multimodal catalog, and a handful of
+utility endpoints — all served from `llm.bytespike.ai`:
+
+| Family | Endpoints |
+|---|---|
+| Text | `POST /v1/messages` (Anthropic), `POST /v1/chat/completions` (OpenAI), `POST /v1/responses` (OpenAI Responses), `POST /v1beta/models/{model}:generateContent` (Gemini Native) |
+| Image | Seedream v4 / v4.5 / v5lite, GPT-Image-2 (+ official + 4o-image), Nano-Banana / Pro / v2 |
+| Video | Sora-2 / 2-Pro, Veo-3.1 / 3.1-Fast, Seedance 1.5-Pro / 2.0 / 2.0-Pro / 2.0-Pro-Fast / Fast |
+| Utility | `GET /v1/models` (list catalog), `GET /v1/usage` (request usage), `POST /v1/tasks/{submit,query,cancel}` (async multimodal), `GET /v1/balance` (free) |
+
+The full catalog with live pricing lives at
+[bytespike.ai/pricing](https://bytespike.ai/pricing). This documentation
+focuses on the request shape, response shape, and gotchas for each.
+
+## Base URL
+
+```
+https://llm.bytespike.ai/v1
+```
+
+Anthropic SDKs work out of the box by setting `baseURL` to the value above.
+OpenAI SDKs work the same way — see [Authentication](/authentication) for
+the per-protocol header layout.

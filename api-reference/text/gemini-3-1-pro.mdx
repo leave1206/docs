@@ -1,0 +1,133 @@
+---
+title: "Gemini 3.1 Pro"
+description: "Google's flagship Gemini — 1M context, native multimodal, deep reasoning. The model to reach for when input is long AND mixed-modality."
+---
+
+**Vendor:** Google
+**Model ID:** `gemini-3-1-pro`
+**Capability:** 1M context · vision · audio in · tool use · streaming · structured output · grounding
+**Pricing:** per-token, pro tier ([live rate](https://bytespike.ai/pricing#text))
+
+Gemini 3.1 Pro is the right call when both *input length* and
+*modality mix* matter. It accepts up to 1M tokens of input — enough
+for a long PDF, a video transcript, or a mixed corpus of text and
+images — and reasons across the whole thing in a single call. For
+text-only flagship work, GPT-5.5 and Claude Opus 4.7 are competitive;
+Gemini 3.1 Pro's edge is the multimodal long-context combination.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gemini-3-1-pro",
+    "messages": [{"role": "user", "content": "Summarize the key claims in this 200-page filing."}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `gemini-3-1-pro` |
+| `messages` | array | yes | — | OpenAI chat shape; supports `image_url` and `input_audio` blocks. |
+| `max_tokens` | integer | no | model max | Max: 32768. |
+| `temperature` | number | no | 1.0 | — |
+| `tools` | array | no | — | Function calling supported. |
+| `response_format` | object | no | — | JSON / structured output. |
+| `grounding` | object | no | — | Google Search grounding tool — billed per use. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "gemini-3-1-pro",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 287430, "completion_tokens": 4218, "total_tokens": 291648}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gemini-3-1-pro", "messages": [{"role": "user", "content": "Summarize this filing."}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="gemini-3-1-pro",
+    messages=[{"role": "user", "content": "Summarize the key claims in this 200-page filing."}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "gemini-3-1-pro",
+  messages: [
+    { role: "user", content: "Summarize the key claims in this 200-page filing." },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Grounding (Google Search)
+
+Pass `"grounding": {}` to give the model a built-in Google Search tool
+for fact-grounded tasks. Billed per use; see
+[pricing](https://bytespike.ai/pricing#text). Useful when the question
+requires current information the training cutoff might miss.
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching — for 1M-token
+prompts, cache hits are the highest-leverage cost optimisation.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 413 | Input exceeds 1M tokens | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- Multimodal long-context work (text + images + transcripts together).
+- Long-document reasoning where 200K isn't enough.
+- For text-only flagship work, compare against [GPT-5.5](/api-reference/text/gpt-5-5) and [Claude Opus 4.7](/api-reference/text/claude-opus-4-7).
+- For flash-tier classification, see [Gemini 3 Flash](/api-reference/text/gemini-3-flash).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 1M tokens |
+| Max output | 32768 tokens |
+| Supports tool use | Yes |
+| Supports vision | Yes |
+| Supports audio input | Yes |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |
+| Supports grounding (Google Search) | Yes |

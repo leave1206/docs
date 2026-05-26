@@ -1,0 +1,122 @@
+---
+title: "Kimi K2.6"
+description: "Current Moonshot flagship — same 256K context as K2.5 with measurably tighter output and tool-call generation."
+---
+
+**Vendor:** Moonshot
+**Model ID:** `kimi-k2-6`
+**Capability:** 256K context · tool use · streaming · structured output · CJK-native
+**Pricing:** per-token, mid tier ([live rate](https://bytespike.ai/pricing#text))
+
+Kimi K2.6 is the recommended starting point for new Chinese-market
+work on the gateway. Native CJK prompt understanding (sharper than
+non-Chinese flagships on idiom and document layout), 256K context
+window, tighter tool-call argument generation than K2.5. For
+long-document extraction, agent flows where Chinese tone matters,
+and CJK-heavy summarisation, this is the default.
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "kimi-k2-6",
+    "messages": [{"role": "user", "content": "用这本财报的内容回答：现金流量表的关键变化是什么？"}]
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `kimi-k2-6` |
+| `messages` | array | yes | — | CJK accepted natively. |
+| `max_tokens` | integer | no | model max | Max: 16384. |
+| `tools` | array | no | — | Function calling supported (parallel). |
+| `response_format` | object | no | — | JSON / structured output. |
+| `stream` | boolean | no | false | SSE streaming. |
+
+## Response
+
+```json
+{
+  "id": "chatcmpl-…",
+  "object": "chat.completion",
+  "model": "kimi-k2-6",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 142850, "completion_tokens": 524, "total_tokens": 143374}
+}
+```
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "kimi-k2-6", "messages": [{"role": "user", "content": "提取关键条款"}]}'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://llm.bytespike.ai/v1", api_key="$BYTESPIKE_API_KEY")
+resp = client.chat.completions.create(
+    model="kimi-k2-6",
+    messages=[{"role": "user", "content": "用这本财报的内容回答：现金流量表的关键变化是什么？"}],
+)
+print(resp.choices[0].message.content)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+const resp = await client.chat.completions.create({
+  model: "kimi-k2-6",
+  messages: [
+    { role: "user", content: "用这本财报的内容回答：现金流量表的关键变化是什么？" },
+  ],
+})
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Streaming + caching
+
+`"stream": true` for SSE. Automatic prompt caching — for 256K-token
+prompts, cache hits are the highest-leverage cost optimisation.
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 422 / 429 | Standard | No |
+| 5xx | Upstream | No (auto-retry) |
+
+## When to use
+
+- New Chinese-market projects — default starting point for CJK work.
+- Long-document extraction in Chinese / Japanese / Korean.
+- For prior version, see [Kimi K2.5](/api-reference/text/kimi-k2-5).
+- For larger context (1M) at flagship cost, see [Gemini 3.1 Pro](/api-reference/text/gemini-3-1-pro).
+- For Chinese open-weight alternatives, see [GLM-5-1](/api-reference/text/glm-5-1) or [DeepSeek V4 Pro](/api-reference/text/deepseek-v4-pro).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | 256K tokens |
+| Max output | 16384 tokens |
+| Supports tool use | Yes (parallel) |
+| Supports vision | No |
+| Supports streaming | Yes |
+| Supports prompt caching | Automatic |

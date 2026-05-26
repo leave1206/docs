@@ -1,0 +1,162 @@
+---
+title: "POST /tasks/query"
+description: "Read the current state of an async task by task_id or out_task_id. Free."
+---
+
+Poll the dispatcher for the current state of a task started by
+[`/tasks/submit`](./tasks-submit). Returns whatever's known right now
+— `pending`, `running`, or one of three terminal states (`completed`,
+`failed`, `cancelled`).
+
+For real-time delivery (server-pushed state changes instead of
+client-pulled polls), use `GET /v1/tasks/stream/{task_id}` (SSE) or a
+`callback_url` registered on submit.
+
+## When to use
+
+- **Cheap polling loop** — `/tasks/query` is free; call it on a
+  cadence matched to the task's `estimated_seconds`
+- **Reconciling after process restart** — your client died, you only
+  have the `out_task_id` in your DB; query by that to recover the
+  current state
+- **Final output retrieval** — once `status` is `completed`, the
+  `output` array holds the generated images / videos
+
+## Request
+
+### By task_id
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/query \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9"}'
+```
+
+### By out_task_id (idempotency key)
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/query \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"out_task_id": "my-render-2026-05-25-001"}'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `task_id` | string | one-of | Server-generated ULID returned by `/tasks/submit`. |
+| `out_task_id` | string | one-of | The idempotency key you supplied on submit. |
+
+Exactly one of `task_id` or `out_task_id` is required. Sending both
+returns `400 invalid_param`.
+
+## Response
+
+### While running
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "running",
+  "estimated_credits": 1.50,
+  "estimated_seconds": 35,
+  "upstream_provider": "openai"
+}
+```
+
+### After completion
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "completed",
+  "credits_used": 1.47,
+  "upstream_provider": "openai",
+  "output": [
+    {
+      "type": "video",
+      "url": "https://cdn.bytespike.ai/multimodal/sora-2/2026-05-25/01HQX9F2P6Y8VEX3CRZ8GXJVD9.mp4",
+      "duration_seconds": 8,
+      "width": 1920,
+      "height": 1080
+    }
+  ]
+}
+```
+
+### After failure
+
+```json
+{
+  "task_id": "task_01HQX9F2P6Y8VEX3CRZ8GXJVD9",
+  "out_task_id": "my-render-2026-05-25-001",
+  "status": "failed",
+  "upstream_provider": "openai",
+  "error_code": "content_policy_violation",
+  "error_message": "Upstream rejected the prompt under content policy."
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `task_id` | string | Always present. |
+| `out_task_id` | string | Echoes back if you supplied one on submit. |
+| `status` | string | `pending`, `running`, `completed`, `failed`, `cancelled`. |
+| `estimated_credits` | number | Pre-flight cost estimate. Present from `pending` onward, cleared once `credits_used` is set. |
+| `estimated_seconds` | integer | Pre-flight ETA. |
+| `credits_used` | number | Final billed credits. Present only on `completed`. Failed and cancelled tasks are free (field absent). |
+| `output` | array | Array of result objects. Shape depends on the model. Present only on `completed`. |
+| `upstream_provider` | string | Which underlying vendor served this task (`openai`, `google`, `volcengine`, …). Helpful for debugging. |
+| `error_code` | string | Machine-readable error tag. Present only on `failed`. |
+| `error_message` | string | Human-readable error. Present only on `failed`. |
+
+### Polling cadence
+
+Match your poll interval to the model's `estimated_seconds` from the
+submit response. A good default for video:
+
+```python
+import time, requests
+
+eta = submit_resp.json()["estimated_seconds"] or 30
+sleep_for = max(2, eta // 6)  # poll ~6 times across the expected duration
+
+while True:
+    r = requests.post(
+        "https://llm.bytespike.ai/v1/tasks/query",
+        headers={"Authorization": f"Bearer {os.environ['BYTESPIKE_API_KEY']}"},
+        json={"task_id": task_id},
+    )
+    state = r.json()
+    if state["status"] in ("completed", "failed", "cancelled"):
+        break
+    time.sleep(sleep_for)
+```
+
+For zero-polling delivery, prefer `callback_url` (set on submit) or
+the SSE stream endpoint.
+
+## Errors
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `invalid_param` | Both `task_id` and `out_task_id` sent, or both empty. |
+| 401 | `invalid_api_key` | Missing / revoked key. |
+| 404 | `task_not_found` | No task matches the supplied identifier — or the task belongs to a different API key. |
+
+## Pricing
+
+**Free.** Polling does not consume credits. Only `completed` tasks bill
+(via the original submit). Re-querying a completed task as many times
+as you like is zero-cost.
+
+## Next
+
+- [`POST /tasks/cancel`](./tasks-cancel) — abort a non-terminal task
+- [`POST /tasks/submit`](./tasks-submit) — kick a task off

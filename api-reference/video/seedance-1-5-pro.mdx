@@ -1,0 +1,129 @@
+---
+title: "Seedance 1.5 Pro"
+description: "ByteDance's prior video flagship — strong on character motion and Chinese-market briefs, kept for benchmark-validated paths."
+---
+
+**Vendor:** ByteDance
+**Model ID:** `seedance-1.5-pro`
+**Capability:** 1080p · up to 6s · text + image init · CJK prompts · async via tasks API
+**Pricing:** per second + submit fee, mid tier ([live rate](https://bytespike.ai/pricing#video))
+
+Seedance 1.5 Pro was the prior flagship of the ByteDance video family.
+Earned a reputation for character motion (faces, hand gestures,
+walking gait) at a price tier where Sora 2 felt overkill. Native CJK
+prompt understanding, recognizably ByteDance aesthetic. For new work,
+prefer [Seedance 2.0 Pro](/api-reference/video/seedance-2-0-pro);
+1.5 Pro is kept for teams who've validated against this version.
+
+## Submit
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-1.5-pro",
+    "prompt": "一个女孩在樱花树下转身微笑，柔和的春日阳光",
+    "duration_seconds": 5,
+    "resolution": "1080p"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `seedance-1.5-pro` |
+| `prompt` | string | yes | — | CJK accepted natively. |
+| `duration_seconds` | integer | yes | — | 1–6. |
+| `resolution` | string | no | `1080p` | Supported: `720p`, `1080p`. |
+| `aspect_ratio` | string | no | `16:9` | `16:9` / `9:16` / `1:1`. |
+| `seed` | integer | no | — | Reproducibility. |
+| `image_init` | string | no | — | URL of init image. |
+| `motion_intensity` | string | no | `medium` | `low` / `medium` / `high`. |
+
+## Submit + poll
+
+Standard tasks shape — see [tasks/submit](/api-reference/utility/tasks-submit) for envelope.
+
+```json
+{"task_id": "task_…", "status": "queued", "estimated_credits": 0.42}
+```
+
+Recommended cadence: 2s for first 60s, then 5s up to 180s.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "seedance-1.5-pro", "prompt": "樱花树下女孩微笑", "duration_seconds": 5, "resolution": "1080p"}'
+```
+
+```python Python
+import time, requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+submit = requests.post(f"{API}/tasks/submit", headers=HEADERS, json={
+    "model": "seedance-1.5-pro",
+    "prompt": "一个女孩在樱花树下转身微笑",
+    "duration_seconds": 5,
+    "resolution": "1080p",
+}).json()
+task_id = submit["task_id"]
+
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"]); break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = { "x-api-key": process.env.BYTESPIKE_API_KEY, "content-type": "application/json" }
+const { task_id } = await fetch(`${API}/tasks/submit`, {
+  method: "POST", headers,
+  body: JSON.stringify({ model: "seedance-1.5-pro", prompt: "樱花树下女孩微笑", duration_seconds: 5, resolution: "1080p" }),
+}).then((r) => r.json())
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers }).then((r) => r.json())
+  if (r.status === "completed") { console.log(r.result.video_url); break }
+  if (r.status === "failed" || r.status === "cancelled") throw new Error(JSON.stringify(r))
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 | Standard | No |
+| 451 | Prompt blocked by upstream safety | No |
+| 5xx | Upstream issue | No (auto-retry) |
+
+## When to use
+
+- Existing pipelines validated against this version.
+- For new work, prefer [Seedance 2.0 Pro](/api-reference/video/seedance-2-0-pro).
+- For lower cost / latency, see [Seedance 2.0](/api-reference/video/seedance-2-0).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | 6s |
+| Resolutions | 720p, 1080p |
+| Aspect ratios | 16:9, 9:16, 1:1 |
+| Supports image init | Yes |
+| Typical latency for 5s clip | 60-90s |
+| Async via tasks API | Yes |

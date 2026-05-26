@@ -1,0 +1,184 @@
+---
+title: "Gemini on ByteSpike"
+description: "Google's Gemini family — 2.5 Pro / Flash plus 3.1 Pro for chat, plus Veo 3.1 for video — through ByteSpike. Three protocols: Gemini Native, OpenAI Chat Completions shim, and Anthropic Messages translation. Single ByteSpike key; ByteSpike handles the upstream authentication."
+---
+
+ByteSpike routes the Gemini family — Gemini 2.5 Flash, Gemini 2.5
+Pro, Gemini 3.1 Pro — plus Veo 3.1 / 3.1-Fast for video — behind a
+single ByteSpike key. Three protocols all work against Gemini
+models on ByteSpike:
+
+- **Gemini Native** (`/v1beta/models/{model}:generateContent`) — Google's own protocol verbatim
+- **OpenAI Chat Completions shim** (`/v1/chat/completions`) — for existing openai-SDK code
+- **Anthropic Messages translation** (`/v1/messages` with a Gemini model id) — for Anthropic-SDK / Claude-Code users; appears in `protocols_aggregate` as `anthropic_messages:translated`
+
+Pick whichever your client speaks; the model behaves identically across the three.
+
+## Endpoint coverage
+
+| Endpoint | Path | Notes |
+|---|---|---|
+| **Gemini Native** | `POST https://llm.bytespike.ai/v1beta/models/{model}:generateContent` | Google's native protocol. Query-param auth (`?key=...`) or `Authorization: Bearer`. |
+| **Gemini Native (streaming)** | `POST https://llm.bytespike.ai/v1beta/models/{model}:streamGenerateContent?alt=sse` | SSE stream of `data: {chunk}` blocks. |
+| **OpenAI Chat Completions** | `POST https://llm.bytespike.ai/v1/chat/completions` | Translation shim. Existing openai-SDK code works unchanged. |
+| **Anthropic Messages** | `POST https://llm.bytespike.ai/v1/messages` (with Gemini model id) | Translation shim. Anthropic SDK / Claude Code clients reach Gemini through this path. |
+| **Video generation** | `POST https://llm.bytespike.ai/v1/tasks/submit` | Veo 3.1 / Fast via the async task protocol. |
+
+## Authentication
+
+Issue a ByteSpike key from the [Console](https://console.bytespike.ai)
+and bind it to the **`gemini-default`** group (or another group that
+includes Gemini models). The key is used:
+
+- `Authorization: Bearer $BYTESPIKE_API_KEY` for the OpenAI / Anthropic shim paths
+- `?key=$BYTESPIKE_API_KEY` query param OR `Authorization: Bearer` for the `/v1beta` native path
+
+Upstream Google credentials (AI Studio API key, Vertex AI service
+account, or Workspace-bound OAuth) are configured admin-side and
+never visible to your client. See [channels](/concepts/channels)
+for the routing model.
+
+## Models
+
+The chat lineup. Pricing per 1M tokens; see [bytespike.ai/pricing](https://bytespike.ai/pricing) for the live rate card.
+
+| Model ID | Tier | Context | Input | Output | Capabilities |
+|---|---|---|---|---|---|
+| `gemini-2-5-flash` | small-mid | 1M | $0.30 | $2.50 | chat · vision · tools · grounding |
+| `gemini-2-5-pro` | flagship-prior | 2M | — | — | chat · vision · tools · grounding · long context |
+| `gemini-3-1-pro` | flagship | 1M | $3.50 | $25.00 | chat · vision · tools · grounding · structured output |
+| `veo-3-1` | video | — | per-second | per-second | video generation; see [Veo 3.1 →](/models/veo3-1) |
+| `veo-3-1-fast` | video | — | per-second | per-second | faster + cheaper Veo for shorter clips; see [Veo 3.1 Fast →](/models/veo3-1-fast) |
+
+Gemini 3.1 Pro grounding tool (Google Search): $35 / 1k uses.
+
+For image generation, Google's stack is **not** currently routed
+through ByteSpike's `/v1/images/*` — image generation uses Nano-Banana
+(`nano-banana`, `nano-banana-pro`, `nano-banana-v2`) or Seedream
+instead. See [Image models](/models).
+
+## Quickstart
+
+The same `gemini-2-5-pro` call, in all three protocols:
+
+<CodeGroup>
+
+```bash cURL (Gemini Native)
+curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=$BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"parts": [{"text": "Hello, ByteSpike."}]}]
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gemini-2-5-pro",
+    messages=[
+        {"role": "user", "content": "Hello, ByteSpike."},
+    ],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```python Python (Anthropic SDK — translated)
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.messages.create(
+    model="gemini-2-5-pro",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.content[0].text)
+```
+
+</CodeGroup>
+
+## Gemini-specific features
+
+### Grounding (Google Search)
+
+Gemini's grounding tool — fact-checking against Google Search —
+passes through transparently on the OpenAI shim:
+`tools: [{"type": "google_search"}]`. On Gemini Native, use
+`tools: [{"googleSearch": {}}]`. Each grounding invocation counts
+as a billable segment + the per-1k-uses surcharge above.
+
+### Long context
+
+`gemini-2-5-pro` accepts up to **2M input tokens** — the longest
+production context on ByteSpike. `gemini-3-1-pro` ships 1M. Use them
+for codebase-scale review, long-document QA, multi-document synthesis.
+
+### Vision
+
+All three chat models accept image input via `inline_data` (Gemini
+Native) or `image_url` block (OpenAI shim). PDFs are accepted on
+`gemini-2-5-pro` and `gemini-3-1-pro` natively. Image inputs count
+toward the prompt token budget.
+
+### Function calling
+
+Native `function_declarations` on `/v1beta`; standard `tools` array
+on the OpenAI shim (auto-translated). Parallel function calls work
+on all three models.
+
+### Streaming
+
+`stream: true` on the OpenAI shim returns SSE in OpenAI format.
+`:streamGenerateContent?alt=sse` on Gemini Native returns SSE in
+Google's format. See [Streaming](/concepts/streaming).
+
+## Capabilities matrix
+
+| Capability | gemini-2-5-flash | gemini-2-5-pro | gemini-3-1-pro |
+|---|---|---|---|
+| Gemini Native | ✅ | ✅ | ✅ |
+| Chat Completions (shim) | ✅ | ✅ | ✅ |
+| Anthropic Messages (translated) | ✅ | ✅ | ✅ |
+| Streaming | ✅ | ✅ | ✅ |
+| Vision | ✅ | ✅ | ✅ |
+| PDF input | — | ✅ | ✅ |
+| Tools / function calling | ✅ | ✅ | ✅ |
+| Parallel tools | ✅ | ✅ | ✅ |
+| JSON mode | ✅ | ✅ | ✅ |
+| Structured outputs | — | ✅ | ✅ |
+| Grounding (Google Search) | ✅ | ✅ | ✅ |
+| 1M+ context | ✅ (1M) | ✅ (2M) | ✅ (1M) |
+
+## Errors and rate limits
+
+Standard ByteSpike contract — see [Errors reference](/concepts/errors-reference) and [Rate limits](/concepts/rate-limits).
+
+| Status | Trigger | Billed? |
+|---|---|---|
+| 400 / 401 / 402 / 403 / 429 | Bad input / auth / quota | No |
+| 500 / 502 / 503 / 504 | Upstream | No — gateway retries on next channel in the same group before surfacing |
+
+## When to use Gemini
+
+- **gemini-2-5-flash** — cheap, fast, surprisingly capable for general chat. Competitive with `gpt-4o-mini` and `claude-haiku-4-5` at half the price.
+- **gemini-2-5-pro** — when you need the **2M context window**. Codebase-scale tasks, long-document review, multi-document synthesis where 200K isn't enough.
+- **gemini-3-1-pro** — the latest flagship. Best fidelity on reasoning + tool use within the Gemini family.
+- **veo-3-1 / veo-3-1-fast** — text-to-video with realistic motion; via the async multimodal task flow.
+
+## Next
+
+- [Gemini CLI](/gemini-cli) — Google's CLI configured against ByteSpike
+- [`/v1beta/...:generateContent` reference](/api-reference/text/gemini-generate-content) — full request / response / streaming protocol
+- [Anthropic on ByteSpike](/providers/anthropic) — Claude family
+- [OpenAI on ByteSpike](/providers/openai) — GPT family

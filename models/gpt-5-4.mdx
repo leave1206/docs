@@ -1,0 +1,100 @@
+---
+title: "gpt-5-4"
+description: "OpenAI's GPT-5.4 — the production workhorse of the GPT-5 family. Vision, tools, reasoning, web search, and structured outputs together at mid-tier pricing. Available through both Chat Completions and the Responses API."
+---
+
+`gpt-5-4` is the GPT-5 production workhorse — mid-tier on the price curve, full feature coverage. Reach for it when you'd previously default to `gpt-4o` but want the GPT-5 family's reasoning capability and tighter structured-output validation.
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $3.00 / 1M | $12.00 / 1M | ~700ms | global edge |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+The Responses API is the newer agent-style protocol — Codex requires it. Chat Completions is the ubiquitous default; most code will use this one.
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4",
+    "reasoning_effort": "medium",
+    "messages": [
+      { "role": "user", "content": "Hello, ByteSpike." }
+    ]
+  }'
+```
+
+```python Python (Chat Completions)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-4",
+    reasoning_effort="medium",
+    messages=[{"role": "user", "content": "Hello, ByteSpike."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```python Python (Responses API)
+resp = client.responses.create(
+    model="gpt-5-4",
+    input="Hello, ByteSpike.",
+    reasoning={"effort": "medium"},
+)
+
+print(resp.output_text)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Responses API | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| JSON mode | ✅ |
+| Structured outputs (json_schema) | ✅ |
+| Reasoning effort (low/medium/high) | ✅ |
+| Web search | ✅ |
+| Context window | 400K tokens |
+
+## When to use
+
+- **Production workhorse** — when you need the GPT-5 quality envelope with vision + tools + reasoning, at a mid-tier price.
+- **Structured outputs.** `response_format: { type: "json_schema" }` returns provider-validated JSON. The validation is upstream-side; ByteSpike does not modify the schema.
+- **Codex-style clients.** Hit the Responses API instead of Chat Completions for the structured-reasoning shape.
+- **Fresh-fact queries.** Add `tools: [{ "type": "web_search" }]`.
+
+When **not** to use:
+
+- 1M context tasks — use [`gpt-5-5`](/models/gpt-5-5) (1M context flagship; soon).
+- High-volume classification — [`gpt-5-4-mini`](/models/gpt-5-4-mini) is six times cheaper.
+
+## Next
+
+- [gpt-5-4-mini](/models/gpt-5-4-mini) — small-mid of the GPT-5.4 family
+- [gpt-5-3-codex](/models/gpt-5-3-codex) — code-focused via Responses API
+- [OpenAI provider page](/providers/openai) — full GPT lineup

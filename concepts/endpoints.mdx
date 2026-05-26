@@ -1,0 +1,176 @@
+---
+title: "Endpoint types"
+description: "ByteSpike exposes five real endpoint shapes behind one key — three text protocols (Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Gemini Native) plus two multimodal shapes (Image, Async Tasks). Pick the protocol your client already speaks."
+---
+
+ByteSpike exposes a small, well-defined set of endpoints behind one
+API key. Each one matches a different client persona — an existing
+SDK, an agent framework, a multimodal pipeline. The gateway
+translates between protocols and upstream providers so you don't
+write per-vendor glue.
+
+**Principle:** pick the protocol your client already speaks; the
+gateway handles routing.
+
+## The endpoint surface
+
+| # | Endpoint | Path | Persona |
+|---|---|---|---|
+| 1 | Anthropic Messages | `POST /v1/messages` | Agent frameworks · Claude SDK · DOSIA · Claude Code |
+| 2 | OpenAI Responses | `POST /v1/responses` | OpenAI Codex CLI · OpenAI Agents SDK · reasoning-heavy clients |
+| 3 | OpenAI Chat Completions | `POST /v1/chat/completions` | The ubiquitous chat shape · openai SDK · most editor integrations |
+| 4 | Gemini Native | `POST /v1beta/models/{model}:generateContent` | Google's CLI / SDK · Vertex-compat clients |
+| 5 | Image Generation (sync) | `POST /v1/images/generations` · `/v1/images/edits` | OpenAI-shape image SDKs · single-call image generation |
+| 6 | Async multimodal tasks | `POST /v1/tasks/submit` · `/v1/tasks/query` · `/v1/tasks/cancel` | Video generation (Sora, Veo, Seedance) · batched image rendering |
+
+That's it. No `/v1/embeddings`, no `/v1/audio/*`, no `/v1/rerank`,
+no `/v1/assistants` — ByteSpike does not currently expose those
+surfaces. If you need them, call upstream direct.
+
+### 1. Anthropic Messages — `/v1/messages`
+
+The canonical agent protocol on ByteSpike. Preserves `tool_use`,
+`cache_control`, `thinking`, and `web_search` blocks end-to-end. Use
+when:
+
+- You're building an agent that needs explicit tool-call / tool-result blocks
+- You want extended thinking on Opus / Sonnet 4.x
+- Your client is the official `anthropic` SDK (Python / Node) or a derivative
+
+Behind this endpoint: **Anthropic** (Claude family native),
+**DeepSeek** (Anthropic-compat alias), **Gemini** (via translation —
+appears as `anthropic_messages:translated` in `protocols_aggregate`),
+**OpenAI** (via translation, similar).
+
+See [`/v1/messages` reference](/api-reference/text/claude-messages).
+
+### 2. OpenAI Responses — `/v1/responses`
+
+The newer OpenAI agent-style protocol (Codex CLI + Agents SDK).
+Use when:
+
+- Your client is OpenAI Codex CLI
+- You want structured-outputs + reasoning combined
+- You're on the OpenAI Agents SDK
+
+Behind this endpoint: **OpenAI** native; **Anthropic** + **Gemini**
+via translation.
+
+See [`/v1/responses` reference](/api-reference/text/openai-responses).
+
+### 3. OpenAI Chat Completions — `/v1/chat/completions`
+
+The most ubiquitous chat shape in the ecosystem. Almost every SDK
+speaks it. Use when:
+
+- You have existing `openai` SDK code and want the lowest-friction route
+- You're not writing an agent — chat in, chat out
+- You're calling a non-OpenAI model but want to keep the OpenAI SDK
+
+Behind this endpoint: **OpenAI**, **Gemini** (via translation),
+**DeepSeek**, **Moonshot** (Kimi), **Zhipu** (GLM), **MiniMax**,
+**Volcengine** (Doubao).
+
+See [`/v1/chat/completions` reference](/api-reference/text/openai-chat-completions).
+
+### 4. Gemini Native — `/v1beta/models/{model}:generateContent`
+
+Google's native protocol verbatim. Use when:
+
+- You're using Google's official CLI or SDK
+- You want grounding (`googleSearch` tool) in its native form
+- You need Gemini's exact response shape for downstream tooling
+
+Streaming via `:streamGenerateContent?alt=sse`. Behind this endpoint:
+**Gemini** family only.
+
+See [`/v1beta/...` reference](/api-reference/text/gemini-generate-content).
+
+### 5. Image generation (sync) — `/v1/images/generations` + `/v1/images/edits`
+
+OpenAI-shape body across providers; the `model` field routes. Use for:
+
+- Single-prompt image generation (GPT-Image-2 shape)
+- Image edits with a mask or instruction
+
+Behind this endpoint: **OpenAI** (GPT-Image-2, GPT-4o-image),
+**Volcengine** (Seedream V4 / V4.5 / V5lite), **Google** stack
+served via the same shape (Nano-Banana family).
+
+### 6. Async multimodal tasks — `/v1/tasks/{submit, query, cancel, stream}`
+
+Video and long-running image generation use the async task model:
+submit returns a `task_id` immediately, poll `/tasks/query` or
+stream state changes over SSE on `/tasks/stream/{task_id}`. Use for:
+
+- Video generation (Sora 2, Veo 3.1, Seedance) — all of which take 10-60s+
+- Batched image generation where you want fire-and-forget
+- High-concurrency producers that shouldn't hold HTTP connections open
+
+See [`/tasks/submit` reference](/api-reference/utility/tasks-submit).
+
+## Capability matrix
+
+What each provider actually supports on ByteSpike today. ✅ = wired up; — = upstream doesn't expose this shape.
+
+| Provider family | Anthropic Messages | OpenAI Responses | OpenAI Chat | Gemini Native | Image (sync) | Async tasks |
+|---|---|---|---|---|---|---|
+| **Anthropic** (Claude) | ✅ | translated | translated | — | — | — |
+| **OpenAI** (GPT / o-series) | translated | ✅ | ✅ | — | ✅ | ✅ (Sora) |
+| **Gemini** (Google) | translated | translated | ✅ (shim) | ✅ | — | ✅ (Veo) |
+| **DeepSeek** | ✅ (V3-anthropic, V4) | — | ✅ | — | — | — |
+| **Moonshot** (Kimi) | ✅ | — | ✅ | — | — | — |
+| **Zhipu** (GLM) | — | — | ✅ | — | — | — |
+| **MiniMax** | — | — | ✅ | — | — | — |
+| **Volcengine** (Doubao + CodePlan bundle) | — | — | ✅ | — | ✅ (Seedream) | ✅ (Seedance) |
+
+For the live, account-specific matrix, hit
+[`GET /api/v1/me/available-models`](/api-reference/account/me-account)
+or click [Test](https://console.bytespike.ai/dosia/models) next to
+any model in the console.
+
+## Picking by client
+
+| Your client | Use this endpoint |
+|---|---|
+| Claude Code | Anthropic Messages |
+| Claude Desktop | Anthropic Messages |
+| Anthropic SDK (Python / Node) | Anthropic Messages |
+| Cursor / Continue / Cline / Zed | OpenAI Chat Completions |
+| OpenAI Python / Node SDK | OpenAI Chat Completions |
+| OpenAI Codex CLI | OpenAI Responses |
+| OpenAI Agents SDK | OpenAI Responses |
+| Google Gemini CLI / SDK | Gemini Native (or OpenAI shim) |
+| Aider | OpenAI Chat Completions (or via SDK base URL override) |
+
+## Scenarios
+
+| You want | Endpoint |
+|---|---|
+| Agent with tool_use + thinking | **Anthropic Messages** |
+| Existing openai SDK code with no rewrite | **Chat Completions** |
+| Codex CLI / OpenAI Agents SDK | **OpenAI Responses** |
+| Switch between Claude / GPT / Gemini without rewriting SDK code | **Chat Completions** for most cases; **Anthropic Messages** if you need cache_control or thinking |
+| Generate an image | **Image (sync)** |
+| Generate a video | **Async tasks** |
+
+## One key, multi-endpoint
+
+A ByteSpike API key today binds to **one** routing group (`group_id`).
+The group determines which provider families the key can reach.
+Within a group, all endpoint shapes that the group's channels support
+are available — e.g. a key in `claude-default` can call
+`/v1/messages`, `/v1/chat/completions` (translated), and
+`/v1/responses` (translated) against Claude models.
+
+To reach providers in different groups, create multiple keys (one
+per group) and select per request. See
+[Authentication](/authentication) and [Channels](/concepts/channels).
+
+## Next
+
+- [Anthropic on ByteSpike](/providers/anthropic) — Claude family
+- [OpenAI on ByteSpike](/providers/openai) — GPT family
+- [Gemini on ByteSpike](/providers/gemini) — Gemini + Veo
+- [Multimodal concept](/concepts/multimodal) — sync image vs async video billing
+- [Error handling](/concepts/error-handling) — retries, idempotency, streaming errors

@@ -1,0 +1,59 @@
+---
+title: "Error handling"
+description: "The retry / failure mental model — when to retry, when not, and the no-charge guarantee on every non-2xx."
+---
+
+A short conceptual overview of how ByteSpike treats errors. For
+the complete HTTP status + code matrix with all three envelope
+shapes side-by-side, see [Errors reference](/concepts/errors-reference).
+
+## The big two contracts
+
+1. **Failures don't bill.** Any non-2xx response is free. `X-Quota-Remaining-Credits` doesn't move; no row appears in `/api/v1/me/usage`; no entry in `/api/v1/me/billing/transactions`. Hard contract — no exceptions.
+2. **Errors come back in the envelope of whichever protocol you called.** Anthropic-shape on `/v1/messages`; OpenAI-shape on `/v1/chat/completions` + `/v1/responses` + `/v1/tasks/*` + `/v1/images/*`; Google-shape on `/v1beta/...`.
+
+## Status code categories
+
+| Status | Class | Retry? |
+|---|---|---|
+| 400 | Bad request (validation) | No — fix the body |
+| 401 | Auth (missing / revoked / expired key) | No — fix the credentials |
+| 402 | Insufficient credits / quota cap reached | After top-up or cap raise |
+| 403 | IP denied or model not in key's group | No — use a different key |
+| 404 | Unknown model / unknown task_id | No |
+| 413 | Body too large (`/v1/tasks/*` 1 MiB cap, etc) | No — shrink the body |
+| 429 | Rate limit (5h / 1d / 7d bucket) or concurrency | Yes — use `X-RateLimit-Reset` |
+| 500 | Gateway-internal | Yes, exponential backoff (≤4 attempts) |
+| 502 / 503 / 504 | Upstream timeout or no-available-account | Yes, exponential backoff (≤4 attempts) |
+
+The detailed code-by-code table with machine-readable `code` /
+`type` enums is at [Errors reference](/concepts/errors-reference).
+
+## Retry strategy
+
+- **429:** use `X-RateLimit-Reset` (Unix timestamp) — don't guess. For concurrency 429s, short jittered backoff (1-3s) because the cap clears as in-flight requests finish.
+- **5xx:** exponential, starting at 1s — give up at 4 attempts. The gateway already retried upstream channels internally before surfacing.
+- **4xx (except 429):** don't retry. The request will fail again identically.
+
+## Idempotency
+
+Text endpoints (`/v1/messages`, `/chat/completions`, `/responses`) are **not** idempotent — retrying after a 200 will charge twice. Don't retry unless you got a non-2xx.
+
+The async tasks API (`/v1/tasks/submit`) **is** idempotent via `out_task_id`. Sending the same `out_task_id` on retry returns the existing task instead of starting a new one. See [`tasks/submit`](/api-reference/utility/tasks-submit#idempotency).
+
+## Mid-stream errors (SSE)
+
+If a stream fails partway through, you'll see a final `event: error` (Anthropic shape) or terminal frame with `error` field (OpenAI shape) and the connection closes. Whatever you streamed before the failure is yours to keep, but the request **does not bill** — full no-charge contract applies even on mid-stream failure.
+
+There is no SSE resume — if you need to recover, resend the request from scratch.
+
+## Async task failures
+
+A task that reaches `failed` (instead of `completed`) doesn't bill. The `error_code` + `error_message` fields on the `/tasks/query` response tell you what happened upstream. Cancellation behaviour depends on pre-cancel state — see [`tasks/cancel`](/api-reference/utility/tasks-cancel#billing-semantics).
+
+## See also
+
+- [Errors reference](/concepts/errors-reference) — full HTTP status + code matrix with all three envelope shapes
+- [Rate limits](/concepts/rate-limits) — what triggers 429 + how to back off
+- [Credits & billing](/concepts/credits-and-billing) — the no-charge guarantee in full
+- [Streaming](/concepts/streaming) — mid-stream error semantics

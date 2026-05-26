@@ -1,0 +1,87 @@
+---
+title: "gpt-5-4-mini"
+description: "OpenAI's small-mid GPT — production-grade reasoning at a fraction of gpt-5-4's price. Use it for classification, routing, structured extraction, and short-prompt agent loops."
+---
+
+`gpt-5-4-mini` is the small-mid GPT-5. It keeps the GPT-5 reasoning capability but at roughly **one-sixth** the per-token cost of `gpt-5-4`. The right default for high-volume traffic where you want better-than-Haiku quality without paying flagship rates.
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $0.50 / 1M | $2.00 / 1M | ~500ms | global edge |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-4-mini",
+    "reasoning_effort": "low",
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+```python Python (Chat Completions)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-4-mini",
+    reasoning_effort="low",
+    messages=[{"role": "user", "content": "Classify this support ticket."}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Responses API | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision | ✅ |
+| Tool use | ✅ parallel |
+| JSON mode | ✅ |
+| Structured outputs | ✅ |
+| Reasoning effort | ✅ (`low` / `medium`) |
+| Web search | — |
+| Context window | 256K tokens |
+
+## When to use
+
+- **High-volume classification, routing, structured extraction** — anywhere you'd use Haiku for cost but want GPT-flavored reasoning.
+- **Short-prompt agent loops** — tool-use chains where each step is small and the gate is throughput.
+- **Cheaper Codex-style** via Responses API at `reasoning_effort: "low"`.
+
+When **not** to use:
+
+- Hard reasoning that benefits from `reasoning_effort: "high"` — go to `gpt-5-4` or `gpt-5-4-pro`.
+- Web search needed — only `gpt-5-2` and up have it.
+
+## Next
+
+- [gpt-5-4](/models/gpt-5-4) — production workhorse
+- [gpt-5-3-codex](/models/gpt-5-3-codex) — code-focused
+- [OpenAI provider page](/providers/openai) — full GPT lineup

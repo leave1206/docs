@@ -1,0 +1,223 @@
+---
+title: "Migrate from Anthropic"
+description: "Switch from Anthropic's API to ByteSpike with two env vars. Same Anthropic SDK, same Messages shape, every Claude + cross-vendor model in our catalog."
+---
+
+If you're already on Anthropic's API, switching to ByteSpike means
+**changing two env vars and shipping**. The Anthropic SDK works
+unchanged; the request shape is identical; only the base URL and
+key differ.
+
+## The two env vars
+
+```diff
+- export ANTHROPIC_API_KEY=sk-ant-...
++ export ANTHROPIC_BASE_URL=https://llm.bytespike.ai
++ export ANTHROPIC_API_KEY=sk-byts-...
+```
+
+Most clients (Claude Code, Claude Desktop, Anthropic SDKs Python /
+TypeScript, third-party tools) read these standard vars
+automatically — no code change.
+
+If you construct the client explicitly:
+
+```diff
+- client = Anthropic()  # reads env vars
++ client = Anthropic(
++   base_url="https://llm.bytespike.ai",
++   api_key="sk-byts-...",
++ )
+```
+
+## Model id mapping
+
+ByteSpike uses Anthropic's own model ids verbatim, plus ids for
+non-Anthropic providers reachable via the Messages shape:
+
+| Anthropic id you were using | ByteSpike id (drop-in) |
+|---|---|
+| `claude-3-5-sonnet-20241022` | `claude-sonnet-4-6` (current flagship) |
+| `claude-3-7-sonnet-20250219` | `claude-sonnet-4-6` |
+| `claude-sonnet-4-20250514` | `claude-sonnet-4-6` |
+| `claude-opus-4-20250514` | `claude-opus-4-7` |
+| `claude-3-5-haiku-20241022` | `claude-haiku-4-5` |
+
+Plus models you couldn't reach from Anthropic direct:
+
+| Cross-vendor (Messages-API shape via translation) |
+|---|
+| `deepseek-v3-anthropic` |
+| `deepseek-v4-pro` (translated) |
+| `gemini-2-5-pro` (translated — `:translated` suffix in `protocols_aggregate`) |
+| `gpt-5-5` (translated — caveats on tool schema fidelity) |
+
+For translated models, the gateway adapts the Messages request to
+the upstream's native protocol and the response back. See
+[Vendor compat: multi-endpoint](/concepts/vendor-compat-multi-endpoint).
+
+## What you gain
+
+| Anthropic direct | ByteSpike |
+|---|---|
+| Only Claude family | Claude + cross-vendor models via Messages shape |
+| Anthropic billing | One ByteSpike wallet covers everything |
+| Tier rate limits | Per-key rate limits (5h / 1d / 7d, all configurable) |
+| Failures occasionally bill | Failures never bill |
+| Prompt caching native | Prompt caching preserved end-to-end |
+
+## What stays the same
+
+- **Anthropic SDK** — Python, TypeScript, every official client
+- **Messages shape** — `messages`, `system`, `tools`, `tool_choice`, `max_tokens`, `stream`, identical
+- **Tool use** — `input_schema` JSON Schema format, `tool_use` blocks, `tool_result` blocks — identical
+- **Prompt caching** — `cache_control` blocks on `system` / `tools` / messages — preserved end-to-end
+- **Extended thinking** — `thinking` blocks on Opus / Sonnet 4.x — preserved
+- **Streaming** — SSE with Anthropic event names (`message_start` / `content_block_delta` / etc) — byte-for-byte compatible
+
+## Concrete examples
+
+### Messages
+
+```python
+# Was:
+from anthropic import Anthropic
+client = Anthropic()  # reads ANTHROPIC_API_KEY
+r = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+
+# Now: env vars switched
+# (ANTHROPIC_BASE_URL=https://llm.bytespike.ai, ANTHROPIC_API_KEY=sk-byts-...)
+client = Anthropic()
+r = client.messages.create(
+    model="claude-sonnet-4-6",   # newer Anthropic id
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+### Tool use
+
+```python
+tools = [{
+    "name": "get_weather",
+    "description": "Get current weather",
+    "input_schema": {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
+    }
+}]
+
+r = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "weather in Tokyo?"}],
+    tools=tools,
+)
+```
+
+Works identically against `claude-*`, `deepseek-v3-anthropic`, and
+the translated routes (`gemini-2-5-pro`, `gpt-5-5` via Messages shape).
+
+### Prompt caching
+
+```python
+r = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1024,
+    system=[
+        {"type": "text", "text": "You are a helpful assistant."},
+        {
+            "type": "text",
+            "text": LARGE_KNOWLEDGE_BASE,
+            "cache_control": {"type": "ephemeral"},
+        },
+    ],
+    messages=[{"role": "user", "content": "..."}],
+)
+
+# usage.cache_read_input_tokens and usage.cache_creation_input_tokens
+# are populated and billed per the documented discount.
+```
+
+### Extended thinking (Opus / Sonnet 4.x)
+
+```python
+r = client.messages.create(
+    model="claude-opus-4-7",
+    max_tokens=4096,
+    thinking={"type": "enabled", "budget_tokens": 2000},
+    messages=[{"role": "user", "content": "..."}],
+)
+
+# Response contains thinking blocks followed by text blocks.
+```
+
+## Things to double-check
+
+<AccordionGroup>
+  <Accordion title='Model availability per key'>
+    Pick a routing group on the key that includes the models you
+    want. `claude-default` covers the Claude family. For
+    cross-vendor Messages-shape access (DeepSeek-Anthropic, Gemini
+    via translation), pick a group that includes those — usually
+    a multi-vendor group or the `default` group on org-tier
+    accounts.
+  </Accordion>
+  <Accordion title='Token counts and prices'>
+    Anthropic's tokenizer applies to Claude models — counts match
+    Anthropic direct. Translated routes (Gemini, GPT via Messages
+    shape) bill at the underlying model's token rate but the count
+    method follows the upstream — there can be small differences.
+  </Accordion>
+  <Accordion title='Anthropic Workbench-only features'>
+    ByteSpike doesn't replicate Anthropic Workbench (Console UI for
+    prompts). If you rely on it for prompt development, develop
+    direct on Anthropic and deploy the prompt against ByteSpike.
+  </Accordion>
+  <Accordion title='`anthropic-beta` header'>
+    Forwarded verbatim to the upstream. Beta features Anthropic
+    gates with this header work the same way through ByteSpike.
+  </Accordion>
+  <Accordion title='Message Batches API'>
+    Anthropic's `/v1/messages/batches` is **not** currently exposed
+    on ByteSpike. Use the synchronous endpoint or our async
+    `/v1/tasks/*` flow for queueable work.
+  </Accordion>
+</AccordionGroup>
+
+## Step-by-step
+
+1. **Sign up** at [console.bytespike.ai](https://console.bytespike.ai) — see [Register](/register).
+2. **Top up** $5+ — see [Top up](/top-up).
+3. **Create a key** in `claude-default` (or a multi-vendor group).
+4. **Set env vars** — `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY` — system-wide or in `.envrc`.
+5. **Run your existing script unchanged** to confirm Claude calls still work.
+6. **Try cross-vendor ids** (`deepseek-v3-anthropic`, `gemini-2-5-pro`) one at a time.
+7. **Verify caching is preserved** — `usage.cache_read_input_tokens` should populate just like Anthropic direct.
+
+## Reverse migration
+
+Two env-var deletes, you're back on Anthropic direct. Keep both
+configs in your secrets manager if you want A/B routing.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Migrate from OpenAI" icon="arrow-right-arrow-left" href="/migrate-from-openai">
+    Same idea, OpenAI side.
+  </Card>
+  <Card title="Claude Code CLI" icon="terminal" href="/claude-code-cli">
+    CLI-specific config.
+  </Card>
+  <Card title="/messages reference" icon="code" href="/api-reference/text/claude-messages">
+    Full Messages-API protocol.
+  </Card>
+  <Card title="Vendor compat multi-endpoint" icon="layer-group" href="/concepts/vendor-compat-multi-endpoint">
+    How cross-vendor translation works under the hood.
+  </Card>
+</CardGroup>

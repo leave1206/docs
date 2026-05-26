@@ -1,0 +1,89 @@
+---
+title: "nano-banana-v2"
+description: "Google's lightweight image model, second generation. Adds image-to-image edits while keeping the nano-banana cost profile. The default volume-tier model for any pipeline that needs to mutate an input photo."
+---
+
+`nano-banana-v2` is Google's lightweight image model with **image-to-image edits** layered onto the same protocol surface and roughly the same cost profile as [`nano-banana`](/models/nano-banana). The differentiator is the optional `source_image` field: when present, the model treats it as a reference (style transfer, mask edit, background swap) rather than generating from text alone.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **Google AI** | Google direct | `aiplatform.googleapis.com` | per-image (see [/pricing](/pricing) for current rate) | ~4s text-only, ~6s img-to-img | global edge |
+
+Failures don't bill. Image-to-image runs at the same per-image rate as text-to-image on this model.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Images | `POST https://llm.bytespike.ai/v1/images/generations` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (image-to-image)
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "nano-banana-v2",
+    "prompt": "Same product, change the background to deep blue",
+    "source_image": "https://example.com/source.png",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.images.generate(
+    model="nano-banana-v2",
+    prompt="Same product, change the background to deep blue",
+    extra_body={"source_image": "https://example.com/source.png"},
+    n=1,
+    size="1024x1024",
+)
+
+print(resp.data[0].url)
+```
+
+</CodeGroup>
+
+The DOSIA `generate_image` tool passes `source_image` through automatically when you've attached one in the chat.
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-image | ✅ |
+| **Image-to-image (with `source_image`)** | ✅ |
+| `n` ≥ 2 batch generation | ✅ |
+| `size` 1024×1024 / 1024×1792 / 1792×1024 | ✅ |
+| `response_format` url / b64_json | ✅ |
+| Modality | image |
+| Capability bucket | `image_generate` |
+
+## When to use
+
+- **DOSIA "edit this image" requests** — main brain attaches the chat image and routes here when permission is granted.
+- **Background swaps, style transfers, mask edits** without the cost of `gpt-image-2`.
+- **Cost-sensitive image-to-image pipelines** — volume programmatic edits.
+
+When **not** to use:
+
+- Pure text-to-image where image-to-image isn't needed — [`nano-banana`](/models/nano-banana) gets you the same baseline at the same tier.
+- Top-fidelity typography or marketing hero — [`gpt-image-2`](/models/gpt-image-2).
+
+## Next
+
+- [`nano-banana`](/models/nano-banana) — text-only sibling
+- [`gpt-image-2`](/models/gpt-image-2) — OpenAI flagship with image-to-image
+- [Multimodal endpoints](/concepts/multimodal) — overview

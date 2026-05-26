@@ -1,0 +1,94 @@
+---
+title: "seedance-2.0-pro"
+description: "ByteDance Seedance 2.0 Pro — current Seedance flagship video model. Strong on Chinese aesthetic, cn-beijing-served for low domestic latency. The default Seedance tier for new projects."
+---
+
+`seedance-2.0-pro` is the current ByteDance Seedance flagship — the supersedes [`seedance-1.5-pro`](/models/seedance-1-5-pro) on fidelity, prompt adherence, and motion stability. Strong on Chinese aesthetic and serves out of cn-beijing for low domestic latency. The default Seedance tier for new projects.
+
+## Channels
+
+| Channel | Provider | Base URL | Pricing | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **ByteDance Seedance** | Volcengine | `ark.cn-beijing.volces.com` | per-second (see [/pricing](/pricing) for current rate) | ~80s wall-clock for 5s clip | cn-beijing |
+
+Failures don't bill.
+
+## Protocols
+
+| Protocol | Path | Purpose |
+|---|---|---|
+| OpenAI Video — submit | `POST https://llm.bytespike.ai/v1/videos/generations` | enqueues; returns `task_id` |
+| OpenAI Video — poll | `GET https://llm.bytespike.ai/v1/videos/tasks/{task_id}` | returns `status` and `result_url` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+TASK_ID=$(curl -s https://llm.bytespike.ai/v1/videos/generations \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "seedance-2.0-pro",
+    "prompt": "城市夜晚街景，霓虹倒映在雨后路面，远处一辆车驶过",
+    "duration_seconds": 5,
+    "size": "1280x720"
+  }' | jq -r .task_id)
+
+# Poll pattern — see /models/sora2#quickstart
+```
+
+```python Python (openai SDK)
+import os, time
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+task = client.videos.generate(
+    model="seedance-2.0-pro",
+    prompt="城市夜晚街景，霓虹倒映在雨后路面",
+    duration_seconds=5,
+    size="1280x720",
+)
+
+while True:
+    status = client.videos.retrieve(task.task_id)
+    if status.status == "completed":
+        print(status.result_url)
+        break
+    time.sleep(5)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Text-to-video | ✅ |
+| Image-to-video (with `source_image`) | ✅ |
+| `duration_seconds` 5 / 10 | ✅ |
+| `size` 1280×720 / 1920×1080 | ✅ |
+| Chinese aesthetic / cn-beijing latency | ✅ |
+| Modality | video |
+| Capability bucket | `video_generate` |
+
+## When to use
+
+- **Chinese-market video** — products, ads, posters where Chinese aesthetic and East-Asian subject quality matter.
+- **Domestic latency** — users in mainland get cn-beijing-served wall-clock without the cross-Pacific round trip.
+- **DOSIA `generate_video`** — main brain reaches for this on domestic-region users when permissioned.
+
+When **not** to use:
+
+- Sora-grade physics / motion is the bar — [`sora2`](/models/sora2) or [`sora2-pro`](/models/sora2-pro).
+- Fastest possible wall-clock — [`seedance-2.0-pro-fast`](/models/seedance-2-0-pro-fast) for the same model with faster runtime, or [`seedance-2.0-fast`](/models/seedance-2-0-fast) for the cheapest Seedance tier.
+
+## Next
+
+- [`seedance-2.0-pro-fast`](/models/seedance-2-0-pro-fast) — same model, faster runtime
+- [`seedance-2.0-fast`](/models/seedance-2-0-fast) — cheapest Seedance tier
+- [`sora2`](/models/sora2) — OpenAI alternative

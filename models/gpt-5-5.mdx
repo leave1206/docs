@@ -1,0 +1,105 @@
+---
+title: "gpt-5-5"
+description: "OpenAI's GPT-5.5 — current flagship of the GPT-5 family. Vision-capable, reasoning-tunable via `reasoning_effort`. The right default for non-Anthropic main brain work or for DOSIA `chat_with` external-LLM calls."
+---
+
+`gpt-5-5` is the current flagship of OpenAI's GPT-5 family. Vision-capable on image input, reasoning depth tunable via `reasoning_effort`, broad tool / function support, JSON mode and structured outputs. On the gateway, it's the default landing spot when DOSIA's `text-writing-tools.chat_with` is asked to "use a different LLM" — so a user prompt like "have GPT rewrite this paragraph" routes here.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI direct | `api.openai.com` | see [/pricing](/pricing) | see [/pricing](/pricing) | ~900ms | global edge |
+
+Failures don't bill. Pricing sits at the top of the GPT-5 family rate tier.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-5",
+    "messages": [
+      { "role": "user", "content": "Untangle this contract paragraph." }
+    ],
+    "reasoning_effort": "medium"
+  }'
+```
+
+```python Python (openai SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-5",
+    messages=[{"role": "user", "content": "Untangle this contract paragraph."}],
+    reasoning_effort="medium",
+)
+
+print(resp.choices[0].message.content)
+```
+
+```typescript TypeScript (openai SDK)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.chat.completions.create({
+  model: "gpt-5-5",
+  messages: [{ role: "user", content: "Untangle this contract paragraph." }],
+  reasoning_effort: "medium",
+})
+
+console.log(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tools / function calling | ✅ parallel |
+| JSON mode | ✅ |
+| Structured outputs | ✅ |
+| `reasoning_effort` low / medium / high | ✅ |
+| Context window | 200K tokens |
+| Modality | chat + vision |
+| Capability bucket | `vision` + `external_chat` |
+
+## When to use
+
+- **Default GPT-5 family pick** — when "use GPT-5" is the brief, this is the alias.
+- **DOSIA `chat_with`** — main brain calls this when the user asks for a non-Claude voice ("have GPT rewrite this").
+- **Reasoning-heavy chat** — pair with `reasoning_effort: "high"` for harder analysis.
+
+When **not** to use:
+
+- High-volume / budget-bound — drop to [`gpt-5-4-mini`](/models/gpt-5-4-mini) or [`gpt-4o-mini`](/models/gpt-4o-mini).
+- You want Claude's `tool_use` / `cache_control` block model — go to [`claude-sonnet-4-6`](/models/claude-sonnet-4-6).
+
+## Next
+
+- [`gpt-5-4`](/models/gpt-5-4) — previous GPT-5 family flagship
+- [`claude-opus-4-7`](/models/claude-opus-4-7) — Anthropic alternative for hard reasoning
+- [DOSIA MCP integration](/concepts/mcp-integration) — `chat_with` tool surface

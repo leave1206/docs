@@ -1,0 +1,146 @@
+---
+title: "Gemini CLI"
+description: "Point Google's official Gemini CLI at ByteSpike. Works against gemini-2-5-pro / gemini-2-5-flash / gemini-3-1-pro plus every model reachable via Gemini Native translation."
+---
+
+Google's `gemini-cli` (and the family of CLIs / IDE extensions
+built on top of it) speaks the Gemini Native protocol — query-param
+auth (`?key=...`) against `/v1beta/models/{model}:generateContent`.
+ByteSpike serves that protocol verbatim at `llm.bytespike.ai/v1beta`.
+
+## Prerequisites
+
+- A ByteSpike account + a key bound to the **`gemini-default`** group
+  (or any group that serves Gemini models). See [Register](/register).
+- Gemini CLI installed:
+  ```bash
+  npm install -g @google/generative-ai-cli
+  # or whichever Gemini CLI your team uses
+  ```
+
+## Configure
+
+Gemini CLIs typically read `GEMINI_API_KEY` and let you override the
+base URL via env or flag.
+
+```bash
+export GEMINI_API_KEY="sk-byts-..."
+export GEMINI_BASE_URL="https://llm.bytespike.ai/v1beta"
+```
+
+For the official Google CLI that doesn't expose a base-URL flag, set
+the variable per its docs (some versions read
+`GOOGLE_API_BASE_URL`); or use the raw curl form (next section)
+inside a wrapper script.
+
+## Verify
+
+```bash
+curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:generateContent?key=$GEMINI_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"parts": [{"text": "say hi"}]}]
+  }'
+```
+
+Expect a 200 with a `candidates[0].content.parts[0].text` field, plus
+the standard `X-Quota-Remaining-Credits` header.
+
+## Switching models
+
+The model name lives in the URL path:
+
+```
+/v1beta/models/gemini-2-5-pro:generateContent
+/v1beta/models/gemini-2-5-flash:generateContent
+/v1beta/models/gemini-3-1-pro:generateContent
+```
+
+Any model id from your key's group works. See
+[`/v1beta` reference](/api-reference/text/gemini-generate-content)
+for the full request shape.
+
+## Streaming
+
+Switch the method suffix:
+
+```bash
+curl "https://llm.bytespike.ai/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=$GEMINI_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "contents": [{"parts": [{"text": "explain SSE briefly"}]}]
+  }'
+```
+
+SSE stream matches Google's native format —
+`data: {chunk}\n\n` blocks terminated by a final `[DONE]` marker.
+
+## SDKs
+
+Both Google's official Generative AI SDK and most third-party Gemini
+clients accept a `baseUrl` override at client construction:
+
+```python
+import google.generativeai as genai
+genai.configure(
+    api_key="sk-byts-...",
+    transport="rest",
+    client_options={"api_endpoint": "llm.bytespike.ai"}
+)
+model = genai.GenerativeModel("gemini-2-5-pro")
+print(model.generate_content("hello").text)
+```
+
+```ts
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI("sk-byts-...", {
+  baseUrl: "https://llm.bytespike.ai",
+});
+const model = genAI.getGenerativeModel({ model: "gemini-2-5-pro" });
+const result = await model.generateContent("hello");
+console.log(result.response.text());
+```
+
+## Image + video models via Gemini stack
+
+Veo (Google's video model) ships under the Gemini API surface but
+the long-running shape uses ByteSpike's async tasks API instead:
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -d '{
+    "model": "veo-3-1",
+    "params": {"prompt": "...", "duration_seconds": 8}
+  }'
+```
+
+See [`POST /tasks/submit`](/api-reference/utility/tasks-submit) and
+the [Veo 3.1 model page](/models/veo3-1).
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `401 API key not valid` | Wrong key or missing query param | Verify `?key=sk-byts-...` is present and correct |
+| `403 PERMISSION_DENIED` | Model not in key's group | Switch to `gemini-default` group or pick another model |
+| `404 NOT_FOUND` (model) | Model id typo — note dashes-only naming (`gemini-2-5-pro` not `gemini-2-5-pro` in some calling conventions) | Use the slugs from `/api/v1/me/available-models` |
+| Stream cuts after first chunk | Some CLIs default to non-streaming endpoint; check the `:streamGenerateContent` suffix | Switch to `streamGenerateContent` |
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="/v1beta reference" icon="code" href="/api-reference/text/gemini-generate-content">
+    Full request / response / streaming protocol.
+  </Card>
+  <Card title="Gemini provider" icon="google" href="/providers/gemini">
+    Models, quirks, pricing.
+  </Card>
+  <Card title="Claude Code CLI" icon="terminal" href="/claude-code-cli">
+    The Anthropic-native equivalent.
+  </Card>
+  <Card title="Cursor IDE" icon="code-branch" href="/cursor">
+    Editor-level Gemini integration.
+  </Card>
+</CardGroup>

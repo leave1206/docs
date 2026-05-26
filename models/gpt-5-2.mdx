@@ -1,0 +1,113 @@
+---
+title: "gpt-5-2"
+description: "OpenAI's mid-tier GPT-5 with built-in web search and tool-use chaining. Step above 5-4-mini, step below 5-4 — the right pick when you need browsing or longer tool chains but not the flagship reasoning budget."
+---
+
+`gpt-5-2` sits between `gpt-5-4-mini` and `gpt-5-4`. It's the cheapest GPT-5 variant with **built-in web search** and is OpenAI's preferred model for short-to-medium agent loops that need to look something up before answering.
+
+If you don't need browsing, `gpt-5-4-mini` is cheaper for the same quality on closed-book tasks. If you need flagship reasoning headroom, jump to `gpt-5-4`.
+
+## Channels
+
+| Channel | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|
+| **OpenAI** | `api.openai.com` | $1.25 / 1M | $5.00 / 1M | ~600ms | global edge |
+
+ByteSpike routes `gpt-5-2` through the `openai-o2` channel by default. The `openai-o2-replacement-20260502` channel is configured as automatic failover when the primary key rate-limits.
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+| OpenAI Responses | `POST https://llm.bytespike.ai/v1/responses` |
+
+## Quickstart
+
+<CodeGroup>
+
+```bash cURL (with web search)
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-5-2",
+    "messages": [
+      { "role": "user", "content": "What is the current price of Bitcoin in USD?" }
+    ],
+    "tools": [{ "type": "web_search" }]
+  }'
+```
+
+```python Python (Chat Completions)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key=os.environ["BYTESPIKE_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model="gpt-5-2",
+    messages=[
+        {"role": "user", "content": "Summarise today's top three AI headlines."}
+    ],
+    tools=[{"type": "web_search"}],
+)
+
+print(resp.choices[0].message.content)
+```
+
+```typescript TypeScript (Responses API)
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const resp = await client.responses.create({
+  model: "gpt-5-2",
+  input: "Find the cheapest non-stop flight LAX→NRT next Friday.",
+  tools: [{ type: "web_search" }],
+  reasoning: { effort: "medium" },
+})
+
+console.log(resp.output_text)
+```
+
+</CodeGroup>
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Responses API | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision | ✅ |
+| Tool use (function calling) | ✅ parallel |
+| JSON mode | ✅ |
+| Structured outputs (json_schema) | ✅ |
+| Reasoning effort | ✅ (`low` / `medium` / `high`) |
+| Web search (built-in tool) | ✅ |
+| Context window | 256K tokens |
+
+## When to use
+
+- **Short agent loops with one or two browsing hops** — pricing the web, looking up live data, fact-checking a draft. Cheaper than `gpt-5-4` for the same kind of work.
+- **Vision + lightweight reasoning** — captioning, OCR, "what's on this screenshot" questions where you don't need flagship-level analysis.
+- **Mid-volume RAG** — when retrieval is doing the heavy lifting and the LLM is summarising / synthesising.
+
+When **not** to use:
+
+- Code-heavy tasks — [`gpt-5-3-codex`](/models/gpt-5-3-codex) is tuned for Codex CLI's structured-reasoning loop.
+- Hard reasoning that wants `reasoning_effort: "high"` continuously — pay the premium for [`gpt-5-4`](/models/gpt-5-4) or [`gpt-5-5`](/models/gpt-5-5).
+- High-volume classification / routing — [`gpt-5-4-mini`](/models/gpt-5-4-mini) is the right cost tier.
+
+## Next
+
+- [gpt-5-4](/models/gpt-5-4) — production workhorse, no built-in web search but more reasoning
+- [gpt-5-4-mini](/models/gpt-5-4-mini) — cheaper, closed-book
+- [gpt-5-3-codex](/models/gpt-5-3-codex) — Codex CLI's underlying model
+- [Endpoint types](/concepts/endpoints) — Chat Completions vs Responses

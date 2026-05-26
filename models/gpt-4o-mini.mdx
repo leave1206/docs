@@ -1,0 +1,62 @@
+---
+title: "gpt-4o-mini"
+description: "OpenAI's small/fast/cheap GPT-4o — classification, routing, structured extraction at scale. Vision and tools included; the lowest-cost OpenAI option."
+---
+
+`gpt-4o-mini` is the small/fast/cheap GPT — the right default for **anything you'd run at scale** where prompts are short and you value throughput over reasoning depth. At $0.15 / 1M input it is the lowest-cost GPT on ByteSpike.
+
+## Channels
+
+| Channel | Provider | Base URL | Input | Output | Latency p50 | Region |
+|---|---|---|---|---|---|---|
+| **OpenAI** | OpenAI direct | `api.openai.com` | $0.15 / 1M | $0.60 / 1M | ~400ms | global edge |
+
+## Protocols
+
+| Protocol | Path |
+|---|---|
+| OpenAI Chat Completions | `POST https://llm.bytespike.ai/v1/chat/completions` |
+
+## Quickstart
+
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      { "role": "user", "content": "Classify: refund / billing / technical / other.\n\nMy invoice charged twice." }
+    ]
+  }'
+```
+
+## Capabilities
+
+| Capability | Supported |
+|---|---|
+| Chat Completions | ✅ |
+| Streaming (SSE) | ✅ |
+| Vision (image input) | ✅ |
+| Tools / function calling | ✅ |
+| Parallel tools | — |
+| JSON mode | ✅ |
+| Reasoning effort | — |
+| Context window | 128K tokens |
+
+## When to use
+
+- **High-volume classification, routing, triage.** Tickets → categories. Emails → priority. Calls → next-best action.
+- **Structured extraction at scale.** Entity extraction, schema-driven parsing.
+- **Cheap vision OCR.** Receipts, invoices, screenshots at one-sixteenth gpt-4o's price.
+
+When **not** to use:
+
+- Reasoning tasks — go to [gpt-5-4-mini](/models/gpt-5-4-mini) (cheaper than gpt-5-4, still reasoning-capable).
+- Hard QA — Haiku-class models will hallucinate on edge cases; pair with retrieval.
+
+## Next
+
+- [gpt-4o](/models/gpt-4o) — multimodal mid-tier with audio input
+- [gpt-5-4-mini](/models/gpt-5-4-mini) — cheap-with-reasoning alternative
+- [OpenAI provider page](/providers/openai)
