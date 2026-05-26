@@ -1,0 +1,13 @@
+{
+  "name": "@bytespike/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mintlify project source for docs.bytespike.ai. Mirrored on every push to leave1206/docs (see .github/workflows/sync-docs.yml); Mintlify cloud deploys from there. Run `npx mint dev` from this directory for local preview.",
+  "scripts": {
+    "dev": "npx mint dev",
+    "broken-links": "npx mint broken-links"
+  },
+  "dependencies": {
+    "@mintlify/cli": "^4.0.0"
+  }
+}

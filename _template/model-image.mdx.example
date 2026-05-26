@@ -1,0 +1,189 @@
+---
+title: "{/* Display name, e.g. Seedream V4.5 */}"
+description: "{/* One-sentence positioning. What this model excels at, in 12-18 words. */}"
+---
+
+{/* ============================================================
+     Image-generation model template. All image endpoints are sync
+     under /v1/images/generations. Pricing is per-image (or per-image
+     pair if the model returns multiple).
+     ============================================================ */}
+
+**Vendor:** {/* ByteDance / Google / OpenAI */}
+**Model ID:** `{/* canonical slug used in request body, e.g. seedream-v4-5 */}`
+**Capability:** {/* one short tag, e.g. "2048² · refined edges · CJK prompts" */}
+**Pricing:** {/* "$X / image" — link the anchor */}
+([live rate](https://bytespike.ai/pricing#image))
+
+{/* TODO: 1-2 paragraphs explaining what this model is good at. Lead with
+the visual style or use case it owns, not the marketing tagline:
+
+  "Seedream V4.5 is the right call when you need 2048² output with clean
+   edges around text and packaging — V4 softens those, V5lite produces
+   them at the wrong scale."
+
+  "GPT-Image-2 trades aesthetic flair for photorealism. If your brief
+   reads "studio lighting, glass surfaces, anatomical correctness," it
+   reaches further than the Seedream family."
+
+Stay under 80 words. */}
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "prompt": "A koi pond at dusk, ink-wash style, soft purple sky",
+    "size": "{/* 1024x1024 / 2048x2048 / 1024x1536 / etc. */}",
+    "n": 1
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `{/* model_id */}` |
+| `prompt` | string | yes | — | {/* "CJK accepted natively" / "English-only" */} |
+| `size` | string | no | {/* 1024x1024 */} | Supported: {/* list, e.g. "1024x1024, 1024x1536, 1536x1024" */} |
+| `n` | integer | no | 1 | 1–{/* 4 */} images per call. Each billed separately. |
+| `seed` | integer | no | — | Reproducibility. {/* "Supported" / "Not supported" */} |
+| `negative_prompt` | string | no | — | {/* "Standard SD-style negation" / "Not supported" */} |
+| `quality` | string | no | {/* standard */} | {/* e.g. "standard / hd" — delete row if not applicable */} |
+| `style` | string | no | — | {/* delete row if not applicable */} |
+| `image_init` | string | no | — | {/* URL of init image for img2img — delete if not supported */} |
+| `{/* model-specific */} ` | {/* type */} | no | — | {/* e.g. `aspect_ratio` for some Google models */} |
+
+## Response
+
+```json
+{
+  "created": 1715174400,
+  "data": [
+    {
+      "url": "https://cdn.bytespike.ai/img/{/* … */}",
+      "revised_prompt": "{/* model's interpretation of the prompt */}"
+    }
+  ]
+}
+```
+
+Image URLs are pre-signed, valid for **24 hours**. Download and rehost if
+you need long-term storage.
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `created` | integer | Unix timestamp. |
+| `data[].url` | string | Pre-signed CDN URL, 24h expiry. |
+| `data[].revised_prompt` | string | {/* "Always present" / "Only when model rewrites" */} |
+| `data[].b64_json` | string | {/* delete if not supported */} |
+
+Headers always present on every response (success + failure):
+
+```
+X-RateLimit-Limit: {/* USD cap, e.g. 50.00 */}
+X-RateLimit-Remaining: {/* USD remaining, e.g. 42.18 */}
+X-RateLimit-Reset: {/* Unix ts, e.g. 1716705600 */}
+X-Quota-Remaining-Credits: {/* USD lifetime remaining, e.g. 192.40 */}
+```
+
+Per-call cost via [`/api/v1/me/usage`](/api-reference/account/me-usage).
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/images/generations \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "prompt": "A koi pond at dusk, ink-wash style, soft purple sky",
+    "size": "{/* 1024x1024 */}",
+    "n": 1
+  }'
+```
+
+```python Python
+import openai
+
+client = openai.OpenAI(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+response = client.images.generate(
+    model="{/* model_id */}",
+    prompt="A koi pond at dusk, ink-wash style, soft purple sky",
+    size="{/* 1024x1024 */}",
+    n=1,
+)
+
+print(response.data[0].url)
+```
+
+```javascript Node
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const response = await client.images.generate({
+  model: "{/* model_id */}",
+  prompt: "A koi pond at dusk, ink-wash style, soft purple sky",
+  size: "{/* 1024x1024 */}",
+  n: 1,
+})
+
+console.log(response.data[0].url)
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation (size unsupported, prompt empty) | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 413 | Prompt too long | No |
+| 422 | Param not supported by this model | No |
+| 429 | Rate-limited | No |
+| 451 | Prompt blocked by upstream safety filter | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+See [Error Handling](/concepts/error-handling) for the full enum.
+
+## When to use
+
+{/* TODO: 2-4 concrete bullet points. Compare against siblings:
+
+- Reach for <model> when prompt is in Chinese / Japanese / Korean.
+- For 2048² output, see <larger sibling>.
+- For photorealism, see GPT-Image-2 or Nano-Banana Pro.
+- For cheap iteration, see <smaller sibling>.
+
+Bad: "Recommended for image generation." (every image model is)
+*/}
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max output resolution | {/* e.g. 2048x2048 */} |
+| Max images per call (`n`) | {/* e.g. 4 */} |
+| Supports init image (img2img) | {/* Yes / No */} |
+| Supports negative prompt | {/* Yes / No */} |
+| Supports seed reproduction | {/* Yes / No */} |
+| Sync? | Yes (≤30s typical) |
+| Avg latency for 1024² | {/* e.g. 6-8s */} |

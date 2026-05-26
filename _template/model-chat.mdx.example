@@ -1,0 +1,244 @@
+---
+title: "{/* Display name, e.g. GPT-5.5 */}"
+description: "{/* One-sentence positioning. What this model is best at, in 12-18 words. */}"
+---
+
+{/* ============================================================
+     Use this template for every text chat model page.
+     Replace every TODO marker. Keep section headings and
+     order verbatim — parity across model pages is the contract.
+     ============================================================ */}
+
+**Vendor:** {/* OpenAI / Anthropic / Google / DeepSeek / Moonshot / Zhipu / MiniMax */}
+**Model ID:** `{/* canonical slug used in request body, e.g. gpt-5-5 */}`
+**Capability:** {/* one short tag, e.g. "long-context · 200K window · tool use · vision" */}
+**Pricing:** {/* "$X / 1M input · $Y / 1M output" — link the anchor */}
+([live rate](https://bytespike.ai/pricing#text))
+
+{/* TODO: 1-2 paragraphs explaining what this model is good at, when to
+reach for it, and how it compares to its siblings in the same vendor's
+lineup. Concrete, opinionated, second-person. Don't restate the marketing
+tagline. Examples of strong leads:
+
+  "GPT-5.5 is the model you reach for when latency matters less than the
+   model getting the structured output right the first time."
+
+  "Claude Opus 4.7 trades latency for depth. If your prompt fits in 4K
+   tokens of input and you'd be happy with Sonnet, use Sonnet — Opus
+   shines on the long, multi-step prompts where Sonnet starts skipping
+   steps."
+
+Stay under 80 words for the lead block. */}
+
+## Request
+
+```bash
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Hello, who are you?"}
+    ]
+  }'
+```
+
+{/* For OpenAI-protocol models, the equivalent shape is:
+```bash
+curl https://llm.bytespike.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "messages": [{"role": "user", "content": "Hello, who are you?"}]
+  }'
+```
+Pick the protocol that matches the vendor's native shape; both work for
+every model on the gateway.
+*/}
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `{/* model_id */}` |
+| `messages` | array | yes | — | Conversation history. |
+| `max_tokens` | integer | yes | — | Hard cap on response length. Max for this model: {/* 4096 / 8192 / 32768 / etc. */} |
+| `system` | string \| array | no | — | System prompt. Array form supports `cache_control`. |
+| `temperature` | number | no | 1.0 | Range 0.0–1.0. |
+| `top_p` | number | no | 1.0 | Nucleus sampling. |
+| `tools` | array | no | — | {/* "Supported" / "Not supported" / "Beta" */}. |
+| `tool_choice` | object | no | `{"type":"auto"}` | {/* delete row if tools not supported */} |
+| `stream` | boolean | no | false | SSE streaming, see [Streaming](#streaming). |
+| `{/* model-specific */} ` | {/* type */} | no | {/* default */} | {/* e.g. `thinking` for Anthropic reasoning models, `reasoning_effort` for OpenAI o-series */} |
+
+## Response
+
+```json
+{
+  "id": "msg_{/* … */}",
+  "type": "message",
+  "role": "assistant",
+  "model": "{/* model_id */}",
+  "content": [
+    {"type": "text", "text": "{/* example response text */}"}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": {/* N */},
+    "output_tokens": {/* N */}
+  }
+}
+```
+
+### Response fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | ByteSpike-issued message ID. |
+| `model` | string | Echoes the request `model`. |
+| `content` | array | Always at least one block. Text in `{"type": "text", ...}`; tool calls in `{"type": "tool_use", ...}`. |
+| `stop_reason` | string | `end_turn` / `max_tokens` / `tool_use` / `stop_sequence`. |
+| `usage.input_tokens` | integer | Prompt tokens billed. |
+| `usage.output_tokens` | integer | Generated tokens billed. |
+| `usage.cache_read_input_tokens` | integer | {/* delete if model doesn't support cache_control */} |
+
+Headers always present on every response (success + failure):
+
+```
+X-RateLimit-Limit: {/* USD cap, e.g. 50.00 */}
+X-RateLimit-Remaining: {/* USD remaining */}
+X-RateLimit-Reset: {/* Unix ts */}
+X-Quota-Remaining-Credits: {/* USD lifetime remaining */}
+```
+
+Per-call cost via [`/api/v1/me/usage`](/api-reference/account/me-usage).
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://llm.bytespike.ai/v1/messages \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Summarize the first chapter of Moby Dick."}]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://llm.bytespike.ai/v1",
+    api_key="$BYTESPIKE_API_KEY",
+)
+
+message = client.messages.create(
+    model="{/* model_id */}",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Summarize the first chapter of Moby Dick."}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript Node
+import Anthropic from "@anthropic-ai/sdk"
+
+const client = new Anthropic({
+  baseURL: "https://llm.bytespike.ai/v1",
+  apiKey: process.env.BYTESPIKE_API_KEY,
+})
+
+const message = await client.messages.create({
+  model: "{/* model_id */}",
+  max_tokens: 1024,
+  messages: [
+    { role: "user", content: "Summarize the first chapter of Moby Dick." },
+  ],
+})
+
+console.log(message.content[0].text)
+```
+
+</CodeGroup>
+
+## Streaming
+
+Set `"stream": true`. Response is SSE in the standard Anthropic format
+(or OpenAI format if you called `/chat/completions`). The estimated
+credits header ships in the HTTP response before the first event, so you
+can short-circuit a long completion before paying for it. See
+[Streaming](/concepts/streaming) {/* TODO: link to concept page if it exists */} for the full event sequence.
+
+## Cache control
+
+{/* Delete this section if the model doesn't support prompt caching.
+     Otherwise: confirm the cache_read multiplier in the pricing table. */}
+
+`cache_control` blocks reduce cost on repeated prompts. Cache reads are
+billed at the discounted rate visible in the
+[pricing table](https://bytespike.ai/pricing#text) under "cache read".
+
+```json
+{
+  "model": "{/* model_id */}",
+  "system": [
+    {
+      "type": "text",
+      "text": "{/* long static system prompt */}",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [...]
+}
+```
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation failed | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 422 | Param not supported by this model (e.g. `tools` on a non-tool model) | No |
+| 429 | Rate-limited at the gateway tier | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+Error envelope follows the protocol you called — Anthropic shape on `/v1/messages`, OpenAI shape on `/v1/chat/completions`. See [Errors reference](/concepts/errors-reference) for the full status + code matrix.
+
+## When to use
+
+{/* TODO: 2-4 bullet points. Be concrete and comparative.
+
+Good:
+- Reach for <model> when your prompt is in Chinese / Japanese / Korean.
+- For latency under 500ms, see <sibling model>.
+- For longer context, see <vendor's larger model>.
+
+Bad:
+- "Best-in-class performance for general tasks." (vague)
+- "Recommended for chat applications." (every chat model is)
+*/}
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Context window | {/* e.g. 200K tokens */} |
+| Max output | {/* e.g. 8192 tokens */} |
+| Supports tool use | {/* Yes / No / Beta */} |
+| Supports vision | {/* Yes / No */} |
+| Supports streaming | Yes |
+| Supports prompt caching | {/* Yes / No */} |

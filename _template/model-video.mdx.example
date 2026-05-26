@@ -1,0 +1,254 @@
+---
+title: "{/* Display name, e.g. Sora 2 Pro */}"
+description: "{/* One-sentence positioning. What this model excels at, in 12-18 words. */}"
+---
+
+{/* ============================================================
+     Video-generation model template. All video models are async.
+     Submit returns task_id + estimated_credits. Poll tasks/query
+     until status=completed. Cancellation during queued is free;
+     during running is partial-billed.
+     ============================================================ */}
+
+**Vendor:** {/* OpenAI / Google / ByteDance */}
+**Model ID:** `{/* canonical slug, e.g. sora-2-pro */}`
+**Capability:** {/* one short tag, e.g. "1080p · up to 10s · text + image init" */}
+**Pricing:** {/* "$X per second + $Y submit fee" — link the anchor */}
+([live rate](https://bytespike.ai/pricing#video))
+
+{/* TODO: 1-2 paragraphs explaining what this model is good at. Lead
+with the kind of clip it produces best:
+
+  "Sora 2 Pro is the right call when 1080p matters and you can wait
+   90-180 seconds. For social-aspect (9:16) at half the latency, see
+   Veo 3.1 Fast."
+
+  "Seedance 1.5 Pro is the most cost-efficient way to get coherent
+   character motion. Pricing is roughly half of Sora 2 at slightly
+   shorter max duration."
+
+Stay under 80 words. */}
+
+## Submit a task
+
+```bash
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "prompt": "A drone shot tracking a yellow cab through Times Square at golden hour.",
+    "duration_seconds": 5,
+    "resolution": "{/* 720p / 1080p */}"
+  }'
+```
+
+### Body parameters
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `model` | string | yes | — | `{/* model_id */}` |
+| `prompt` | string | yes | — | Text prompt. {/* "CJK accepted" / "English-only" */} |
+| `duration_seconds` | integer | yes | — | Range: {/* 1-10 */}. Each second billed at {/* $X/s */}. |
+| `resolution` | string | no | {/* 720p */} | Supported: {/* "720p, 1080p" */} |
+| `aspect_ratio` | string | no | `16:9` | Supported: {/* "16:9, 9:16, 1:1" */} |
+| `seed` | integer | no | — | Reproducibility. |
+| `image_init` | string | no | — | {/* URL of init image for image-to-video — delete if not supported */} |
+| `motion_intensity` | string | no | {/* medium */} | {/* e.g. "low / medium / high" — delete if not applicable */} |
+| `{/* model-specific */} ` | {/* type */} | no | — | {/* e.g. `style_preset` for some models */} |
+
+### Submit response
+
+```json
+{
+  "task_id": "task_{/* … */}",
+  "status": "queued",
+  "estimated_credits": {/* e.g. 0.42 */},
+  "submitted_at": "{/* ISO-8601 */}"
+}
+```
+
+The estimated credits land **before** any GPU work starts — call
+[`tasks/cancel`](/api-reference/utility/tasks-cancel) before status flips
+to `running` for a free abort. After `running`, partial seconds are
+billed.
+
+## Poll for completion
+
+```bash
+curl "https://llm.bytespike.ai/v1/tasks/query?task_id=task_{/* … */}" \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+### Status transitions
+
+```
+queued → running → completed   (happy path)
+queued → cancelled             (free, cancel before running)
+queued → running → cancelled   (partial-billed, partial result)
+queued → running → failed      (free, see error envelope)
+```
+
+### Completed response
+
+```json
+{
+  "task_id": "task_{/* … */}",
+  "status": "completed",
+  "result": {
+    "video_url": "https://cdn.bytespike.ai/vid/{/* … */}",
+    "duration_seconds": 5,
+    "resolution": "{/* 1080p */}",
+    "aspect_ratio": "16:9"
+  },
+  "credits": {/* e.g. 0.42 */},
+  "completed_at": "{/* ISO-8601 */}"
+}
+```
+
+Video URLs are pre-signed, valid for **24 hours**. Download and rehost
+if you need long-term storage.
+
+### Recommended polling cadence
+
+| Phase | Cadence |
+|---|---|
+| First 60s | Every 2s |
+| 60s – 180s | Every 5s |
+| Past 180s | Every 10s |
+
+The query endpoint is **free**.
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL
+# Submit
+curl https://llm.bytespike.ai/v1/tasks/submit \
+  -H "x-api-key: $BYTESPIKE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "{/* model_id */}",
+    "prompt": "A drone shot tracking a yellow cab through Times Square at golden hour.",
+    "duration_seconds": 5,
+    "resolution": "{/* 1080p */}"
+  }'
+
+# Poll
+curl "https://llm.bytespike.ai/v1/tasks/query?task_id=task_{/* … */}" \
+  -H "x-api-key: $BYTESPIKE_API_KEY"
+```
+
+```python Python
+import time
+import requests
+
+API = "https://llm.bytespike.ai/v1"
+HEADERS = {"x-api-key": "$BYTESPIKE_API_KEY"}
+
+# 1. Submit
+submit = requests.post(
+    f"{API}/tasks/submit",
+    headers=HEADERS,
+    json={
+        "model": "{/* model_id */}",
+        "prompt": "A drone shot tracking a yellow cab through Times Square at golden hour.",
+        "duration_seconds": 5,
+        "resolution": "{/* 1080p */}",
+    },
+).json()
+task_id = submit["task_id"]
+
+# 2. Poll
+while True:
+    r = requests.get(f"{API}/tasks/query", params={"task_id": task_id}, headers=HEADERS).json()
+    if r["status"] == "completed":
+        print(r["result"]["video_url"])
+        break
+    if r["status"] in ("failed", "cancelled"):
+        raise RuntimeError(r)
+    time.sleep(2)
+```
+
+```javascript Node
+const API = "https://llm.bytespike.ai/v1"
+const headers = {
+  "x-api-key": process.env.BYTESPIKE_API_KEY,
+  "content-type": "application/json",
+}
+
+// 1. Submit
+const submitRes = await fetch(`${API}/tasks/submit`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    model: "{/* model_id */}",
+    prompt:
+      "A drone shot tracking a yellow cab through Times Square at golden hour.",
+    duration_seconds: 5,
+    resolution: "{/* 1080p */}",
+  }),
+})
+const { task_id } = await submitRes.json()
+
+// 2. Poll
+while (true) {
+  const r = await fetch(`${API}/tasks/query?task_id=${task_id}`, { headers })
+  const body = await r.json()
+  if (body.status === "completed") {
+    console.log(body.result.video_url)
+    break
+  }
+  if (body.status === "failed" || body.status === "cancelled") {
+    throw new Error(JSON.stringify(body))
+  }
+  await new Promise((r) => setTimeout(r, 2000))
+}
+```
+
+</CodeGroup>
+
+## Errors
+
+| Code | Trigger | Billed? |
+|---|---|---|
+| 400 | Body validation (duration out of range, resolution unsupported) | No |
+| 401 | Missing / revoked key | No |
+| 402 | Wallet exhausted (estimated credits exceed balance) | No |
+| 403 | Scope denied / IP not allowlisted | No |
+| 413 | Prompt or init image too large | No |
+| 422 | Param not supported by this model | No |
+| 429 | Rate-limited | No |
+| 451 | Prompt blocked by upstream safety filter | No |
+| 5xx | Upstream provider issue | No (auto-retry envelope) |
+
+The only billable failure: cancelling a task after it transitions to
+`running`. Partial GPU seconds rendered are charged. Cancel during
+`queued` to abort for free.
+
+See [Error Handling](/concepts/error-handling) for the full enum.
+
+## When to use
+
+{/* TODO: 2-4 concrete bullet points. Compare against siblings:
+
+- Reach for <model> when 1080p is non-negotiable.
+- For 9:16 (vertical / short-form), see <sibling>.
+- For ~30s turnaround at lower fidelity, see <fast variant>.
+- For photorealism over stylization, see <other vendor>.
+
+Bad: "Recommended for video generation." (every video model is)
+*/}
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Max duration | {/* e.g. 10s */} |
+| Min duration | {/* e.g. 1s */} |
+| Resolutions | {/* e.g. 720p, 1080p */} |
+| Aspect ratios | {/* e.g. 16:9, 9:16, 1:1 */} |
+| Supports image init (img2vid) | {/* Yes / No */} |
+| Typical latency for 5s clip | {/* e.g. 90-120s */} |
+| Async via tasks API | Yes |
