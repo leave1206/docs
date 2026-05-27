@@ -4,9 +4,9 @@ description: "一个 key、一个 base URL、所有模型 —— 默认兼容 An
 ---
 
 ByteSpike 是一个多模型网关，原生协议是 **Anthropic Messages**，同时透明兼容
-**OpenAI Chat Completions** 和 **OpenAI Responses**。一个 key 即可访问 text、
-image、video、embedding、rerank 全部端点 —— 计费用透明的 credits，无需为各家
-厂商单独对接 SKU。
+**OpenAI Chat Completions**、**OpenAI Responses** 和 **Gemini Native**。
+一个 key 即可访问 text、image、video 全部端点 —— 计费用透明的 credits，无需
+为各家厂商单独对接 SKU。
 
 <CardGroup cols={2}>
   <Card title="快速开始" icon="rocket" href="/zh/quickstart">
@@ -26,7 +26,7 @@ image、video、embedding、rerank 全部端点 —— 计费用透明的 credit
 ## 为什么选 ByteSpike
 
 - **默认兼容 Anthropic 协议** —— 你的 `tool_use`、`cache_control`、`thinking` 块都能直接用。同一套 SDK、同一套重试语义，覆盖所有模型。
-- **一个 key 跑通多模态** —— image、video、text、embedding、rerank 全在一起，无需自己拼装多家厂商的账单。
+- **一个 key 跑通多模态** —— text、image、video 全在一起，无需自己拼装多家厂商的账单。
 - **失败不计费** —— 所有非 2xx 响应免费。响应头会回传估算 credits，让你在向用户确认之前就能预览成本。
 - **逐 key 控制** —— 每个 API key 都有自己的配额（USD）、速率限制窗口（5h / 1d / 7d）、IP 白名单/黑名单，可选过期时间。组织钱包跨 key 汇总结算。
 

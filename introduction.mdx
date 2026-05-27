@@ -4,9 +4,9 @@ description: "One key, one base URL, every model — Anthropic-compatible by def
 ---
 
 ByteSpike is a multi-model gateway that speaks **Anthropic Messages** as its
-native protocol, with **OpenAI Chat Completions** and **OpenAI Responses**
-shimmed transparently. Behind one key you get text, image, video, embedding,
-and rerank endpoints — billed in transparent credits, not per-vendor SKUs.
+native protocol, with **OpenAI Chat Completions**, **OpenAI Responses**, and
+**Gemini Native** shimmed transparently. Behind one key you get text, image,
+and video endpoints — billed in transparent credits, not per-vendor SKUs.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
@@ -26,7 +26,7 @@ and rerank endpoints — billed in transparent credits, not per-vendor SKUs.
 ## Why ByteSpike
 
 - **Anthropic-compatible by default** — keep your `tool_use`, `cache_control`, and `thinking` blocks. Same SDK, same retry semantics, every model.
-- **Multimodal under one key** — image, video, text, embedding, rerank — no per-vendor billing surface to assemble.
+- **Multimodal under one key** — text, image, video — no per-vendor billing surface to assemble.
 - **Failures don't bill** — every non-2xx is free. Estimated credits ship in the response header so you can preview cost before user confirmation.
 - **Per-key controls** — every API key carries its own quota (USD), rate-limit buckets (5h / 1d / 7d), IP allowlist/denylist, and optional expiry. Org wallets roll up across keys.
 
